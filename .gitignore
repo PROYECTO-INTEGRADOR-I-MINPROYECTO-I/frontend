@@ -10,6 +10,10 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+
+# Overrides locales de variables de entorno (no versionar).
+# Los .env.development / .env.qa / .env.production SÍ se versionan.
+.env.local
 *.local
 
 # Editor directories and files
