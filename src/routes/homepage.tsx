@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import calendarIcon from "../assets/calendar-icon.svg";
 import { ChevronDown } from 'lucide-react';
 import helpRing from "../assets/help-ring.svg";
@@ -15,6 +16,12 @@ function SunIcon() {
 }
 
 export function HomePage() {
+    
+    const navigate = useNavigate();
+    const goToLogin = () => {
+    navigate("/login")
+    };
+
   const [activeFilter, setActiveFilter] = useState("Todos");
 
   return (
@@ -39,9 +46,8 @@ export function HomePage() {
       <section className="planner-intro" aria-labelledby="today-heading">
         <div className="intro-row">
           <h1 id="today-heading">Hoy <SunIcon /></h1>
-          <button className="event-button" type="button">
-            Nuevo Evento <ChevronDown size={20} color="#000" />
-            
+          <button className="event-button inline-flex items-center justify-center gap-2" type="button">
+            Nuevo Evento <ChevronDown size={20} color="#ffff" />
           </button>
         </div>
 
@@ -66,7 +72,7 @@ export function HomePage() {
         <TaskColumn title="Para Hoy" countClass="count--red" count="0">
           <div className="empty-state">
             <p>Aún no tienes tareas<br />¡Crea una nueva!</p>
-            <button className="create-task-button" type="button">
+            <button className="create-task-button" type="button" onClick={goToLogin}>
               Crear Tarea <span aria-hidden="true">＋</span>
             </button>
           </div>
