@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: planificapp-web-dev
+    runtime: static
+    branch: develop
+    buildCommand: npm ci && npm run build -- --mode dev
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: planificapp-web-qa
+    runtime: static
+    branch: qa
+    buildCommand: npm ci && npm run build -- --mode qa
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    name: planificapp-web-prod
+    runtime: static
+    branch: main
+    buildCommand: npm ci && npm run build -- --mode production
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

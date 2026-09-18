@@ -1,32 +1,50 @@
-# React + TypeScript + Vite
+# PlanificApp — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Interfaz de PlanificApp. React 19 + TypeScript + Vite + Tailwind CSS 4, con componentes shadcn/ui.
 
-Currently, two official plugins are available:
+## Arranque rápido
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Queda en http://localhost:5173. Requiere el backend corriendo en el puerto 8000; el proxy de Vite se encarga del resto.
+
+## Scripts
+
+| Comando | Qué hace |
+|---|---|
+| `npm run dev` | Servidor de desarrollo con HMR |
+| `npm run build` | Build de producción |
+| `npm run build:qa` | Build del ambiente qa |
+| `npm run build:dev` | Build del ambiente dev |
+| `npm run preview` | Sirve el build de producción en local |
+| `npm run lint` | Oxlint |
+
+## Estructura
+
+```
+src/
+  components/      Componentes de la aplicación
+    ui/            Componentes base (shadcn/ui)
+  hooks/           Hooks con la lógica de formularios y llamadas
+  lib/
+    api.ts         Cliente HTTP único hacia el backend
+    utils.ts       Utilidades (cn)
+  routes/          Pantallas
+```
+
+## Llamadas al backend
+
+Todas pasan por `src/lib/api.ts`. No escribir URLs de backend a mano en los componentes: cada ambiente apunta a un dominio distinto y se resuelve por variables de entorno.
+
+```ts
+import { apiFetch } from "@/lib/api";
+
+const eventos = await apiFetch<Evento[]>("/eventos/");
+```
+
+## Despliegue
+
+Tres ambientes (dev, qa, prod) en Render. El detalle completo —variables de entorno, modos de build y configuración de los sitios— está en [DEPLOYMENT.md](./DEPLOYMENT.md).
