@@ -16,16 +16,16 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-500 px-0">
+    <div className="min-h-screen flex items-center justify-center bg-[#f7f5f2] px-0">
       <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-6">
         
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Welcome back
+            ¡Bienvenido!
           </h1>
           <p className="text-sm text-slate-500">
-            Please enter your details to sign in
+            Por favor ingresa tus credenciales.
           </p>
         </div>
 
@@ -33,7 +33,7 @@ export function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Email address
+              Correo electrónico
             </label>
             <input
               type="email"
@@ -41,20 +41,20 @@ export function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#8b1a1a] focus:border-transparent transition-all"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-slate-700">
-                Password
+                Contraseña
               </label>
               <Link
                 to="/forgot-password"
                 className="text-xs text-blue-600 hover:text-blue-500 font-medium"
               >
-                Forgot password?
+                ¿Olvidaste tu contraseña?
               </Link>
             </div>
             <input
@@ -63,26 +63,26 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#8b1a1a] focus:border-transparent transition-all"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="w-full bg-[#8b1a1a] hover:bg-[#5c1717] text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#8b1a1a] focus:ring-offset-2"
           >
-            Sign in
+            Iniciar Sesión
           </button>
         </form>
 
         {/* Footer Link */}
         <p className="text-center text-xs text-slate-500">
-          Don't have an account?{" "}
+          ¿No tienes una cuenta?{" "}
           <Link
             to="/register"
             className="text-blue-600 hover:text-blue-500 font-medium"
           >
-            Sign up
+            Regístrate
           </Link>
         </p>
 
