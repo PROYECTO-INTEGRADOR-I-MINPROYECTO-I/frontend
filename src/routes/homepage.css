@@ -80,6 +80,7 @@
 .intro-row { justify-content: space-between; }
 .intro-row h1 { margin: 0; font-size: 32px; font-weight: 400; letter-spacing: -0.6px; }
 .sun-icon { display: inline-flex; align-items: center; margin-left: 5px; vertical-align: -4px; color: var(--ink); }
+.intro-actions { display: flex; align-items: center; gap: 12px; }
 
 .event-button,
 .create-task-button,
@@ -119,8 +120,7 @@
 .task-count { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
 .count--blue { background: #eff6ff; color: #1447e6; }
 .count--red { background: #fff0f0; color: var(--wine); }
-.column-body { min-height: 460px; }
-.task-column--today .column-body { display: grid; place-items: center; }
+.column-body { min-height: 460px; display: flex; flex-direction: column; }
 
 .clock-icon { position: relative; display: inline-block; width: 13px; height: 13px; border: 2px solid #9ca3af; border-radius: 50%; }
 .clock-icon::before { content: ""; position: absolute; left: 5px; top: 2px; width: 1px; height: 4px; background: #9ca3af; }
@@ -128,9 +128,27 @@
 .clock-icon--muted { border-color: #e99b9b; }
 .clock-icon--muted::before, .clock-icon--muted::after { background: #e99b9b; }
 
+.column-empty-wrap { display: grid; place-items: center; flex: 1; min-height: 420px; }
 .empty-state { display: grid; justify-items: center; gap: 20px; transform: translateY(-5px); }
 .empty-state p { margin: 0; color: var(--muted); font-size: 30px; line-height: 1.16; text-align: center; }
 .create-task-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 208px; height: 46px; border-radius: 999px; background: var(--wine); color: #fff; font-size: 22px; }
+.create-task-button--compact { width: auto; height: 34px; padding: 0 16px; font-size: 14px; gap: 6px; }
+
+.column-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.column-empty-hint { margin: 0; padding: 12px 0; color: var(--muted); font-size: 12px; }
+
+.today-panels { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.today-panel { display: flex; flex-direction: column; width: 100%; background: #fff; border: 0.635px solid #f3f4f6; border-radius: 12px; overflow: hidden; }
+.today-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 12px; border-bottom: 0.635px solid #f3f4f6; }
+.today-panel-title { display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: #4a5565; }
+.today-panel-dot { width: 8px; height: 8px; border-radius: 999px; }
+.today-panel-count { padding: 2px 8px; border-radius: 999px; font-size: 11px; }
+.today-panel-body { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+
+.subtasks-status { margin: 0; padding: 24px 32px; color: var(--muted); font-size: 14px; text-align: center; }
+.subtasks-status--error { color: var(--wine); }
+.subtasks-status--error p { margin: 0 0 8px; }
+.subtasks-status button { border: none; background: none; color: var(--wine); text-decoration: underline; cursor: pointer; font: inherit; }
 
 .help-button { position: fixed; right: 14px; bottom: 10px; width: 58px; height: 58px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .help-button img { width: 58px; height: 58px; }
@@ -167,6 +185,12 @@
   .brand-mark img { width: 18px; height: 18px; }
   .date-label { display: none; }
   .planner-intro { padding: 24px 18px 20px; }
+  /* En pantallas angostas las acciones bajan a su propia fila para que
+     "Hoy" y los botones no se partan en varias líneas. */
+  .intro-row { flex-wrap: wrap; row-gap: 12px; }
+  .intro-row h1 { white-space: nowrap; }
+  .intro-actions { width: 100%; justify-content: flex-end; }
+  .intro-actions button { white-space: nowrap; }
   .task-columns { grid-template-columns: 1fr; gap: 18px; padding: 0 18px 24px; }
   .task-column { min-height: 120px; }
   .column-body { min-height: 70px; }

@@ -15,11 +15,25 @@ interface EventMenuProps {
   /** Evento recién creado desde el modal: se agrega al listado y se selecciona. */
   newEvent?: Event | null;
   onNewEventConsumed?: () => void;
+  /**
+   * HomePage necesita el evento seleccionado completo (para comparar contra
+   * `due_date` en el formulario de gestiones, PIM1-27) y este es el único
+   * lugar que pide GET /eventos/: en vez de duplicar el fetch, se sube el
+   * listado cada vez que cambia.
+   */
+  onEventsLoaded?: (events: Event[]) => void;
 }
 
 type Status = "loading" | "ready" | "error";
 
-export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, onNewEventConsumed }: EventMenuProps) {
+export function EventMenu({
+  selectedEventId,
+  onSelect,
+  onCreateNew,
+  newEvent,
+  onNewEventConsumed,
+  onEventsLoaded,
+}: EventMenuProps) {
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [status, setStatus] = useState<Status>("loading");
@@ -29,6 +43,18 @@ export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, on
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<Array<HTMLElement | null>>([]);
+
+  // onEventsLoaded casi nunca llega memoizado desde HomePage. Se guarda en un
+  // ref (mismo patrón que onCloseRef en modal.tsx) para que el efecto de abajo
+  // solo dependa de `events` y no se repita en cada render del padre.
+  const onEventsLoadedRef = useRef(onEventsLoaded);
+  useEffect(() => {
+    onEventsLoadedRef.current = onEventsLoaded;
+  }, [onEventsLoaded]);
+
+  useEffect(() => {
+    onEventsLoadedRef.current?.(events);
+  }, [events]);
 
   async function load() {
     setStatus("loading");

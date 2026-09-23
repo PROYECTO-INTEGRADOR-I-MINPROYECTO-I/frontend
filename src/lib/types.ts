@@ -45,3 +45,50 @@ export interface EventType {
   id: number | string;
   name: string;
 }
+
+/** Prioridad de una gestión (subtarea). Contrato real del backend (modelo Subtasks). */
+export type Priority = "low" | "medium" | "high" | "urgent";
+
+/**
+ * Estado de una gestión. El backend admite "postponed" en el modelo, pero
+ * este ticket (PIM1-27) solo crea gestiones en "pending" y las lee tal cual
+ * vengan; no hay flujo de UI todavía para posponerlas.
+ */
+export type SubtaskStatus = "pending" | "done" | "postponed";
+
+/**
+ * Categoría de una gestión. El endpoint GET/POST /categorias/ (con id) todavía
+ * no existe en el backend (hoy responde 404): mientras tanto `category` en
+ * Subtask es texto libre y este tipo solo describe el shape que tendría la
+ * respuesta cuando el endpoint exista de verdad.
+ */
+export interface Category {
+  id: number | string;
+  name: string;
+}
+
+/** Gestión (subtarea) tal como la devuelve el backend (GET/POST /eventos/<eid>/subtareas/). */
+export interface Subtask {
+  subtask_id: number;
+  eid: number;
+  title: string;
+  description: string;
+  category: string;
+  /** Decimal como string, tal como lo manda DRF (ej. "2.5"). */
+  estimated_hours: string;
+  /** "YYYY-MM-DD", sin hora. */
+  scheduled_date: string;
+  status: SubtaskStatus;
+  priority: Priority;
+}
+
+/** Payload para crear una gestión (POST /eventos/<eid>/subtareas/). */
+export interface CreateSubtaskPayload {
+  title: string;
+  description: string;
+  category: string;
+  estimated_hours: string;
+  scheduled_date: string;
+  status: SubtaskStatus;
+  priority: Priority;
+}

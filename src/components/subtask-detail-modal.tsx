@@ -1,0 +1,78 @@
+// Modal de detalle de una gestión, solo lectura (PIM1-27, ver detalle.png).
+// Editar (PIM1-31) y Completar (US-09) no van en este ticket: el pie solo
+// tiene "Cerrar".
+
+import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
+import {
+  categoryChipStyle,
+  PRIORITY_BADGE_STYLES,
+  PRIORITY_LABELS,
+  subtaskTimeStatus,
+  TIME_STATUS_LABELS,
+  TIME_STATUS_STYLES,
+} from "../lib/subtask-display";
+import type { Subtask } from "../lib/types";
+import { Modal } from "./modal";
+
+interface SubtaskDetailModalProps {
+  subtask: Subtask;
+  onClose: () => void;
+}
+
+export function SubtaskDetailModal({ subtask, onClose }: SubtaskDetailModalProps) {
+  const timeStatus = subtaskTimeStatus(subtask.status, subtask.scheduled_date, todayLocalDateString());
+  const timeStatusStyle = TIME_STATUS_STYLES[timeStatus];
+  const categoryStyle = categoryChipStyle(subtask.category);
+  const priorityStyle = PRIORITY_BADGE_STYLES[subtask.priority];
+  const hours = Number(subtask.estimated_hours);
+  const hoursLabel = Number.isFinite(hours) ? `${hours} h` : `${subtask.estimated_hours} h`;
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={subtask.title}
+      chips={[
+        { label: TIME_STATUS_LABELS[timeStatus], style: { backgroundColor: timeStatusStyle.bg, color: timeStatusStyle.text } },
+        { label: subtask.category, style: { backgroundColor: categoryStyle.bg, color: categoryStyle.text } },
+      ]}
+      footer={
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a]"
+        >
+          Cerrar
+        </button>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1">
+            <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Fecha</span>
+            <span className="font-source text-[14px] text-[#1e2939]">{formatShortDateEs(subtask.scheduled_date)}</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Horas estimadas</span>
+            <span className="font-source text-[14px] text-[#1e2939]">{hoursLabel}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
+          <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Descripción</span>
+          <p className="font-source text-[14px] leading-[22.75px] text-[#1e2939]">
+            {subtask.description || "Sin descripción."}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
+          <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Prioridad</span>
+          <span className="flex items-center gap-2 font-source text-[14px] text-[#1e2939]">
+            <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: priorityStyle.dot }} />
+            {PRIORITY_LABELS[subtask.priority]}
+          </span>
+        </div>
+      </div>
+    </Modal>
+  );
+}
