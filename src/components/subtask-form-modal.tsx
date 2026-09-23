@@ -9,7 +9,7 @@ import { apiFetch, ApiError } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
 import { isoDateTimeToLocalDateString } from "../lib/dates";
 import { PRIORITY_LABELS } from "../lib/subtask-display";
-import type { Category, CreateSubtaskPayload, Priority, Subtask } from "../lib/types";
+import type { Category, CreateSubtaskPayload, Priority, Subtask, UpdateSubtaskPayload } from "../lib/types";
 import { Modal } from "./modal";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { cn } from "../lib/utils";
@@ -19,8 +19,11 @@ interface SubtaskFormModalProps {
   eventName: string;
   /** `Event.due_date` (ISO datetime, no solo fecha) para el aviso de "posterior al evento". */
   eventDueDate?: string;
+  /** Presente en modo edición: precarga el formulario y hace PATCH en vez de POST. */
+  initialValues?: Subtask;
   onClose: () => void;
-  onCreated: (subtask: Subtask, warnings?: string[]) => void;
+  onCreated?: (subtask: Subtask, warnings?: string[]) => void;
+  onUpdated?: (subtask: Subtask) => void;
 }
 
 interface SubtaskFormValues {
@@ -82,7 +85,44 @@ function remapSubtaskErrorFields(error: unknown): unknown {
   return new ApiError(error.message, error.status, error.code, fields);
 }
 
-export function SubtaskFormModal({ eventId, eventName, eventDueDate, onClose, onCreated }: SubtaskFormModalProps) {
+function subtaskFormDefaultValues(subtask?: Subtask): SubtaskFormValues {
+  if (!subtask) return EMPTY_VALUES;
+  return {
+    title: subtask.title,
+    categoryId: subtask.category,
+    scheduled_date: subtask.scheduled_date,
+    estimated_hours: subtask.estimated_hours,
+    priority: subtask.priority,
+    description: subtask.description,
+  };
+}
+
+// Solo los campos que cambiaron (dirtyFields de react-hook-form).
+function buildSubtaskUpdatePayload(
+  values: SubtaskFormValues,
+  dirtyFields: Partial<Record<keyof SubtaskFormValues, boolean>>
+): UpdateSubtaskPayload {
+  const payload: UpdateSubtaskPayload = {};
+  if (dirtyFields.title) payload.title = values.title.trim();
+  if (dirtyFields.description) payload.description = values.description.trim();
+  if (dirtyFields.categoryId) payload.category = values.categoryId;
+  if (dirtyFields.estimated_hours) payload.estimated_hours = String(Number(values.estimated_hours));
+  if (dirtyFields.scheduled_date) payload.scheduled_date = values.scheduled_date;
+  if (dirtyFields.priority) payload.priority = values.priority;
+  return payload;
+}
+
+export function SubtaskFormModal({
+  eventId,
+  eventName,
+  eventDueDate,
+  initialValues,
+  onClose,
+  onCreated,
+  onUpdated,
+}: SubtaskFormModalProps) {
+  const mode = initialValues ? "edit" : "create";
+
   const [categories, setCategories] = useState<SelectOption[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [apiError, setApiError] = useState<ApiError | null>(null);
@@ -92,17 +132,34 @@ export function SubtaskFormModal({ eventId, eventName, eventDueDate, onClose, on
     control,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitting, isDirty },
-  } = useForm<SubtaskFormValues>({ mode: "onBlur", shouldFocusError: true, defaultValues: EMPTY_VALUES });
+    formState: { errors, isSubmitting, isDirty, dirtyFields },
+  } = useForm<SubtaskFormValues>({
+    mode: "onBlur",
+    shouldFocusError: true,
+    defaultValues: subtaskFormDefaultValues(initialValues),
+  });
+
+  // Igual que con el tipo de evento: si la categoría de la gestión editada no
+  // vino en el listado (por ejemplo texto libre creado en otra sesión), se
+  // agrega como opción. Acá sí se conoce el nombre real (category es texto
+  // libre y coincide con su propio id).
+  function withCurrentCategory(list: SelectOption[]): SelectOption[] {
+    if (!initialValues) return list;
+    const exists = list.some((category) => category.id === initialValues.category);
+    if (exists) return list;
+    return [...list, { id: initialValues.category, name: initialValues.category }];
+  }
 
   useEffect(() => {
     let cancelled = false;
     apiFetch<Category[]>("/categorias/")
       .then((data) => {
-        if (!cancelled) setCategories(data.map((category) => ({ id: category.id, name: category.name })));
+        if (!cancelled) {
+          setCategories(withCurrentCategory(data.map((category) => ({ id: category.id, name: category.name }))));
+        }
       })
       .catch(() => {
-        if (!cancelled) setCategories(CATEGORY_FALLBACKS);
+        if (!cancelled) setCategories(withCurrentCategory(CATEGORY_FALLBACKS));
       })
       .finally(() => {
         if (!cancelled) setCategoriesLoading(false);
@@ -111,6 +168,7 @@ export function SubtaskFormModal({ eventId, eventName, eventDueDate, onClose, on
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialValues es estable durante la vida del modal (remonta con key en cada apertura).
   }, []);
 
   async function createCategory(name: string): Promise<SelectOption> {
@@ -139,6 +197,35 @@ export function SubtaskFormModal({ eventId, eventName, eventDueDate, onClose, on
 
   async function submit(values: SubtaskFormValues) {
     setApiError(null);
+
+    if (mode === "edit" && initialValues) {
+      if (!isDirty) {
+        onClose();
+        return;
+      }
+      const payload = buildSubtaskUpdatePayload(values, dirtyFields);
+      if (Object.keys(payload).length === 0) {
+        onClose();
+        return;
+      }
+      try {
+        const updated = await apiFetch<Subtask>(`/subtareas/${initialValues.subtask_id}/`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        onUpdated?.(updated);
+      } catch (err) {
+        const remapped = remapSubtaskErrorFields(err);
+        const painted = applyFieldErrors(remapped, setError, KNOWN_FIELDS);
+        if (!painted) {
+          setApiError(
+            err instanceof ApiError ? err : new ApiError("Ocurrió un error inesperado. Intenta de nuevo.", 0, "UNKNOWN")
+          );
+        }
+      }
+      return;
+    }
+
     const payload: CreateSubtaskPayload = {
       title: values.title.trim(),
       description: values.description.trim(),
@@ -155,7 +242,7 @@ export function SubtaskFormModal({ eventId, eventName, eventDueDate, onClose, on
         body: JSON.stringify(payload),
       });
       const { warnings, ...subtask } = created;
-      onCreated(subtask, warnings);
+      onCreated?.(subtask, warnings);
     } catch (err) {
       const remapped = remapSubtaskErrorFields(err);
       const painted = applyFieldErrors(remapped, setError, KNOWN_FIELDS);
@@ -183,7 +270,7 @@ export function SubtaskFormModal({ eventId, eventName, eventDueDate, onClose, on
     <Modal
       open
       onClose={handleClose}
-      title="Nueva gestión"
+      title={mode === "edit" ? "Editar gestión" : "Nueva gestión"}
       chips={[{ label: eventName }]}
     >
       <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">

@@ -1,6 +1,6 @@
-// Modal de detalle de una gestión, solo lectura (PIM1-27, ver detalle.png).
-// Editar (PIM1-31) y Completar (US-09) no van en este ticket: el pie solo
-// tiene "Cerrar".
+// Modal de detalle de una gestión, solo lectura (PIM1-27, luego PIM1-31
+// añade Editar y Eliminar). Completar (US-09) no va en este ticket: el pie
+// solo tiene "Editar", como en detalle.png.
 
 import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
 import {
@@ -17,9 +17,11 @@ import { Modal } from "./modal";
 interface SubtaskDetailModalProps {
   subtask: Subtask;
   onClose: () => void;
+  onEdit: (subtask: Subtask) => void;
+  onDelete: (subtask: Subtask) => void;
 }
 
-export function SubtaskDetailModal({ subtask, onClose }: SubtaskDetailModalProps) {
+export function SubtaskDetailModal({ subtask, onClose, onEdit, onDelete }: SubtaskDetailModalProps) {
   const timeStatus = subtaskTimeStatus(subtask.status, subtask.scheduled_date, todayLocalDateString());
   const timeStatusStyle = TIME_STATUS_STYLES[timeStatus];
   const categoryStyle = categoryChipStyle(subtask.category);
@@ -39,10 +41,10 @@ export function SubtaskDetailModal({ subtask, onClose }: SubtaskDetailModalProps
       footer={
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => onEdit(subtask)}
           className="flex-1 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a]"
         >
-          Cerrar
+          Editar
         </button>
       }
     >
@@ -71,6 +73,16 @@ export function SubtaskDetailModal({ subtask, onClose }: SubtaskDetailModalProps
             <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: priorityStyle.dot }} />
             {PRIORITY_LABELS[subtask.priority]}
           </span>
+        </div>
+
+        <div className="flex justify-end border-t border-[#f3f4f6] pt-4">
+          <button
+            type="button"
+            onClick={() => onDelete(subtask)}
+            className="font-jost text-[13px] text-[#8b1a1a] underline decoration-[#8b1a1a]/40 hover:decoration-[#8b1a1a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
+          >
+            Eliminar gestión
+          </button>
         </div>
       </div>
     </Modal>

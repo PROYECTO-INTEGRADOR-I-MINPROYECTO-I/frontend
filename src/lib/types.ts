@@ -35,6 +35,9 @@ export interface CreateEventPayload {
   client_contact?: string;
 }
 
+/** Payload para editar un evento (PATCH /eventos/<eid>/). Parcial: solo los campos modificados. */
+export type UpdateEventPayload = Partial<CreateEventPayload>;
+
 /**
  * Tipo de evento. El endpoint GET/POST /tipos-evento/ (PIM1-89) todavía no
  * existe en el backend (hoy responde 404): mientras tanto se usan tipos
@@ -92,3 +95,6 @@ export interface CreateSubtaskPayload {
   status: SubtaskStatus;
   priority: Priority;
 }
+
+/** Payload para editar una gestión (PATCH /subtareas/<subtask_id>/). Parcial: solo los campos modificados. */
+export type UpdateSubtaskPayload = Partial<CreateSubtaskPayload>;

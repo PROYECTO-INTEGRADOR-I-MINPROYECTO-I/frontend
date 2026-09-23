@@ -34,6 +34,14 @@ export function isoDateTimeToLocalDateString(iso: string): string {
   return toLocalDateString(new Date(iso));
 }
 
+/** Convierte un ISO datetime a "HH:mm" en hora local, para precargar el input de hora al editar. */
+export function isoDateTimeToLocalTimeString(iso: string): string {
+  const date = new Date(iso);
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
 function toLocalDateString(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");

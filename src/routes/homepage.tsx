@@ -8,6 +8,7 @@ import { EventFormModal } from "../components/event-form-modal";
 import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
 import { SubtaskCard } from "../components/subtask-card";
+import { ConfirmDialog } from "../components/confirm-dialog";
 import { apiFetch, ApiError } from "../lib/api";
 import { todayLocalDateString } from "../lib/dates";
 import { sortSubtasksByDateThenPriority } from "../lib/subtask-display";
@@ -26,6 +27,26 @@ function ClockIcon({ muted = false }: { muted?: boolean }) {
   return <span aria-hidden="true" className={`clock-icon${muted ? " clock-icon--muted" : ""}`} />;
 }
 
+// subtaskCount es null cuando las gestiones del evento a borrar no están
+// (todavía) cargadas y confiables (subtasksStatus !== "ready"): en vez de
+// arriesgar un número desfasado, se usa un texto genérico.
+function eventDeleteDescription(event: Event, subtaskCount: number | null): string {
+  const base = `¿Eliminar el evento «${event.name}»?`;
+  if (subtaskCount === null) {
+    return `${base} Se eliminarán también todas sus gestiones. Esta acción no se puede deshacer.`;
+  }
+  if (subtaskCount === 0) return `${base} Esta acción no se puede deshacer.`;
+  const consequence =
+    subtaskCount === 1
+      ? "Se eliminará también su gestión."
+      : `Se eliminarán también sus ${subtaskCount} gestiones.`;
+  return `${base} ${consequence} Esta acción no se puede deshacer.`;
+}
+
+function subtaskDeleteDescription(subtask: Subtask): string {
+  return `¿Eliminar la gestión «${subtask.title}»? Esta acción no se puede deshacer.`;
+}
+
 function SunIcon() {
   // El glifo ☼ no existe en Source Sans 3 (fuente cargada tras PIM1-89):
   // se reemplaza por el icono equivalente de lucide-react.
@@ -41,21 +62,40 @@ export function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [events, setEvents] = useState<Event[]>([]);
+  const [eventsStatus, setEventsStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [eventsError, setEventsError] = useState("");
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   // Sube en cada apertura para forzar un montaje limpio de EventFormModal /
   // SubtaskFormModal (defaultValues frescos y fetch de tipos/categorías sin
   // depender de un reset() en efecto).
   const [formKey, setFormKey] = useState(0);
-  const [newEvent, setNewEvent] = useState<Event | null>(null);
+  // Evento en edición; null significa que el formulario está en modo creación.
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
 
   const [isSubtaskFormOpen, setIsSubtaskFormOpen] = useState(false);
   const [subtaskFormKey, setSubtaskFormKey] = useState(0);
+  const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
   const [detailSubtask, setDetailSubtask] = useState<Subtask | null>(null);
 
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [subtasksStatus, setSubtasksStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [subtasksError, setSubtasksError] = useState("");
+
+  const [deleteEventTarget, setDeleteEventTarget] = useState<Event | null>(null);
+  const [deleteEventBusy, setDeleteEventBusy] = useState(false);
+  const [deleteEventError, setDeleteEventError] = useState<string | null>(null);
+
+  const [deleteSubtaskTarget, setDeleteSubtaskTarget] = useState<Subtask | null>(null);
+  const [deleteSubtaskBusy, setDeleteSubtaskBusy] = useState(false);
+  const [deleteSubtaskError, setDeleteSubtaskError] = useState<string | null>(null);
+  // Tras borrar una gestión, la tarjeta que abrió el flujo (y el trigger que
+  // ConfirmDialog intenta reenfocar al cerrar) ya no existe en el DOM: el
+  // foco se cae a <body>. Se pide explícitamente en un efecto (para que
+  // corra ya con el DOM actualizado) hacia un destino estable.
+  const [focusAfterSubtaskDelete, setFocusAfterSubtaskDelete] = useState(false);
+  const createTaskButtonRef = useRef<HTMLButtonElement>(null);
+  const todayColumnHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
@@ -74,6 +114,24 @@ export function HomePage() {
     return () => {
       if (successTimeoutRef.current) window.clearTimeout(successTimeoutRef.current);
     };
+  }, []);
+
+  async function loadEvents() {
+    setEventsStatus("loading");
+    try {
+      const data = await apiFetch<Event[]>("/eventos/");
+      setEvents(data);
+      setEventsStatus("ready");
+    } catch (err) {
+      setEventsError(err instanceof ApiError ? err.message : "No pudimos cargar tus eventos.");
+      setEventsStatus("error");
+    }
+  }
+
+  useEffect(() => {
+    loadEvents();
+    // Solo al montar: la recarga manual usa el botón "Reintentar" del menú.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadSubtasks(eid: number) {
@@ -123,20 +181,116 @@ export function HomePage() {
   }
 
   function openCreateForm() {
+    setEditingEvent(null);
+    setFormKey((key) => key + 1);
+    setIsFormOpen(true);
+  }
+
+  function openEditEventForm(event: Event) {
+    setEditingEvent(event);
     setFormKey((key) => key + 1);
     setIsFormOpen(true);
   }
 
   function openSubtaskForm() {
+    setEditingSubtask(null);
+    setSubtaskFormKey((key) => key + 1);
+    setIsSubtaskFormOpen(true);
+  }
+
+  function openEditSubtaskForm(subtask: Subtask) {
+    setDetailSubtask(null);
+    setEditingSubtask(subtask);
     setSubtaskFormKey((key) => key + 1);
     setIsSubtaskFormOpen(true);
   }
 
   function handleEventCreated(event: Event) {
     setIsFormOpen(false);
-    setNewEvent(event);
+    setEvents((prev) => [event, ...prev.filter((item) => item.eid !== event.eid)]);
     handleSelectEvent(event);
     showSuccess("Evento creado exitosamente");
+  }
+
+  function handleEventUpdated(event: Event) {
+    setIsFormOpen(false);
+    setEditingEvent(null);
+    setEvents((prev) => prev.map((item) => (item.eid === event.eid ? event : item)));
+    showSuccess("Cambios guardados");
+  }
+
+  function requestDeleteEvent(event: Event) {
+    setDeleteEventError(null);
+    setDeleteEventTarget(event);
+  }
+
+  async function confirmDeleteEvent() {
+    if (deleteEventBusy || !deleteEventTarget) return;
+    setDeleteEventBusy(true);
+    setDeleteEventError(null);
+    try {
+      await apiFetch<void>(`/eventos/${deleteEventTarget.eid}/`, { method: "DELETE" });
+      setEvents((prev) => prev.filter((event) => event.eid !== deleteEventTarget.eid));
+      if (selectedEventId === deleteEventTarget.eid) handleSelectEvent(null);
+      setDeleteEventTarget(null);
+      showSuccess("Evento eliminado");
+    } catch (err) {
+      setDeleteEventError(err instanceof ApiError ? err.message : "No pudimos eliminar el evento.");
+    } finally {
+      setDeleteEventBusy(false);
+    }
+  }
+
+  function cancelDeleteEvent() {
+    if (deleteEventBusy) return;
+    setDeleteEventTarget(null);
+    setDeleteEventError(null);
+  }
+
+  function handleSubtaskUpdated(subtask: Subtask) {
+    setIsSubtaskFormOpen(false);
+    setEditingSubtask(null);
+    setSubtasks((prev) => prev.map((item) => (item.subtask_id === subtask.subtask_id ? subtask : item)));
+    showSuccess("Cambios guardados");
+  }
+
+  function requestDeleteSubtask(subtask: Subtask) {
+    setDetailSubtask(null);
+    setDeleteSubtaskError(null);
+    setDeleteSubtaskTarget(subtask);
+  }
+
+  async function confirmDeleteSubtask() {
+    if (deleteSubtaskBusy || !deleteSubtaskTarget) return;
+    setDeleteSubtaskBusy(true);
+    setDeleteSubtaskError(null);
+    try {
+      await apiFetch<void>(`/subtareas/${deleteSubtaskTarget.subtask_id}/`, { method: "DELETE" });
+      setSubtasks((prev) => prev.filter((subtask) => subtask.subtask_id !== deleteSubtaskTarget.subtask_id));
+      setDeleteSubtaskTarget(null);
+      setFocusAfterSubtaskDelete(true);
+      showSuccess("Gestión eliminada");
+    } catch (err) {
+      setDeleteSubtaskError(err instanceof ApiError ? err.message : "No pudimos eliminar la gestión.");
+    } finally {
+      setDeleteSubtaskBusy(false);
+    }
+  }
+
+  // Corre después de que React ya actualizó el DOM tras el borrado (la
+  // tarjeta desapareció y ConfirmDialog se cerró), así que los refs reflejan
+  // el estado final: el botón "Crear Tarea" si sigue visible, si no el
+  // encabezado de la columna "Para Hoy".
+  useEffect(() => {
+    if (!focusAfterSubtaskDelete) return;
+    (createTaskButtonRef.current ?? todayColumnHeadingRef.current)?.focus();
+    setFocusAfterSubtaskDelete(false);
+  }, [focusAfterSubtaskDelete]);
+
+  function cancelDeleteSubtask() {
+    if (deleteSubtaskBusy) return;
+    setDeleteSubtaskTarget(null);
+    setDeleteSubtaskError(null);
   }
 
   function handleSubtaskCreated(subtask: Subtask, warnings?: string[]) {
@@ -214,6 +368,7 @@ export function HomePage() {
           <div className="intro-actions">
             {selectedEventId != null && subtasksStatus === "ready" && subtasks.length > 0 && (
               <button
+                ref={createTaskButtonRef}
                 type="button"
                 className="create-task-button create-task-button--compact"
                 onClick={openSubtaskForm}
@@ -222,12 +377,15 @@ export function HomePage() {
               </button>
             )}
             <EventMenu
+              events={events}
+              status={eventsStatus}
+              errorMessage={eventsError}
+              onRetry={loadEvents}
               selectedEventId={selectedEventId}
               onSelect={handleSelectEvent}
               onCreateNew={openCreateForm}
-              newEvent={newEvent}
-              onNewEventConsumed={() => setNewEvent(null)}
-              onEventsLoaded={setEvents}
+              onEditEvent={openEditEventForm}
+              onDeleteEvent={requestDeleteEvent}
             />
           </div>
         </div>
@@ -282,6 +440,7 @@ export function HomePage() {
             title="Para Hoy"
             countClass="count--red"
             count={String(sortedTodayPending.length + sortedTodayDone.length)}
+            headingRef={todayColumnHeadingRef}
           >
             {selectedEventId == null ? (
               <div className="column-empty-wrap">
@@ -354,7 +513,16 @@ export function HomePage() {
       </button>
 
       {isFormOpen && (
-        <EventFormModal key={formKey} onClose={() => setIsFormOpen(false)} onCreated={handleEventCreated} />
+        <EventFormModal
+          key={formKey}
+          initialValues={editingEvent ?? undefined}
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditingEvent(null);
+          }}
+          onCreated={handleEventCreated}
+          onUpdated={handleEventUpdated}
+        />
       )}
 
       {isSubtaskFormOpen && selectedEvent && (
@@ -363,12 +531,48 @@ export function HomePage() {
           eventId={selectedEvent.eid}
           eventName={selectedEvent.name}
           eventDueDate={selectedEvent.due_date}
-          onClose={() => setIsSubtaskFormOpen(false)}
+          initialValues={editingSubtask ?? undefined}
+          onClose={() => {
+            setIsSubtaskFormOpen(false);
+            setEditingSubtask(null);
+          }}
           onCreated={handleSubtaskCreated}
+          onUpdated={handleSubtaskUpdated}
         />
       )}
 
-      {detailSubtask && <SubtaskDetailModal subtask={detailSubtask} onClose={() => setDetailSubtask(null)} />}
+      {detailSubtask && (
+        <SubtaskDetailModal
+          subtask={detailSubtask}
+          onClose={() => setDetailSubtask(null)}
+          onEdit={openEditSubtaskForm}
+          onDelete={requestDeleteSubtask}
+        />
+      )}
+
+      <ConfirmDialog
+        open={deleteEventTarget != null}
+        title="Eliminar evento"
+        description={
+          deleteEventTarget
+            ? eventDeleteDescription(deleteEventTarget, subtasksStatus === "ready" ? subtasks.length : null)
+            : ""
+        }
+        busy={deleteEventBusy}
+        error={deleteEventError}
+        onConfirm={confirmDeleteEvent}
+        onCancel={cancelDeleteEvent}
+      />
+
+      <ConfirmDialog
+        open={deleteSubtaskTarget != null}
+        title="Eliminar gestión"
+        description={deleteSubtaskTarget ? subtaskDeleteDescription(deleteSubtaskTarget) : ""}
+        busy={deleteSubtaskBusy}
+        error={deleteSubtaskError}
+        onConfirm={confirmDeleteSubtask}
+        onCancel={cancelDeleteSubtask}
+      />
     </main>
   );
 }
@@ -378,19 +582,24 @@ function TaskColumn({
   count,
   countClass,
   showClock = false,
+  headingRef,
   children,
 }: {
   title: string;
   count: string;
   countClass: string;
   showClock?: boolean;
+  /** Destino de foco estable (ej. tras borrar una gestión); necesita tabIndex=-1 porque un h2 no es focuseable por defecto. */
+  headingRef?: React.RefObject<HTMLHeadingElement | null>;
   children?: React.ReactNode;
 }) {
   return (
     <article className={`task-column${title === "Para Hoy" ? " task-column--today" : ""}`}>
       <div className="column-heading">
         <div className="column-title">
-          <h2>{title}</h2>
+          <h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>
+            {title}
+          </h2>
           {showClock && <ClockIcon muted={title === "Vencidas"} />}
         </div>
         <span className={`task-count ${countClass}`}>{count}</span>
