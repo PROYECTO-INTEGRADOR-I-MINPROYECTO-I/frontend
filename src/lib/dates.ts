@@ -42,7 +42,8 @@ export function isoDateTimeToLocalTimeString(iso: string): string {
   return `${hours}:${minutes}`;
 }
 
-function toLocalDateString(date: Date): string {
+/** Convierte un Date a "YYYY-MM-DD" en hora local. Se exporta para reusarla en los datos semilla del modo mock. */
+export function toLocalDateString(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
