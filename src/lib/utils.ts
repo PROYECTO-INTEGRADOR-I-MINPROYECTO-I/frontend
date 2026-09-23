@@ -5,16 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Helper function to handle API errors
- */
-export const handleApiError = (error: unknown): never => {
-  if (error instanceof Error) {
-    throw new Error(`API Error: ${error.message}`);
-  }
-  throw new Error("An unknown error occurred");
-};
-
 type OptimisticOperation = "create" | "update" | "delete" | undefined;
 export const getRowClassName = ({
   isSelected,

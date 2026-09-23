@@ -45,6 +45,22 @@ import { apiFetch } from "@/lib/api";
 const eventos = await apiFetch<Evento[]>("/eventos/");
 ```
 
+Cuando el backend responde con error, `apiFetch` lanza un `ApiError` (status, code, fields) en vez del `Error` genérico de `fetch`. En un formulario con react-hook-form se captura así:
+
+```ts
+import { ApiError } from "@/lib/api";
+import { applyFieldErrors } from "@/lib/form-errors";
+
+try {
+  await apiFetch("/eventos/", { method: "POST", body: JSON.stringify(data) });
+} catch (error) {
+  const pintoCampos = applyFieldErrors(error, form.setError, ["nombre", "fecha"]);
+  if (!pintoCampos && error instanceof ApiError) {
+    setBanner(error.message);
+  }
+}
+```
+
 ## Despliegue
 
 Tres ambientes (dev, qa, prod) en Render. El detalle completo —variables de entorno, modos de build y configuración de los sitios— está en [DEPLOYMENT.md](./DEPLOYMENT.md).
