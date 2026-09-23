@@ -23,23 +23,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
-
-  /*
-   * Estos dos formularios todavía no están montados en la aplicación: la
-   * pantalla de login que se usa es src/routes/login.tsx. Importan
-   * componentes (@/components/ui/form, /input) y hooks (use-login,
-   * use-register) que aún no se han escrito, así que tsc falla al revisarlos
-   * y eso impide generar dist/ en el build de Render.
-   *
-   * Quedan excluidos del type-check hasta que se conecten. No es un parche
-   * silencioso: si alguien los importa, Vite falla de inmediato con
-   * UNRESOLVED_IMPORT señalando el archivo que falta.
-   *
-   * QUITAR DE AQUÍ al montarlos, para que vuelvan a tener revisión de tipos.
-   */
-  "exclude": [
-    "src/components/login-form.tsx",
-    "src/components/register-form.tsx"
-  ]
+  "include": ["src"]
 }

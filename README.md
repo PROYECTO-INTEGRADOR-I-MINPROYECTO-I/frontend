@@ -1,6 +1,6 @@
 # PlanificApp — Frontend
 
-Interfaz de PlanificApp. React 19 + TypeScript + Vite + Tailwind CSS 4, con componentes shadcn/ui.
+Interfaz de PlanificApp. React 19 + TypeScript + Vite + Tailwind CSS 4. El enrutado usa `react-router-dom`.
 
 ## Arranque rápido
 
@@ -9,17 +9,20 @@ npm install
 npm run dev
 ```
 
-Queda en http://localhost:5173. Requiere el backend corriendo en el puerto 8000; el proxy de Vite se encarga del resto.
+Queda en http://localhost:5173. Requiere el backend corriendo en el puerto 8000.
+
+En local, `npm run dev` carga `.env.development`, donde `VITE_API_URL=/api`: el proxy de Vite (`vite.config.ts`) reenvía esas peticiones al Django de `localhost:8000`, así que el navegador nunca hace una petición cross-origin. Los archivos `.env.dev`, `.env.qa` y `.env.production` son para los builds desplegados y apuntan cada uno a la URL absoluta del backend de su ambiente. Detalle completo en [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Scripts
 
 | Comando | Qué hace |
 |---|---|
-| `npm run dev` | Servidor de desarrollo con HMR |
-| `npm run build` | Build de producción |
+| `npm run dev` | Servidor de desarrollo con HMR (modo `development`, usa el proxy de Vite) |
+| `npm run build` | Build de producción (modo `production`) |
 | `npm run build:qa` | Build del ambiente qa |
-| `npm run build:dev` | Build del ambiente dev |
+| `npm run build:dev` | Build del ambiente dev desplegado |
 | `npm run preview` | Sirve el build de producción en local |
+| `npm run preview:qa` | Sirve en local el build de qa |
 | `npm run lint` | Oxlint |
 
 ## Estructura
@@ -27,8 +30,6 @@ Queda en http://localhost:5173. Requiere el backend corriendo en el puerto 8000;
 ```
 src/
   components/      Componentes de la aplicación
-    ui/            Componentes base (shadcn/ui)
-  hooks/           Hooks con la lógica de formularios y llamadas
   lib/
     api.ts         Cliente HTTP único hacia el backend
     utils.ts       Utilidades (cn)
