@@ -1,18 +1,31 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Plus, Sun } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
-import { ChevronDown } from 'lucide-react';
 import helpRing from "../assets/help-ring.svg";
+import { EventMenu } from "../components/event-menu";
+import { EventFormModal } from "../components/event-form-modal";
+import type { Event } from "../lib/types";
 import "./homepage.css";
 
 const filters = ["Todos", "Reuniones", "Entregas", "Llamadas", "Personal"];
+
+// Solo un entero positivo es un eid válido; cualquier otro valor de
+// ?evento= (vacío, texto, decimales) se trata como "sin selección".
+const EVENT_ID_PATTERN = /^\d+$/;
 
 function ClockIcon({ muted = false }: { muted?: boolean }) {
   return <span aria-hidden="true" className={`clock-icon${muted ? " clock-icon--muted" : ""}`} />;
 }
 
 function SunIcon() {
-  return <span aria-hidden="true" className="sun-icon">☼</span>;
+  // El glifo ☼ no existe en Source Sans 3 (fuente cargada tras PIM1-89):
+  // se reemplaza por el icono equivalente de lucide-react.
+  return (
+    <span aria-hidden="true" className="sun-icon">
+      <Sun size={28} />
+    </span>
+  );
 }
 
 export function HomePage() {
@@ -23,6 +36,50 @@ export function HomePage() {
     };
 
   const [activeFilter, setActiveFilter] = useState("Todos");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  // Sube en cada apertura para forzar un montaje limpio de EventFormModal
+  // (defaultValues frescos y fetch de tipos sin depender de un reset() en
+  // efecto).
+  const [formKey, setFormKey] = useState(0);
+  const [newEvent, setNewEvent] = useState<Event | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const successTimeoutRef = useRef<number | null>(null);
+
+  const eventoParam = searchParams.get("evento");
+  const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
+
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) window.clearTimeout(successTimeoutRef.current);
+    };
+  }, []);
+
+  function handleSelectEvent(event: Event | null) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (event) next.set("evento", String(event.eid));
+        else next.delete("evento");
+        return next;
+      },
+      { replace: true }
+    );
+  }
+
+  function openCreateForm() {
+    setFormKey((key) => key + 1);
+    setIsFormOpen(true);
+  }
+
+  function handleEventCreated(event: Event) {
+    setIsFormOpen(false);
+    setNewEvent(event);
+    handleSelectEvent(event);
+    setSuccessMessage("Evento creado exitosamente");
+    if (successTimeoutRef.current) window.clearTimeout(successTimeoutRef.current);
+    successTimeoutRef.current = window.setTimeout(() => setSuccessMessage(null), 4000);
+  }
 
   return (
     <main className="planner-shell">
@@ -43,12 +100,20 @@ export function HomePage() {
         <div className="avatar" aria-label="Perfil de AL">AL</div>
       </header>
 
+      <div aria-live="polite" role="status" className="success-toast" data-visible={Boolean(successMessage)}>
+        {successMessage}
+      </div>
+
       <section className="planner-intro" aria-labelledby="today-heading">
         <div className="intro-row">
           <h1 id="today-heading">Hoy <SunIcon /></h1>
-          <button className="event-button inline-flex items-center justify-center gap-2" type="button">
-            Nuevo Evento <ChevronDown size={20} color="#ffff" />
-          </button>
+          <EventMenu
+            selectedEventId={selectedEventId}
+            onSelect={handleSelectEvent}
+            onCreateNew={openCreateForm}
+            newEvent={newEvent}
+            onNewEventConsumed={() => setNewEvent(null)}
+          />
         </div>
 
         <div className="filter-row" aria-label="Filtros de tareas">
@@ -73,7 +138,7 @@ export function HomePage() {
           <div className="empty-state">
             <p>Aún no tienes tareas<br />¡Crea una nueva!</p>
             <button className="create-task-button" type="button" onClick={goToLogin}>
-              Crear Tarea <span aria-hidden="true">＋</span>
+              Crear Tarea <Plus aria-hidden="true" size={22} />
             </button>
           </div>
         </TaskColumn>
@@ -83,6 +148,10 @@ export function HomePage() {
       <button className="help-button" type="button" aria-label="Ayuda">
         <img src={helpRing} alt="" />
       </button>
+
+      {isFormOpen && (
+        <EventFormModal key={formKey} onClose={() => setIsFormOpen(false)} onCreated={handleEventCreated} />
+      )}
     </main>
   );
 }

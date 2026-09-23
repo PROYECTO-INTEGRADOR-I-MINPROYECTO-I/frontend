@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+/* Tipografía del Figma: Jost en títulos/labels/botones, Source Sans 3 en
+   valores de inputs y contenido. Se cargan desde Google Fonts en index.html. */
+.font-jost {
+  font-family: "Jost", sans-serif;
+}
+.font-source {
+  font-family: "Source Sans 3", sans-serif;
+}
