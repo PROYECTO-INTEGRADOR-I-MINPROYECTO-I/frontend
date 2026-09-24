@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { useState } from "react";
 import { HoursPicker } from "./hours-picker";
 import { DURATION_STOPS } from "../lib/subtask-display";
@@ -80,6 +80,8 @@ describe("HoursPicker: slider", () => {
     expect(Number(slider.value)).toBe(DURATION_STOPS.indexOf(150));
 
     expect(screen.getByRole("status")).toHaveTextContent("2 h 35 min");
+    // El lector de pantalla oye el valor real, no el stop.
+    expect(slider).toHaveAttribute("aria-valuetext", "2 h 35 min");
   });
 
   test("sin valor, el thumb arranca en 1 h pero el estado dice 'Sin definir'", () => {
@@ -88,6 +90,7 @@ describe("HoursPicker: slider", () => {
     const slider = screen.getByLabelText("Duración estimada") as HTMLInputElement;
     expect(Number(slider.value)).toBe(DURATION_STOPS.indexOf(60));
     expect(screen.getByRole("status")).toHaveTextContent("Sin definir");
+    expect(slider).toHaveAttribute("aria-valuetext", "Sin definir");
   });
 });
 
@@ -111,6 +114,16 @@ describe("HoursPicker: campos H/MM editables", () => {
     expect(values.at(-1)).toBe("0.08"); // 5 min
   });
 
+  test("58 min redondea a 1 h (no se trunca a 55)", () => {
+    const values = renderWithSpy();
+
+    fireEvent.change(screen.getByLabelText("Horas"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Minutos"), { target: { value: "58" } });
+    fireEvent.blur(screen.getByLabelText("Minutos"));
+
+    expect(values.at(-1)).toBe("3.00");
+  });
+
   test("horas 30 se recorta a 24 h", () => {
     const values = renderWithSpy();
 
@@ -130,13 +143,31 @@ describe("HoursPicker: campos H/MM editables", () => {
     expect(values.at(-1)).toBe("0.08"); // 5 min
   });
 
-  test("Enter también confirma el valor", () => {
-    const values = renderWithSpy();
+  test("Enter confirma el valor una sola vez y no envía el formulario que lo contiene", async () => {
+    const values: string[] = [];
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    function FormWrapper() {
+      const [value, setValue] = useState("");
+      return (
+        <form onSubmit={onSubmit}>
+          <HoursPicker
+            id="subtask-hours"
+            value={value}
+            onChange={(next) => {
+              setValue(next);
+              values.push(next);
+            }}
+          />
+        </form>
+      );
+    }
+    render(<FormWrapper />);
+    const user = userEvent.setup();
 
-    fireEvent.change(screen.getByLabelText("Horas"), { target: { value: "2" } });
-    fireEvent.keyDown(screen.getByLabelText("Horas"), { key: "Enter" });
+    await user.type(screen.getByLabelText("Horas"), "2{Enter}");
 
-    expect(values.at(-1)).toBe("2.00");
+    expect(values).toEqual(["2.00"]);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   test("los campos rechazan caracteres que no son dígitos", () => {

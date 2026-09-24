@@ -98,24 +98,22 @@ export function HoursPicker({ id, value, onChange, invalid = false, describedBy 
   }
 
   // Confirma horas+minutos escritos a mano: los campos vacíos cuentan como 0,
-  // minutos se redondea al múltiplo de 5 más cercano (0-55) y el total se
-  // recorta entre 5 min y 24 h; si el total quedó en 0, se sube a 5 min.
+  // el total se redondea al múltiplo de 5 min más cercano (58 min → 1 h, no
+  // se trunca a 55) y se recorta entre 5 min y 24 h; 0 sube a 5 min.
   function commitDraft() {
     const rawHours = hoursDraft === "" ? 0 : Number(hoursDraft);
     const rawMinutes = minutesDraft === "" ? 0 : Number(minutesDraft);
-    const clampedHours = Math.min(24, Math.max(0, Number.isFinite(rawHours) ? rawHours : 0));
-    const clampedMinutes = Math.min(55, Math.max(0, Number.isFinite(rawMinutes) ? rawMinutes : 0));
-    const roundedMinutes = Math.round(clampedMinutes / 5) * 5;
-    let totalMinutes = clampedHours * 60 + roundedMinutes;
-    if (totalMinutes <= 0) totalMinutes = MIN_MINUTES;
-    totalMinutes = Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, totalMinutes));
-    onChange(minutesToHours(totalMinutes));
+    const hours = Number.isFinite(rawHours) ? rawHours : 0;
+    const minutes = Number.isFinite(rawMinutes) ? rawMinutes : 0;
+    const roundedTotal = Math.round((hours * 60 + minutes) / STEP_MINUTES) * STEP_MINUTES;
+    onChange(minutesToHours(Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, roundedTotal))));
   }
 
+  // Enter confirma sin enviar el formulario: solo quita el foco y el onBlur
+  // hace el commit (llamarlo también acá lo duplicaba).
   function handleFieldKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      commitDraft();
       event.currentTarget.blur();
     }
   }
@@ -211,7 +209,9 @@ export function HoursPicker({ id, value, onChange, invalid = false, describedBy 
           value={thumbIndex}
           onChange={handleSliderChange}
           aria-label="Duración estimada"
-          aria-valuetext={formatDuration(minutesToHours(DURATION_STOPS[thumbIndex]))}
+          // Anuncia el valor real, no el stop donde se posa el thumb (2 h 35 min
+          // se posa en 2 h 30 min pero sigue valiendo 2 h 35 min).
+          aria-valuetext={value ? formatDuration(value) : "Sin definir"}
           style={{ "--range-progress": `${progressPercent}%` } as React.CSSProperties}
           className={cn("hours-picker-slider w-full accent-[#8b1a1a]", focusRing)}
         />
