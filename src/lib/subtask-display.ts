@@ -77,6 +77,37 @@ export function minutesToHours(minutes: number): string {
   return (minutes / 60).toFixed(2);
 }
 
+// Escala no lineal en minutos para el slider de HoursPicker: tramos con
+// paso creciente (5 → 15 → 30 → 60 min) a medida que la duración crece, así
+// se puede llegar a 6-8 h sin arrastrar el mouse eternamente. Generada, no
+// escrita a mano, para que los límites de cada tramo queden explícitos.
+// Vive acá (no en hours-picker.tsx) para no exportar una constante desde un
+// archivo de componente (rompe el fast refresh y dispara un warning de lint).
+function buildDurationStops(): number[] {
+  const stops: number[] = [];
+  for (let minutes = 5; minutes <= 60; minutes += 5) stops.push(minutes);
+  for (let minutes = 75; minutes <= 240; minutes += 15) stops.push(minutes);
+  for (let minutes = 270; minutes <= 720; minutes += 30) stops.push(minutes);
+  for (let minutes = 780; minutes <= 1440; minutes += 60) stops.push(minutes);
+  return stops;
+}
+
+export const DURATION_STOPS = buildDurationStops();
+
+/** Índice del stop de DURATION_STOPS más cercano a una duración cualquiera. */
+export function nearestDurationStopIndex(minutes: number): number {
+  let bestIndex = 0;
+  let bestDiff = Infinity;
+  DURATION_STOPS.forEach((stop, index) => {
+    const diff = Math.abs(stop - minutes);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
+}
+
 /** Etiqueta legible de una duración en horas: "5 min", "1 h", "2 h 30 min". */
 export function formatDuration(hoursString: string): string {
   const totalMinutes = hoursToMinutes(hoursString);

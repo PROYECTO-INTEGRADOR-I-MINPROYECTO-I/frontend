@@ -91,7 +91,7 @@ describe("SubtaskFormModal", () => {
               title: "Confirmar catering",
               description: "",
               category: "Catering",
-              estimated_hours: "0.08",
+              estimated_hours: "0.25",
               scheduled_date: "2026-10-01",
               status: "pending",
             },
@@ -109,7 +109,7 @@ describe("SubtaskFormModal", () => {
     await user.type(screen.getByLabelText("Nombre"), "Confirmar catering");
     await user.selectOptions(categorySelect, "Catering");
     fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-10-01" } });
-    await user.click(screen.getByRole("button", { name: "5 min" }));
+    await user.click(screen.getByRole("button", { name: "15 min" }));
 
     await user.click(screen.getByRole("button", { name: "Guardar" }));
 
@@ -119,7 +119,7 @@ describe("SubtaskFormModal", () => {
     expect(postCall).toBeDefined();
     const [, options] = postCall!;
     const sentBody = JSON.parse(options.body as string);
-    expect(sentBody.estimated_hours).toBe("0.08");
+    expect(sentBody.estimated_hours).toBe("0.25");
   });
 
   test("crear envía el payload correcto, con priority fijo agregado por la capa de API", async () => {

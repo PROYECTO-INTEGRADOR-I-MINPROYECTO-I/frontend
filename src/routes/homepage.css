@@ -178,6 +178,64 @@
   transform: translate(-50%, 0);
 }
 
+/* Slider del HoursPicker (src/components/hours-picker.tsx): estilo nativo
+   de <input type="range"> normalizado entre navegadores, con el tramo
+   recorrido (índice dentro de DURATION_STOPS, no lineal) pintado en vino y
+   un thumb de ~20px. --range-progress lo fija el componente en línea según
+   la posición actual del thumb. */
+.hours-picker-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 44px;
+  background: transparent;
+  cursor: pointer;
+}
+.hours-picker-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    #8b1a1a var(--range-progress, 0%),
+    #e5e7eb var(--range-progress, 0%)
+  );
+}
+.hours-picker-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 9999px;
+  background: #8b1a1a;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.hours-picker-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: #e5e7eb;
+}
+.hours-picker-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: #8b1a1a;
+}
+.hours-picker-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: #8b1a1a;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.hours-picker-slider:focus-visible {
+  outline: 2px solid #8b1a1a;
+  outline-offset: 2px;
+}
+
 @media (max-width: 760px) {
   .planner-header { padding: 10px 18px; }
   .brand-name { font-size: 28px; }

@@ -1,9 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
   categoryChipStyle,
+  DURATION_STOPS,
   formatDuration,
   hoursToMinutes,
   minutesToHours,
+  nearestDurationStopIndex,
   sortCompletedSubtasksByDateDesc,
   sortSubtasksByDateThenHours,
   subtaskTimeStatus,
@@ -64,6 +66,18 @@ describe("sortSubtasksByDateThenHours", () => {
     sortSubtasksByDateThenHours(items);
 
     expect(items).toEqual(original);
+  });
+});
+
+describe("nearestDurationStopIndex", () => {
+  test("un stop exacto se mapea a sí mismo", () => {
+    expect(DURATION_STOPS[nearestDurationStopIndex(60)]).toBe(60);
+    expect(DURATION_STOPS[nearestDurationStopIndex(480)]).toBe(480);
+  });
+
+  test("un valor entre dos stops elige el más cercano", () => {
+    // 155 min está entre 150 y 165 (tramo 75..240 de 15 en 15); más cerca de 150.
+    expect(DURATION_STOPS[nearestDurationStopIndex(155)]).toBe(150);
   });
 });
 
