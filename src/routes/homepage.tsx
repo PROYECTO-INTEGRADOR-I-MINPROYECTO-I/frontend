@@ -11,7 +11,7 @@ import { SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
 import { todayLocalDateString } from "../lib/dates";
-import { sortSubtasksByDateThenHours } from "../lib/subtask-display";
+import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { describeSaveError } from "../lib/subtask-errors";
 import type { Event, Subtask, SubtaskStatus } from "../lib/types";
 import "./homepage.css";
@@ -103,13 +103,21 @@ export function HomePage() {
 
   // Completar/despausar una gestión (US-09): actualización optimista con
   // reversión si el PATCH falla (servidor caído, sin internet, 404 porque el
-  // backend real todavía no tiene el endpoint, etc.). `pendingToggleId`
-  // deshabilita el control mientras la petición está en curso, para evitar
-  // dobles clics; `toggleError` guarda el mensaje y a qué gestión reintentarle.
-  const [pendingToggleId, setPendingToggleId] = useState<number | null>(null);
+  // backend real todavía no tiene el endpoint, etc.). `pendingToggleIds` es
+  // un Set (no un solo id): así alternar la gestión A mientras la B sigue en
+  // vuelo no pisa el estado "pendiente" de A, y cada control se deshabilita
+  // de forma independiente. `toggleError` guarda el mensaje y a qué gestión
+  // reintentarle.
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<number>>(() => new Set());
   const [toggleError, setToggleError] = useState<{ subtaskId: number; message: string; retry: () => void } | null>(
     null
   );
+  // Espejo mutable de `subtasks` (no dispara renders), para que el cierre de
+  // "Reintentar" -creado en el momento del fallo- lea el estado más reciente
+  // de la gestión al reintentar, en vez de la foto vieja que tenía cuando se
+  // creó el cierre.
+  const subtasksRef = useRef<Subtask[]>(subtasks);
+  subtasksRef.current = subtasks;
 
   // Se incrementa en cada carga (cambio de evento o "Reintentar"). Si la
   // respuesta llega y ya no coincide con el contador actual, es una carga
@@ -265,31 +273,67 @@ export function HomePage() {
     showSuccess("Cambios guardados");
   }
 
+  // Reemplaza la gestión completa (ej. con la respuesta del servidor tras un
+  // PATCH exitoso, que es la fuente de verdad de todos sus campos).
   function applySubtaskUpdate(updated: Subtask) {
     setSubtasks((prev) => prev.map((item) => (item.subtask_id === updated.subtask_id ? updated : item)));
     setDetailSubtask((prev) => (prev && prev.subtask_id === updated.subtask_id ? updated : prev));
   }
 
-  async function handleToggleComplete(subtask: Subtask) {
-    if (pendingToggleId === subtask.subtask_id) return; // ya hay un cambio en curso para esta gestión: evita dobles clics
-    const nextStatus: SubtaskStatus = subtask.status === "done" ? "pending" : "done";
+  // Cambia SOLO el campo `status` de la gestión, aplicado sobre el item tal
+  // como está en el estado en ese instante (setState funcional): así, si
+  // otro flujo editó título/descripción/etc. mientras el PATCH de completar
+  // estaba en curso, ni el cambio optimista ni su reversión pisan esos
+  // campos con una foto vieja.
+  function patchSubtaskStatus(subtaskId: number, status: SubtaskStatus) {
+    setSubtasks((prev) => prev.map((item) => (item.subtask_id === subtaskId ? { ...item, status } : item)));
+    setDetailSubtask((prev) => (prev && prev.subtask_id === subtaskId ? { ...prev, status } : prev));
+  }
 
-    setToggleError(null);
-    setPendingToggleId(subtask.subtask_id);
-    applySubtaskUpdate({ ...subtask, status: nextStatus }); // optimista
+  function addPendingToggle(subtaskId: number) {
+    setPendingToggleIds((prev) => {
+      const next = new Set(prev);
+      next.add(subtaskId);
+      return next;
+    });
+  }
+
+  function removePendingToggle(subtaskId: number) {
+    setPendingToggleIds((prev) => {
+      if (!prev.has(subtaskId)) return prev;
+      const next = new Set(prev);
+      next.delete(subtaskId);
+      return next;
+    });
+  }
+
+  async function handleToggleComplete(subtask: Subtask) {
+    const subtaskId = subtask.subtask_id;
+    if (pendingToggleIds.has(subtaskId)) return; // ya hay un cambio en curso para esta gestión: evita dobles clics
+
+    // Se lee del espejo mutable (no del `subtask` recibido, que puede ser una
+    // foto vieja si esta llamada viene de un cierre de "Reintentar" creado
+    // antes de otros cambios) para partir siempre del estado real vigente.
+    const current = subtasksRef.current.find((item) => item.subtask_id === subtaskId) ?? subtask;
+    const previousStatus = current.status;
+    const nextStatus: SubtaskStatus = previousStatus === "done" ? "pending" : "done";
+
+    setToggleError((prev) => (prev && prev.subtaskId === subtaskId ? null : prev));
+    addPendingToggle(subtaskId);
+    patchSubtaskStatus(subtaskId, nextStatus); // optimista
 
     try {
-      const updated = await setSubtaskStatus(subtask.subtask_id, nextStatus);
+      const updated = await setSubtaskStatus(subtaskId, nextStatus);
       applySubtaskUpdate(updated);
     } catch (err) {
-      applySubtaskUpdate(subtask); // revierte al estado anterior a la petición
+      patchSubtaskStatus(subtaskId, previousStatus); // revierte solo el status, sobre el item actual
       setToggleError({
-        subtaskId: subtask.subtask_id,
+        subtaskId,
         message: describeSaveError(err),
         retry: () => handleToggleComplete(subtask),
       });
     } finally {
-      setPendingToggleId((current) => (current === subtask.subtask_id ? null : current));
+      removePendingToggle(subtaskId);
     }
   }
 
@@ -357,29 +401,34 @@ export function HomePage() {
   const todayDate = todayLocalDateString();
   const upcoming: Subtask[] = [];
   const todayPending: Subtask[] = [];
-  const todayDone: Subtask[] = [];
+  const done: Subtask[] = [];
   const overdue: Subtask[] = [];
 
   for (const subtask of subtasks) {
-    if (subtask.scheduled_date > todayDate) {
-      if (subtask.status !== "done") upcoming.push(subtask);
+    // "done" tiene prioridad sobre la fecha: la lista de Completadas junta
+    // TODAS las gestiones completadas (vencidas, de hoy o próximas), no solo
+    // las de hoy, para que marcar como completada una gestión vencida o
+    // próxima (US-09) la saque de su columna y la lleve ahí. Al desmarcarla,
+    // vuelve a caer en Vencidas/Para hoy/Próximas según su fecha, como
+    // cualquier gestión pendiente.
+    if (subtask.status === "done") {
+      done.push(subtask);
+    } else if (subtask.scheduled_date > todayDate) {
+      upcoming.push(subtask);
     } else if (subtask.scheduled_date === todayDate) {
-      (subtask.status === "done" ? todayDone : todayPending).push(subtask);
-    } else if (subtask.status !== "done") {
+      todayPending.push(subtask);
+    } else {
       overdue.push(subtask);
     }
-    // Completada con fecha distinta a hoy (antes o después): no cae en
-    // ninguna columna (Vencidas y Próximas excluyen "done"; Para hoy exige
-    // fecha == hoy). Así, al marcar como completada una gestión vencida o
-    // próxima (US-09), sale de su columna en vez de quedar mostrada ahí con
-    // el check activado. Si en el futuro se necesita ver ese historial, hay
-    // que decidir dónde mostrarlo.
   }
 
   const sortedUpcoming = sortSubtasksByDateThenHours(upcoming);
   const sortedTodayPending = sortSubtasksByDateThenHours(todayPending);
-  const sortedTodayDone = sortSubtasksByDateThenHours(todayDone);
+  const sortedDone = sortCompletedSubtasksByDateDesc(done);
   const sortedOverdue = sortSubtasksByDateThenHours(overdue);
+  // El contador de "Para Hoy" solo cuenta las gestiones de hoy: `done` junta
+  // completadas de cualquier fecha para la lista de Completadas.
+  const todayDoneCount = done.filter((subtask) => subtask.scheduled_date === todayDate).length;
 
   return (
     <main className="planner-shell">
@@ -491,7 +540,7 @@ export function HomePage() {
                     subtask={subtask}
                     onOpen={setDetailSubtask}
                     onToggleComplete={handleToggleComplete}
-                    pending={pendingToggleId === subtask.subtask_id}
+                    pending={pendingToggleIds.has(subtask.subtask_id)}
                   />
                 ))}
               </div>
@@ -504,7 +553,7 @@ export function HomePage() {
           <TaskColumn
             title="Para Hoy"
             countClass="count--red"
-            count={String(sortedTodayPending.length + sortedTodayDone.length)}
+            count={String(sortedTodayPending.length + todayDoneCount)}
             headingRef={todayColumnHeadingRef}
           >
             {selectedEventId == null ? (
@@ -544,18 +593,18 @@ export function HomePage() {
                   emptyHint="Sin pendientes para hoy."
                   onOpen={setDetailSubtask}
                   onToggleComplete={handleToggleComplete}
-                  pendingToggleId={pendingToggleId}
+                  pendingToggleIds={pendingToggleIds}
                 />
                 <TodayPanel
                   label="Completadas"
                   dotColor="#00d492"
                   countBg="#ecfdf5"
                   countText="#007a55"
-                  items={sortedTodayDone}
+                  items={sortedDone}
                   emptyHint="Sin gestiones completadas."
                   onOpen={setDetailSubtask}
                   onToggleComplete={handleToggleComplete}
-                  pendingToggleId={pendingToggleId}
+                  pendingToggleIds={pendingToggleIds}
                   completed
                 />
               </div>
@@ -571,7 +620,7 @@ export function HomePage() {
                     subtask={subtask}
                     onOpen={setDetailSubtask}
                     onToggleComplete={handleToggleComplete}
-                    pending={pendingToggleId === subtask.subtask_id}
+                    pending={pendingToggleIds.has(subtask.subtask_id)}
                     overdue
                   />
                 ))}
@@ -624,7 +673,7 @@ export function HomePage() {
           onEdit={openEditSubtaskForm}
           onDelete={requestDeleteSubtask}
           onToggleComplete={handleToggleComplete}
-          togglePending={pendingToggleId === detailSubtask.subtask_id}
+          togglePending={pendingToggleIds.has(detailSubtask.subtask_id)}
           toggleError={
             toggleError && toggleError.subtaskId === detailSubtask.subtask_id
               ? { message: toggleError.message, onRetry: toggleError.retry }
@@ -701,7 +750,7 @@ function TodayPanel({
   emptyHint,
   onOpen,
   onToggleComplete,
-  pendingToggleId,
+  pendingToggleIds,
   completed = false,
 }: {
   label: string;
@@ -712,7 +761,7 @@ function TodayPanel({
   emptyHint: string;
   onOpen: (subtask: Subtask) => void;
   onToggleComplete: (subtask: Subtask) => void;
-  pendingToggleId: number | null;
+  pendingToggleIds: Set<number>;
   completed?: boolean;
 }) {
   return (
@@ -736,7 +785,7 @@ function TodayPanel({
               subtask={subtask}
               onOpen={onOpen}
               onToggleComplete={onToggleComplete}
-              pending={pendingToggleId === subtask.subtask_id}
+              pending={pendingToggleIds.has(subtask.subtask_id)}
               completed={completed}
             />
           ))

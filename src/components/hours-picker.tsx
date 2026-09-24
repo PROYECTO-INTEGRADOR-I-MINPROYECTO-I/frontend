@@ -43,6 +43,7 @@ export function HoursPicker({ id, value, onChange, invalid = false, describedBy 
       id={id}
       role="group"
       aria-labelledby={`${id}-label`}
+      aria-required="true"
       aria-describedby={describedBy}
       aria-invalid={invalid}
       className="flex flex-col gap-2"

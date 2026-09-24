@@ -45,6 +45,20 @@ describe("SubtaskFormModal", () => {
     expect(screen.queryByText(/prioridad/i)).not.toBeInTheDocument();
   });
 
+  test("el texto 'Horas estimadas' no es un <label htmlFor> roto (el grupo no es un control nativo)", async () => {
+    stubCategoriesNotFound();
+    render(<SubtaskFormModal eventId={1} eventName="Boda Luisa & Carlos" onClose={vi.fn()} />);
+    await waitForCategoriesLoaded();
+
+    const hoursText = screen.getByText("Horas estimadas");
+    expect(hoursText.tagName).not.toBe("LABEL");
+    expect(hoursText).toHaveAttribute("id", "subtask-hours-label");
+
+    const group = screen.getByRole("group", { name: "Horas estimadas" });
+    expect(group).toHaveAttribute("id", "subtask-hours");
+    expect(group).toHaveAttribute("aria-required", "true");
+  });
+
   test("enviar sin horas estimadas muestra un error", async () => {
     const user = userEvent.setup();
     stubCategoriesNotFound();

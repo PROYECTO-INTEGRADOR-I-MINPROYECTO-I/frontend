@@ -84,4 +84,10 @@ describe("HoursPicker", () => {
     render(<ControlledHoursPicker initialValue="2.50" />);
     expect(screen.getByRole("status")).toHaveTextContent("2 h 30 min");
   });
+
+  test("el grupo es obligatorio (aria-required)", () => {
+    render(<ControlledHoursPicker />);
+
+    expect(screen.getByRole("group")).toHaveAttribute("aria-required", "true");
+  });
 });

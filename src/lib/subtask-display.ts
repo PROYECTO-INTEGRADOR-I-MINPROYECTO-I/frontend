@@ -96,3 +96,19 @@ export function sortSubtasksByDateThenHours(items: Subtask[]): Subtask[] {
     return Number(b.estimated_hours) - Number(a.estimated_hours);
   });
 }
+
+/**
+ * Para la lista de "Completadas" (US-09): por fecha objetivo descendente
+ * (la completada más reciente primero) y, en empate, por horas estimadas
+ * descendente. A diferencia de `sortSubtasksByDateThenHours`, esta lista
+ * mezcla gestiones completadas de cualquier fecha (vencidas, de hoy o
+ * próximas), no solo las de un día puntual.
+ */
+export function sortCompletedSubtasksByDateDesc(items: Subtask[]): Subtask[] {
+  return [...items].sort((a, b) => {
+    if (a.scheduled_date !== b.scheduled_date) {
+      return a.scheduled_date < b.scheduled_date ? 1 : -1;
+    }
+    return Number(b.estimated_hours) - Number(a.estimated_hours);
+  });
+}

@@ -79,4 +79,38 @@ describe("SubtaskCard", () => {
 
     expect(screen.getByRole("checkbox")).toBeDisabled();
   });
+
+  test("Enter y Espacio sobre la tarjeta abren el detalle, y Espacio evita el scroll (preventDefault)", () => {
+    const onOpen = vi.fn();
+    render(<SubtaskCard subtask={subtask} onOpen={onOpen} />);
+    const card = screen.getByRole("button", { name: "Confirmar catering" });
+
+    const enterEvent = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    card.dispatchEvent(enterEvent);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith(subtask);
+
+    const spaceEvent = new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true });
+    card.dispatchEvent(spaceEvent);
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(spaceEvent.defaultPrevented).toBe(true);
+  });
+
+  test("Enter y Espacio sobre el checkbox lo alternan sin abrir el detalle", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const onToggleComplete = vi.fn();
+    render(<SubtaskCard subtask={subtask} onOpen={onOpen} onToggleComplete={onToggleComplete} />);
+
+    const checkbox = screen.getByRole("checkbox", { name: "Marcar Confirmar catering como completada" });
+    checkbox.focus();
+
+    await user.keyboard("{Enter}");
+    expect(onToggleComplete).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+
+    await user.keyboard(" ");
+    expect(onToggleComplete).toHaveBeenCalledTimes(2);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
 });

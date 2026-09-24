@@ -4,6 +4,7 @@ import {
   formatDuration,
   hoursToMinutes,
   minutesToHours,
+  sortCompletedSubtasksByDateDesc,
   sortSubtasksByDateThenHours,
   subtaskTimeStatus,
 } from "./subtask-display";
@@ -63,6 +64,26 @@ describe("sortSubtasksByDateThenHours", () => {
     sortSubtasksByDateThenHours(items);
 
     expect(items).toEqual(original);
+  });
+});
+
+describe("sortCompletedSubtasksByDateDesc", () => {
+  test("ordena por fecha descendente (la más reciente primero)", () => {
+    const older = makeSubtask({ subtask_id: 1, scheduled_date: "2026-09-10", status: "done" });
+    const newer = makeSubtask({ subtask_id: 2, scheduled_date: "2026-09-25", status: "done" });
+
+    const sorted = sortCompletedSubtasksByDateDesc([older, newer]);
+
+    expect(sorted.map((item) => item.subtask_id)).toEqual([2, 1]);
+  });
+
+  test("en empate de fecha, ordena por más horas primero", () => {
+    const fewHours = makeSubtask({ subtask_id: 1, scheduled_date: "2026-09-20", estimated_hours: "1", status: "done" });
+    const moreHours = makeSubtask({ subtask_id: 2, scheduled_date: "2026-09-20", estimated_hours: "3", status: "done" });
+
+    const sorted = sortCompletedSubtasksByDateDesc([fewHours, moreHours]);
+
+    expect(sorted.map((item) => item.subtask_id)).toEqual([2, 1]);
   });
 });
 

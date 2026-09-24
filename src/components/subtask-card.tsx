@@ -42,6 +42,11 @@ export function SubtaskCard({
   const isDone = subtask.status === "done";
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    // El keydown de un control anidado (el checkbox) también burbujea hasta
+    // acá: si no se filtra por target, Enter/Espacio sobre el checkbox
+    // abriría el detalle además de alternar el estado. Solo procesa el
+    // evento si se originó en el propio contenedor.
+    if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onOpen(subtask);

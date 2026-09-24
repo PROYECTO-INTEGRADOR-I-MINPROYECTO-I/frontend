@@ -241,4 +241,176 @@ describe("HomePage", () => {
       ).toContain("Hoy B")
     );
   });
+
+  test("Completadas muestra gestiones de cualquier fecha, y desmarcar las devuelve a Vencidas/Próximas", async () => {
+    stubHomepageFetchWithPatch((subtaskId, body) =>
+      Promise.resolve(jsonResponse({ ...subtasks.find((item) => item.subtask_id === subtaskId), ...body }, 200))
+    );
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+    const todayCount = () =>
+      (screen.getByRole("heading", { name: "Para Hoy" }).closest("article") as HTMLElement).querySelector(
+        ".task-count"
+      )?.textContent;
+    const todayCountBefore = todayCount();
+
+    // Completar una vencida (id 1) y una próxima (id 7): ambas deben
+    // aparecer en Completadas, sin importar que su fecha no sea hoy.
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Vencida A como completada" }));
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
+
+    const completedTitles = () =>
+      within(screen.getByText("Completadas").closest(".today-panel") as HTMLElement)
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label"));
+
+    await waitFor(() => expect(completedTitles()).toEqual(expect.arrayContaining(["Vencida A", "Próxima A"])));
+
+    // Y ya no siguen en su columna original.
+    expect(columnCardTitles("Vencidas")).not.toContain("Vencida A");
+    expect(columnCardTitles("Próximas")).not.toContain("Próxima A");
+    // El contador de "Para Hoy" no cuenta completadas de otras fechas.
+    expect(todayCount()).toBe(todayCountBefore);
+
+    // Desmarcarlas las devuelve a su columna según la fecha.
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Vencida A como completada" }));
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
+
+    await waitFor(() => expect(columnCardTitles("Vencidas")).toContain("Vencida A"));
+    await waitFor(() => expect(columnCardTitles("Próximas")).toContain("Próxima A"));
+    expect(completedTitles()).not.toEqual(expect.arrayContaining(["Vencida A", "Próxima A"]));
+  });
+
+  test("togglear una gestión no bloquea otra, y un segundo clic sobre una gestión pendiente no reenvía el PATCH", async () => {
+    const resolvers: Record<number, (response: Response) => void> = {};
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      const patchMatch = method === "PATCH" && href.match(/\/subtareas\/(\d+)\/$/);
+      if (patchMatch) {
+        const subtaskId = Number(patchMatch[1]);
+        return new Promise<Response>((resolve) => {
+          resolvers[subtaskId] = resolve;
+        });
+      }
+      if (href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(jsonResponse(subtasks, 200));
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Hoy A");
+
+    const patchCallsFor = (subtaskId: number) =>
+      fetchMock.mock.calls.filter(
+        ([url, options]) => String(url).includes(`/subtareas/${subtaskId}/`) && options?.method === "PATCH"
+      );
+
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy A como completada" }));
+    expect(screen.getByRole("checkbox", { name: "Marcar Hoy A como completada" })).toBeDisabled();
+
+    // B se puede togglear aunque A siga en vuelo: no comparten el mismo "lock".
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy B como completada" }));
+    expect(screen.getByRole("checkbox", { name: "Marcar Hoy B como completada" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Marcar Hoy A como completada" })).toBeDisabled();
+
+    expect(patchCallsFor(4)).toHaveLength(1);
+
+    // Clic extra sobre A mientras sigue pendiente: no dispara un segundo PATCH.
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy A como completada" }));
+    expect(patchCallsFor(4)).toHaveLength(1);
+
+    resolvers[5](jsonResponse({ ...subtasks.find((item) => item.subtask_id === 5), status: "done" }, 200));
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Marcar Hoy B como completada" })).not.toBeDisabled()
+    );
+    // A se libera de forma independiente: sigue deshabilitado hasta que su propio PATCH resuelva.
+    expect(screen.getByRole("checkbox", { name: "Marcar Hoy A como completada" })).toBeDisabled();
+
+    resolvers[4](jsonResponse({ ...subtasks.find((item) => item.subtask_id === 4), status: "done" }, 200));
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: "Marcar Hoy A como completada" })).not.toBeDisabled()
+    );
+    expect(patchCallsFor(4)).toHaveLength(1);
+  });
+
+  test("si el PATCH de completar falla, la reversión no pisa cambios hechos mientras tanto (ej. la descripción)", async () => {
+    let rejectToggle: (() => void) | null = null;
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      const patchMatch = method === "PATCH" && href.match(/\/subtareas\/(\d+)\/$/);
+      if (patchMatch) {
+        const subtaskId = Number(patchMatch[1]);
+        const body = JSON.parse(String(options?.body ?? "{}"));
+        if ("status" in body) {
+          // El PATCH de completar se queda pendiente hasta que el test lo resuelva/rechace.
+          return new Promise<Response>((_resolve, reject) => {
+            rejectToggle = () => reject(new TypeError("Failed to fetch"));
+          });
+        }
+        // Cualquier otra edición (ej. la descripción) se guarda de inmediato,
+        // simulando que el servidor ya procesó el "completar" (status: "done")
+        // antes de que la respuesta de esa petición se perdiera para el cliente.
+        const base = subtasks.find((item) => item.subtask_id === subtaskId);
+        return Promise.resolve(jsonResponse({ ...base, status: "done", ...body }, 200));
+      }
+      if (href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(jsonResponse(subtasks, 200));
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Hoy B");
+
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy B como completada" }));
+
+    // Mientras el PATCH de completar sigue pendiente, se edita la descripción.
+    await user.click(screen.getByRole("button", { name: "Hoy B" }));
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    const descriptionField = await screen.findByLabelText("Descripción");
+    await user.clear(descriptionField);
+    await user.type(descriptionField, "Descripción editada mientras se completaba");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar gestión" })).not.toBeInTheDocument());
+
+    // Ahora falla el PATCH de completar: la reversión debe tocar solo el status.
+    expect(rejectToggle).not.toBeNull();
+    rejectToggle!();
+
+    await screen.findByRole("alert");
+
+    // Se reabre el detalle para comprobar que la descripción editada sigue ahí
+    // y que el estado volvió a pendiente (no se perdió el cambio concurrente).
+    await user.click(screen.getByRole("button", { name: "Hoy B" }));
+    expect(await screen.findByText("Descripción editada mientras se completaba")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Marcar como completada" })).toBeInTheDocument();
+  });
 });

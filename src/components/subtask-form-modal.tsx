@@ -345,13 +345,16 @@ export function SubtaskFormModal({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label
+            {/* No es un <label htmlFor>: "subtask-hours" es el id del grupo
+                (role="group", ver HoursPicker), no el de un control de
+                formulario nativo, así que htmlFor quedaría roto. El grupo
+                se asocia con este texto via aria-labelledby. */}
+            <span
               id="subtask-hours-label"
-              htmlFor="subtask-hours"
               className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase"
             >
               Horas estimadas
-            </label>
+            </span>
             <Controller
               name="estimated_hours"
               control={control}
