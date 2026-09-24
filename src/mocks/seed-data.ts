@@ -112,7 +112,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "2",
       scheduled_date: localDate(now, 0),
       status: "pending",
-      priority: "high",
     },
     {
       subtask_id: 2,
@@ -123,7 +122,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "1",
       scheduled_date: localDate(now, 0),
       status: "done",
-      priority: "medium",
     },
     {
       subtask_id: 3,
@@ -134,7 +132,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "3",
       scheduled_date: localDate(now, 3),
       status: "pending",
-      priority: "urgent",
     },
     {
       subtask_id: 4,
@@ -145,7 +142,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "1.5",
       scheduled_date: localDate(now, -2),
       status: "pending",
-      priority: "high",
     },
     {
       subtask_id: 5,
@@ -156,7 +152,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "2",
       scheduled_date: localDate(now, 0),
       status: "pending",
-      priority: "low",
     },
     {
       subtask_id: 6,
@@ -167,7 +162,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "1",
       scheduled_date: localDate(now, 1),
       status: "pending",
-      priority: "medium",
     },
     {
       subtask_id: 7,
@@ -178,7 +172,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "1",
       scheduled_date: localDate(now, 0),
       status: "done",
-      priority: "medium",
     },
     {
       subtask_id: 8,
@@ -189,7 +182,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "4",
       scheduled_date: localDate(now, -1),
       status: "pending",
-      priority: "urgent",
     },
     {
       subtask_id: 9,
@@ -200,7 +192,6 @@ export function createSeedData(): MockDb {
       estimated_hours: "2.5",
       scheduled_date: localDate(now, 7),
       status: "pending",
-      priority: "low",
     },
   ];
 

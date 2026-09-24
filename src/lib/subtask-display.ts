@@ -3,24 +3,7 @@
 // (subtask-form-modal), para no repetir la paleta de colores del Figma en
 // cada componente.
 
-import type { Priority, Subtask, SubtaskStatus } from "./types";
-
-export const PRIORITY_LABELS: Record<Priority, string> = {
-  low: "Baja",
-  medium: "Media",
-  high: "Alta",
-  urgent: "Urgente",
-};
-
-// "urgent" y "high" comparten el estilo visual "ALTA" del Figma (fondo vino,
-// texto blanco); solo cambia la etiqueta de texto. `dot` es el color del
-// punto usado en el select de prioridad y en el detalle de solo lectura.
-export const PRIORITY_BADGE_STYLES: Record<Priority, { bg: string; text: string; dot: string }> = {
-  low: { bg: "#f3f4f6", text: "#4a5565", dot: "#00d492" },
-  medium: { bg: "#fef3c6", text: "#973c00", dot: "#ffb900" },
-  high: { bg: "#8b1a1a", text: "#ffffff", dot: "#8b1a1a" },
-  urgent: { bg: "#8b1a1a", text: "#ffffff", dot: "#da1515" },
-};
+import type { Subtask, SubtaskStatus } from "./types";
 
 // `category` es texto libre (no hay id de categoría en el backend todavía),
 // así que el color del chip se asigna de forma determinística por nombre en
@@ -69,14 +52,12 @@ export const TIME_STATUS_STYLES: Record<SubtaskTimeStatus, { bg: string; text: s
   done: { bg: "#ecfdf5", text: "#007a55" },
 };
 
-const PRIORITY_RANK: Record<Priority, number> = { urgent: 3, high: 2, medium: 1, low: 0 };
-
-/** Por fecha ascendente y, en empate, por prioridad descendente (más urgente primero). */
-export function sortSubtasksByDateThenPriority(items: Subtask[]): Subtask[] {
+/** Por fecha ascendente y, en empate, por horas estimadas descendente (más horas primero). */
+export function sortSubtasksByDateThenHours(items: Subtask[]): Subtask[] {
   return [...items].sort((a, b) => {
     if (a.scheduled_date !== b.scheduled_date) {
       return a.scheduled_date < b.scheduled_date ? -1 : 1;
     }
-    return PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority];
+    return Number(b.estimated_hours) - Number(a.estimated_hours);
   });
 }

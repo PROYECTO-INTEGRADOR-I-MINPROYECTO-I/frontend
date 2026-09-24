@@ -1,6 +1,8 @@
 // Cliente HTTP único para hablar con el backend.
 // Centraliza la URL base, las cabeceras por defecto y el manejo de errores.
 
+import type { CreateSubtaskPayload, Subtask } from "./types";
+
 const API_URL = import.meta.env.VITE_API_URL;
 
 if (!API_URL) {
@@ -229,4 +231,25 @@ export async function apiFetch<T>(
   }
 
   return JSON.parse(text) as T;
+}
+
+/**
+ * Crea una gestión (POST /eventos/<eid>/subtareas/). Único punto donde se
+ * arma el body de creación, para que el valor fijo de `priority` (ver TODO)
+ * no quede disperso por los componentes.
+ */
+export async function createSubtask(
+  eventId: number,
+  payload: CreateSubtaskPayload
+): Promise<Subtask & { warnings?: string[] }> {
+  return apiFetch<Subtask & { warnings?: string[] }>(`/eventos/${eventId}/subtareas/`, {
+    method: "POST",
+    body: JSON.stringify({
+      ...payload,
+      // TODO(backend): SubtaskSerializer todavía exige `priority`. Quitar este
+      // valor fijo cuando backend elimine priority (Subtasks) y
+      // progress_percentage (Events) del modelo, el serializer y la BD.
+      priority: "medium",
+    }),
+  });
 }

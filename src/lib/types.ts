@@ -18,6 +18,9 @@ export interface Event {
   description: string;
   due_date: string;
   status: string;
+  // TODO(backend): Events todavía devuelve `progress_percentage`. No se
+  // muestra en la UI; se deja tipado por si algún consumidor lo necesita
+  // mientras backend no lo elimina del modelo.
   progress_percentage: number;
   created_at: string;
   event_type?: number | null;
@@ -49,9 +52,6 @@ export interface EventType {
   name: string;
 }
 
-/** Prioridad de una gestión (subtarea). Contrato real del backend (modelo Subtasks). */
-export type Priority = "low" | "medium" | "high" | "urgent";
-
 /**
  * Estado de una gestión. El backend admite "postponed" en el modelo, pero
  * este ticket (PIM1-27) solo crea gestiones en "pending" y las lee tal cual
@@ -82,7 +82,9 @@ export interface Subtask {
   /** "YYYY-MM-DD", sin hora. */
   scheduled_date: string;
   status: SubtaskStatus;
-  priority: Priority;
+  // TODO(backend): SubtaskSerializer todavía devuelve `priority`. El frontend
+  // ya no la muestra ni la usa (no hay prioridad: la jerarquía la dan las
+  // horas estimadas). Quitar esta nota cuando backend elimine el campo.
 }
 
 /** Payload para crear una gestión (POST /eventos/<eid>/subtareas/). */
@@ -93,7 +95,6 @@ export interface CreateSubtaskPayload {
   estimated_hours: string;
   scheduled_date: string;
   status: SubtaskStatus;
-  priority: Priority;
 }
 
 /** Payload para editar una gestión (PATCH /subtareas/<subtask_id>/). Parcial: solo los campos modificados. */

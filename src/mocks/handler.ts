@@ -5,7 +5,7 @@
 
 import { getDb, saveDb } from "./store";
 import type { MockDb } from "./seed-data";
-import type { Category, Event, EventType, Priority, Subtask, SubtaskStatus } from "../lib/types";
+import type { Category, Event, EventType, Subtask, SubtaskStatus } from "../lib/types";
 
 const MOCK_DELAY_MS = Number(import.meta.env.VITE_MOCK_DELAY ?? 400);
 
@@ -180,7 +180,9 @@ function createSubtask(db: MockDb, eid: number, body: Record<string, unknown>): 
     estimated_hours: String(hours),
     scheduled_date: scheduledDate,
     status: isSubtaskStatus(body.status) ? body.status : "pending",
-    priority: isPriority(body.priority) ? body.priority : "medium",
+    // El backend real todavía exige `priority`; el mock lo acepta si llega
+    // en el body (lo agrega la capa de API) y lo ignora, igual que hará el
+    // frontend cuando backend elimine el campo.
   };
   db.subtasks.push(subtask);
 
@@ -215,7 +217,6 @@ function updateSubtask(db: MockDb, subtaskId: number, body: Record<string, unkno
   if ("scheduled_date" in body && typeof body.scheduled_date === "string") {
     subtask.scheduled_date = body.scheduled_date;
   }
-  if ("priority" in body && isPriority(body.priority)) subtask.priority = body.priority;
   if ("status" in body && isSubtaskStatus(body.status)) subtask.status = body.status;
 
   return jsonResponse(subtask, 200);
@@ -259,10 +260,6 @@ function createCategory(db: MockDb, body: Record<string, unknown>): Response {
 
 function normalize(value: string): string {
   return value.trim().toLowerCase();
-}
-
-function isPriority(value: unknown): value is Priority {
-  return value === "low" || value === "medium" || value === "high" || value === "urgent";
 }
 
 function isSubtaskStatus(value: unknown): value is SubtaskStatus {

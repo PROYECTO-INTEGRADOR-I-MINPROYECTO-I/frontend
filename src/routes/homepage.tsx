@@ -11,7 +11,7 @@ import { SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { apiFetch, ApiError } from "../lib/api";
 import { todayLocalDateString } from "../lib/dates";
-import { sortSubtasksByDateThenPriority } from "../lib/subtask-display";
+import { sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import type { Event, Subtask, SubtaskStatus } from "../lib/types";
 import "./homepage.css";
 
@@ -279,7 +279,7 @@ export function HomePage() {
 
   // Corre después de que React ya actualizó el DOM tras el borrado (la
   // tarjeta desapareció y ConfirmDialog se cerró), así que los refs reflejan
-  // el estado final: el botón "Crear Tarea" si sigue visible, si no el
+  // el estado final: el botón "Crear gestión" si sigue visible, si no el
   // encabezado de la columna "Para Hoy".
   useEffect(() => {
     if (!focusAfterSubtaskDelete) return;
@@ -334,10 +334,10 @@ export function HomePage() {
     // futuro se necesita ver ese historial, hay que decidir dónde mostrarlo.
   }
 
-  const sortedUpcoming = sortSubtasksByDateThenPriority(upcoming);
-  const sortedTodayPending = sortSubtasksByDateThenPriority(todayPending);
-  const sortedTodayDone = sortSubtasksByDateThenPriority(todayDone);
-  const sortedOverdue = sortSubtasksByDateThenPriority(overdue);
+  const sortedUpcoming = sortSubtasksByDateThenHours(upcoming);
+  const sortedTodayPending = sortSubtasksByDateThenHours(todayPending);
+  const sortedTodayDone = sortSubtasksByDateThenHours(todayDone);
+  const sortedOverdue = sortSubtasksByDateThenHours(overdue);
 
   return (
     <main className="planner-shell">
@@ -373,7 +373,7 @@ export function HomePage() {
                 className="create-task-button create-task-button--compact"
                 onClick={openSubtaskForm}
               >
-                Crear Tarea <Plus aria-hidden="true" size={16} />
+                Crear gestión <Plus aria-hidden="true" size={16} />
               </button>
             )}
             <EventMenu
@@ -390,7 +390,7 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="filter-row" aria-label="Filtros de tareas">
+        <div className="filter-row" aria-label="Filtros de gestiones">
           <span className="filter-label">Filtros</span>
           {filters.map((filter) => (
             <button
@@ -422,7 +422,7 @@ export function HomePage() {
       )}
 
       {(selectedEventId == null || subtasksStatus === "ready") && (
-        <section className="task-columns" aria-label="Tareas del día">
+        <section className="task-columns" aria-label="Gestiones del día">
           <TaskColumn title="Próximas" countClass="count--blue" count={String(sortedUpcoming.length)} showClock>
             {selectedEventId != null && sortedUpcoming.length > 0 && (
               <div className="column-list">
@@ -446,12 +446,12 @@ export function HomePage() {
               <div className="column-empty-wrap">
                 <div className="empty-state">
                   <p>
-                    Aún no tienes tareas
+                    Aún no tienes gestiones
                     <br />
                     ¡Crea una nueva!
                   </p>
                   <button className="create-task-button" type="button" onClick={openCreateForm}>
-                    Crear Tarea <Plus aria-hidden="true" size={22} />
+                    Crear gestión <Plus aria-hidden="true" size={22} />
                   </button>
                 </div>
               </div>
@@ -464,7 +464,7 @@ export function HomePage() {
                     gestiones a este evento
                   </p>
                   <button className="create-task-button" type="button" onClick={openSubtaskForm}>
-                    Crear Tarea <Plus aria-hidden="true" size={22} />
+                    Crear gestión <Plus aria-hidden="true" size={22} />
                   </button>
                 </div>
               </div>

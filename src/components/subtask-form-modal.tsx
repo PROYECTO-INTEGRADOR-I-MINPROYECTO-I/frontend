@@ -4,12 +4,10 @@
 
 import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import { ChevronDown } from "lucide-react";
-import { apiFetch, ApiError } from "../lib/api";
+import { apiFetch, ApiError, createSubtask } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
 import { isoDateTimeToLocalDateString } from "../lib/dates";
-import { PRIORITY_LABELS } from "../lib/subtask-display";
-import type { Category, CreateSubtaskPayload, Priority, Subtask, UpdateSubtaskPayload } from "../lib/types";
+import type { Category, CreateSubtaskPayload, Subtask, UpdateSubtaskPayload } from "../lib/types";
 import { Modal } from "./modal";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { cn } from "../lib/utils";
@@ -31,7 +29,6 @@ interface SubtaskFormValues {
   categoryId: string;
   scheduled_date: string;
   estimated_hours: string;
-  priority: Priority;
   description: string;
 }
 
@@ -40,7 +37,6 @@ const EMPTY_VALUES: SubtaskFormValues = {
   categoryId: "",
   scheduled_date: "",
   estimated_hours: "",
-  priority: "medium",
   description: "",
 };
 
@@ -57,19 +53,11 @@ const CATEGORY_FALLBACKS: SelectOption[] = [
   "Marketing",
 ].map((name) => ({ id: name, name }));
 
-const PRIORITY_DOT_COLOR: Record<Priority, string> = {
-  low: "#00d492",
-  medium: "#ffb900",
-  high: "#8b1a1a",
-  urgent: "#da1515",
-};
-
 const KNOWN_FIELDS = [
   "title",
   "categoryId",
   "scheduled_date",
   "estimated_hours",
-  "priority",
   "description",
 ] as const;
 
@@ -92,7 +80,6 @@ function subtaskFormDefaultValues(subtask?: Subtask): SubtaskFormValues {
     categoryId: subtask.category,
     scheduled_date: subtask.scheduled_date,
     estimated_hours: subtask.estimated_hours,
-    priority: subtask.priority,
     description: subtask.description,
   };
 }
@@ -108,7 +95,6 @@ function buildSubtaskUpdatePayload(
   if (dirtyFields.categoryId) payload.category = values.categoryId;
   if (dirtyFields.estimated_hours) payload.estimated_hours = String(Number(values.estimated_hours));
   if (dirtyFields.scheduled_date) payload.scheduled_date = values.scheduled_date;
-  if (dirtyFields.priority) payload.priority = values.priority;
   return payload;
 }
 
@@ -190,7 +176,6 @@ export function SubtaskFormModal({
   }
 
   const scheduledDate = useWatch({ control, name: "scheduled_date" });
-  const priority = useWatch({ control, name: "priority" });
   const eventDueLocalDate = eventDueDate ? isoDateTimeToLocalDateString(eventDueDate) : null;
   // Comparación como texto: "YYYY-MM-DD" ya ordena cronológicamente.
   const dateAfterEventDue = Boolean(eventDueLocalDate && scheduledDate && scheduledDate > eventDueLocalDate);
@@ -233,14 +218,10 @@ export function SubtaskFormModal({
       estimated_hours: String(Number(values.estimated_hours)),
       scheduled_date: values.scheduled_date,
       status: "pending",
-      priority: values.priority,
     };
 
     try {
-      const created = await apiFetch<Subtask & { warnings?: string[] }>(`/eventos/${eventId}/subtareas/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      const created = await createSubtask(eventId, payload);
       const { warnings, ...subtask } = created;
       onCreated?.(subtask, warnings);
     } catch (err) {
@@ -388,35 +369,6 @@ export function SubtaskFormModal({
                 {errors.estimated_hours.message}
               </p>
             )}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
-          <label htmlFor="subtask-priority" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
-            Prioridad
-          </label>
-          <div className="relative">
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-2 h-2 w-2 -translate-y-1/2 rounded-full"
-              style={{ backgroundColor: PRIORITY_DOT_COLOR[priority] }}
-            />
-            <select
-              id="subtask-priority"
-              className="h-8 w-full appearance-none rounded-lg border border-[#d4d5d7] pr-8 pl-6 font-source text-[14px] text-[#1e2939] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
-              {...register("priority")}
-            >
-              {(Object.keys(PRIORITY_LABELS) as Priority[]).map((value) => (
-                <option key={value} value={value}>
-                  {PRIORITY_LABELS[value]}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={16}
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[#99a1af]"
-            />
           </div>
         </div>
 

@@ -5,7 +5,7 @@
 
 import { CheckSquare } from "lucide-react";
 import type { Subtask } from "../lib/types";
-import { categoryChipStyle, PRIORITY_BADGE_STYLES, PRIORITY_LABELS } from "../lib/subtask-display";
+import { categoryChipStyle } from "../lib/subtask-display";
 import { formatShortDateEs } from "../lib/dates";
 import { cn } from "../lib/utils";
 
@@ -19,7 +19,6 @@ interface SubtaskCardProps {
 }
 
 export function SubtaskCard({ subtask, onOpen, overdue = false, completed = false }: SubtaskCardProps) {
-  const priorityStyle = PRIORITY_BADGE_STYLES[subtask.priority];
   const categoryStyle = categoryChipStyle(subtask.category);
   const hours = Number(subtask.estimated_hours);
   const hoursLabel = Number.isFinite(hours) ? `${hours} h` : `${subtask.estimated_hours} h`;
@@ -37,11 +36,8 @@ export function SubtaskCard({ subtask, onOpen, overdue = false, completed = fals
     >
       <div className="flex w-full items-start justify-between gap-2">
         <p className="font-jost text-[14px] leading-[17.5px] text-[#101828]">{subtask.title}</p>
-        <span
-          className="shrink-0 rounded-full px-2 py-0.5 font-jost text-[10px] tracking-[0.25px] uppercase"
-          style={{ backgroundColor: priorityStyle.bg, color: priorityStyle.text }}
-        >
-          {PRIORITY_LABELS[subtask.priority]}
+        <span className="shrink-0 rounded-full bg-[#f3f4f6] px-2 py-0.5 font-jost text-[10px] tracking-[0.25px] text-[#4a5565] uppercase">
+          {hoursLabel}
         </span>
       </div>
 
@@ -55,7 +51,6 @@ export function SubtaskCard({ subtask, onOpen, overdue = false, completed = fals
         <span className={cn("font-source text-[12px]", overdue ? "text-[rgba(139,26,26,0.7)]" : "text-[#99a1af]")}>
           {formatShortDateEs(subtask.scheduled_date)}
         </span>
-        <span className="font-source text-[12px] text-[#99a1af]">{hoursLabel}</span>
       </div>
 
       {overdue && (

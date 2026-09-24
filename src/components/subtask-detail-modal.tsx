@@ -5,8 +5,6 @@
 import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
 import {
   categoryChipStyle,
-  PRIORITY_BADGE_STYLES,
-  PRIORITY_LABELS,
   subtaskTimeStatus,
   TIME_STATUS_LABELS,
   TIME_STATUS_STYLES,
@@ -25,7 +23,6 @@ export function SubtaskDetailModal({ subtask, onClose, onEdit, onDelete }: Subta
   const timeStatus = subtaskTimeStatus(subtask.status, subtask.scheduled_date, todayLocalDateString());
   const timeStatusStyle = TIME_STATUS_STYLES[timeStatus];
   const categoryStyle = categoryChipStyle(subtask.category);
-  const priorityStyle = PRIORITY_BADGE_STYLES[subtask.priority];
   const hours = Number(subtask.estimated_hours);
   const hoursLabel = Number.isFinite(hours) ? `${hours} h` : `${subtask.estimated_hours} h`;
 
@@ -65,14 +62,6 @@ export function SubtaskDetailModal({ subtask, onClose, onEdit, onDelete }: Subta
           <p className="font-source text-[14px] leading-[22.75px] text-[#1e2939]">
             {subtask.description || "Sin descripción."}
           </p>
-        </div>
-
-        <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
-          <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Prioridad</span>
-          <span className="flex items-center gap-2 font-source text-[14px] text-[#1e2939]">
-            <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: priorityStyle.dot }} />
-            {PRIORITY_LABELS[subtask.priority]}
-          </span>
         </div>
 
         <div className="flex justify-end border-t border-[#f3f4f6] pt-4">
