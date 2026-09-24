@@ -1,0 +1,51 @@
+name: CI
+
+# Corre en cada push a cualquier rama, para que ningún cambio llegue a
+# develop/qa/main sin compilar, pasar lint y tests. No se usa además
+# `pull_request`: el check queda asociado al commit y el PR lo muestra
+# igual, así se evita correr todo dos veces por cada push.
+on:
+  push:
+    branches: ["**"]
+
+# Si llega un push nuevo a la misma rama, cancela la corrida anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, build y tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # npm ci falla si package-lock.json no está sincronizado con package.json.
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Bloquea dependencias con vulnerabilidades altas o críticas.
+      - name: Auditoría de dependencias
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (dev, qa y production)
+        run: |
+          npm run build -- --mode dev
+          npm run build -- --mode qa
+          npm run build -- --mode production
+
+      - name: Tests
+        run: npm run test:run --if-present
