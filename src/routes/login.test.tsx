@@ -1,18 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, test } from "vitest";
 import { LoginPage } from "./login";
+import { DEMO_CREDENTIALS } from "../lib/demo-auth";
 
-// login.tsx todavía es un stub (TODO: Connect to backend authentication API):
-// no hace ningún fetch ni maneja errores de servidor, solo navega a "/" al
-// enviar. Por eso estos tests cubren lo que existe hoy, no un flujo de login
-// real contra el backend.
+// Sin backend de login (ver src/lib/demo-auth.ts): solo la cuenta demo
+// entra. Cualquier otra combinación muestra un error visible.
 
 function renderLoginPage() {
   return render(
-    <MemoryRouter>
-      <LoginPage />
+    <MemoryRouter initialEntries={["/login"]}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<p>Página de inicio</p>} />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -22,35 +24,57 @@ describe("LoginPage", () => {
     renderLoginPage();
 
     expect(screen.getByText("¡Bienvenido!")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("you@example.com")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("••••••••")).toBeInTheDocument();
+    expect(screen.getByLabelText("Correo electrónico")).toBeInTheDocument();
+    expect(screen.getByLabelText("Contraseña")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /iniciar sesión/i })).toBeInTheDocument();
   });
 
-  test("los campos tienen su etiqueta de texto correspondiente", () => {
+  test("los campos tienen su etiqueta asociada (htmlFor/id)", () => {
     renderLoginPage();
 
-    expect(screen.getByText("Correo electrónico")).toBeInTheDocument();
-    expect(screen.getByText("Contraseña")).toBeInTheDocument();
+    expect(screen.getByLabelText("Correo electrónico")).toHaveAttribute("id", "login-email");
+    expect(screen.getByLabelText("Contraseña")).toHaveAttribute("id", "login-password");
   });
 
-  test("permite escribir en los campos y enviar el formulario", async () => {
+  test("el recuadro de modo demo muestra las credenciales visibles", () => {
+    renderLoginPage();
+
+    expect(screen.getByText("Modo demo")).toBeInTheDocument();
+    expect(screen.getByText(DEMO_CREDENTIALS.email)).toBeInTheDocument();
+    expect(screen.getByText(DEMO_CREDENTIALS.password)).toBeInTheDocument();
+  });
+
+  test("'Usar cuenta demo' rellena los campos con las credenciales demo", async () => {
     const user = userEvent.setup();
     renderLoginPage();
 
-    const emailInput = screen.getByPlaceholderText("you@example.com");
-    const passwordInput = screen.getByPlaceholderText("••••••••");
+    await user.click(screen.getByRole("button", { name: "Usar cuenta demo" }));
 
-    await user.type(emailInput, "usuaria@example.com");
-    await user.type(passwordInput, "secreta123");
+    expect(screen.getByLabelText("Correo electrónico")).toHaveValue(DEMO_CREDENTIALS.email);
+    expect(screen.getByLabelText("Contraseña")).toHaveValue(DEMO_CREDENTIALS.password);
+  });
 
-    expect(emailInput).toHaveValue("usuaria@example.com");
-    expect(passwordInput).toHaveValue("secreta123");
+  test("las credenciales demo navegan a la página de inicio", async () => {
+    const user = userEvent.setup();
+    renderLoginPage();
 
+    await user.click(screen.getByRole("button", { name: "Usar cuenta demo" }));
     await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
 
-    // Hoy el envío no llama a ningún endpoint (no hay integración con el
-    // backend todavía): solo verificamos que el submit no rompe el formulario.
-    expect(emailInput).toHaveValue("usuaria@example.com");
+    expect(await screen.findByText("Página de inicio")).toBeInTheDocument();
+  });
+
+  test("unas credenciales incorrectas muestran un error y no navegan", async () => {
+    const user = userEvent.setup();
+    renderLoginPage();
+
+    await user.type(screen.getByLabelText("Correo electrónico"), "usuaria@example.com");
+    await user.type(screen.getByLabelText("Contraseña"), "secreta123");
+    await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Correo o contraseña incorrectos. Usa la cuenta demo."
+    );
+    expect(screen.queryByText("Página de inicio")).not.toBeInTheDocument();
   });
 });
