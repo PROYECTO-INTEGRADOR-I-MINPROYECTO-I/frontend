@@ -5,14 +5,18 @@ import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { apiFetch, ApiError } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
-import type { CreateEventPayload, Event, EventType } from "../lib/types";
+import { isoDateTimeToLocalDateString, isoDateTimeToLocalTimeString } from "../lib/dates";
+import type { CreateEventPayload, Event, EventType, UpdateEventPayload } from "../lib/types";
 import { Modal } from "./modal";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { cn } from "../lib/utils";
 
 interface EventFormModalProps {
+  /** Presente en modo edición: precarga el formulario y hace PATCH en vez de POST. */
+  initialValues?: Event;
   onClose: () => void;
-  onCreated: (event: Event) => void;
+  onCreated?: (event: Event) => void;
+  onUpdated?: (event: Event) => void;
 }
 
 interface EventFormValues {
@@ -54,6 +58,38 @@ function toIsoDueDate(date: string, time: string): string {
   return new Date(`${date}T${time}`).toISOString();
 }
 
+function eventFormDefaultValues(event?: Event): EventFormValues {
+  if (!event) return EMPTY_VALUES;
+  return {
+    name: event.name,
+    eventTypeId: event.event_type != null ? String(event.event_type) : "",
+    date: isoDateTimeToLocalDateString(event.due_date),
+    time: isoDateTimeToLocalTimeString(event.due_date),
+    place: event.place ?? "",
+    clientContact: event.client_contact ?? "",
+    description: event.description ?? "",
+  };
+}
+
+// Solo los campos que cambiaron (dirtyFields de react-hook-form), traducidos
+// al nombre real del backend. Fecha y hora viajan juntas como due_date: si
+// cualquiera de las dos cambió, se recalcula el ISO completo.
+function buildEventUpdatePayload(
+  values: EventFormValues,
+  dirtyFields: Partial<Record<keyof EventFormValues, boolean>>
+): UpdateEventPayload {
+  const payload: UpdateEventPayload = {};
+  if (dirtyFields.name) payload.name = values.name.trim();
+  if (dirtyFields.description) payload.description = values.description.trim();
+  if (dirtyFields.date || dirtyFields.time) payload.due_date = toIsoDueDate(values.date, values.time);
+  if (dirtyFields.place) payload.place = values.place.trim();
+  if (dirtyFields.clientContact) payload.client_contact = values.clientContact.trim();
+  if (dirtyFields.eventTypeId && !values.eventTypeId.startsWith("default-")) {
+    payload.event_type = Number(values.eventTypeId);
+  }
+  return payload;
+}
+
 // El backend nombra los campos distinto al formulario (due_date/event_type/
 // client_contact vs date+time/eventTypeId/clientContact): se traducen antes
 // de pintar los errores para que applyFieldErrors encuentre el campo real.
@@ -69,7 +105,14 @@ function remapEventErrorFields(error: unknown): unknown {
   return new ApiError(error.message, error.status, error.code, fields);
 }
 
-export function EventFormModal({ onClose, onCreated }: EventFormModalProps) {
+export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }: EventFormModalProps) {
+  const mode = initialValues ? "edit" : "create";
+  // El tipo es obligatorio al crear, pero en edición solo si el evento ya
+  // tenía uno: hoy el backend no guarda event_type en ningún evento
+  // existente, así que exigirlo siempre bloquearía editar cualquier otro
+  // campo de eventos ya creados.
+  const eventTypeRequired = mode === "create" || initialValues?.event_type != null;
+
   const [eventTypes, setEventTypes] = useState<SelectOption[]>([]);
   // Empieza en true: el fetch arranca apenas se monta el componente (el
   // padre solo lo monta cuando el modal debe abrirse, con una key nueva
@@ -82,17 +125,33 @@ export function EventFormModal({ onClose, onCreated }: EventFormModalProps) {
     control,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitting, isDirty },
-  } = useForm<EventFormValues>({ mode: "onBlur", shouldFocusError: true, defaultValues: EMPTY_VALUES });
+    formState: { errors, isSubmitting, isDirty, dirtyFields },
+  } = useForm<EventFormValues>({
+    mode: "onBlur",
+    shouldFocusError: true,
+    defaultValues: eventFormDefaultValues(initialValues),
+  });
+
+  // Si el tipo del evento que se edita no está en la lista (id real del
+  // backend contra los fallback "default-*", o un tipo ya borrado), se
+  // agrega como opción para no dejar el select en blanco. No se conoce su
+  // nombre real (Event solo trae el id), así que se muestra un rótulo
+  // genérico.
+  function withCurrentEventType(list: EventType[]): EventType[] {
+    if (initialValues?.event_type == null) return list;
+    const exists = list.some((type) => String(type.id) === String(initialValues.event_type));
+    if (exists) return list;
+    return [...list, { id: initialValues.event_type, name: "Tipo actual" }];
+  }
 
   useEffect(() => {
     let cancelled = false;
     apiFetch<EventType[]>("/tipos-evento/")
       .then((data) => {
-        if (!cancelled) setEventTypes(data);
+        if (!cancelled) setEventTypes(withCurrentEventType(data));
       })
       .catch(() => {
-        if (!cancelled) setEventTypes(EVENT_TYPE_FALLBACKS);
+        if (!cancelled) setEventTypes(withCurrentEventType(EVENT_TYPE_FALLBACKS));
       })
       .finally(() => {
         if (!cancelled) setTypesLoading(false);
@@ -101,6 +160,7 @@ export function EventFormModal({ onClose, onCreated }: EventFormModalProps) {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialValues es estable durante la vida del modal (remonta con key en cada apertura).
   }, []);
 
   async function createEventType(name: string): Promise<SelectOption> {
@@ -113,6 +173,46 @@ export function EventFormModal({ onClose, onCreated }: EventFormModalProps) {
 
   async function submit(values: EventFormValues) {
     setApiError(null);
+
+    if (mode === "edit" && initialValues) {
+      if (!isDirty) {
+        onClose();
+        return;
+      }
+      const payload = buildEventUpdatePayload(values, dirtyFields);
+      if (Object.keys(payload).length === 0) {
+        // El único cambio fue elegir un tipo "default-*" (no se envía nunca
+        // como event_type): no hay nada que guardar, pero cerrar en
+        // silencio parecería un bug. Se avisa junto al campo en vez de
+        // cerrar el modal.
+        if (dirtyFields.eventTypeId && values.eventTypeId.startsWith("default-")) {
+          setError("eventTypeId", {
+            type: "server",
+            message: "Este tipo aún no se puede guardar en el servidor. Elige uno existente o créalo.",
+          });
+          return;
+        }
+        onClose();
+        return;
+      }
+      try {
+        const updated = await apiFetch<Event>(`/eventos/${initialValues.eid}/`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        onUpdated?.(updated);
+      } catch (err) {
+        const remapped = remapEventErrorFields(err);
+        const painted = applyFieldErrors(remapped, setError, KNOWN_FIELDS);
+        if (!painted) {
+          setApiError(
+            err instanceof ApiError ? err : new ApiError("Ocurrió un error inesperado. Intenta de nuevo.", 0, "UNKNOWN")
+          );
+        }
+      }
+      return;
+    }
+
     const payload: CreateEventPayload = {
       name: values.name.trim(),
       description: values.description.trim(),
@@ -129,7 +229,7 @@ export function EventFormModal({ onClose, onCreated }: EventFormModalProps) {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      onCreated(created);
+      onCreated?.(created);
     } catch (err) {
       const remapped = remapEventErrorFields(err);
       const painted = applyFieldErrors(remapped, setError, KNOWN_FIELDS);
@@ -154,7 +254,7 @@ export function EventFormModal({ onClose, onCreated }: EventFormModalProps) {
   }
 
   return (
-    <Modal open onClose={handleClose} title="Nuevo evento">
+    <Modal open onClose={handleClose} title={mode === "edit" ? "Editar evento" : "Nuevo evento"}>
       <form
         noValidate
         onSubmit={handleSubmit(submit)}
@@ -202,12 +302,12 @@ export function EventFormModal({ onClose, onCreated }: EventFormModalProps) {
         <Controller
           name="eventTypeId"
           control={control}
-          rules={{ required: "Elige un tipo de evento." }}
+          rules={{ required: eventTypeRequired ? "Elige un tipo de evento." : false }}
           render={({ field }) => (
             <CreatableSelect
               id="event-type"
               label="Tipo"
-              required
+              required={eventTypeRequired}
               options={eventTypes}
               loading={typesLoading}
               value={field.value || null}

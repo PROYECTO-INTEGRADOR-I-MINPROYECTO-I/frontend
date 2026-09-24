@@ -9,6 +9,8 @@ import { cn } from "../lib/utils";
 export interface ModalChip {
   label: string;
   className?: string;
+  /** Para chips con color dinámico (ej. categoría de texto libre, ver subtask-display.ts). */
+  style?: React.CSSProperties;
 }
 
 interface ModalProps {
@@ -128,9 +130,10 @@ export function Modal({ open, onClose, title, chips, children, footer, className
               {chips.map((chip) => (
                 <span
                   key={chip.label}
+                  style={chip.style}
                   className={cn(
                     "rounded-full px-[10px] py-1 font-jost text-[11px] leading-[16.5px]",
-                    chip.className ?? "bg-[#fffbeb] text-[#bb4d00]"
+                    !chip.style && (chip.className ?? "bg-[#fffbeb] text-[#bb4d00]")
                   )}
                 >
                   {chip.label}

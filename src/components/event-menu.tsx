@@ -1,58 +1,46 @@
 // Pill "Nuevo Evento" / nombre del evento seleccionado (Figma nodo 5:3716).
 // Al desplegarse lista los eventos del usuario y una fila final "Nuevo" para
-// crear uno. El listado se carga una vez al montar y se puede reintentar.
+// crear uno. Componente controlado (PIM1-31): HomePage es dueña del listado
+// y de su carga, porque también necesita mutarlo al editar/borrar eventos;
+// EventMenu solo se encarga de la interacción del menú (abrir/cerrar,
+// navegación con flechas, foco).
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Plus } from "lucide-react";
-import { apiFetch, ApiError } from "../lib/api";
+import { ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Event } from "../lib/types";
 import { cn } from "../lib/utils";
 
+type Status = "loading" | "ready" | "error";
+
 interface EventMenuProps {
+  events: Event[];
+  status: Status;
+  errorMessage?: string;
+  onRetry: () => void;
   selectedEventId: number | null;
   onSelect: (event: Event | null) => void;
   onCreateNew: () => void;
-  /** Evento recién creado desde el modal: se agrega al listado y se selecciona. */
-  newEvent?: Event | null;
-  onNewEventConsumed?: () => void;
+  onEditEvent: (event: Event) => void;
+  onDeleteEvent: (event: Event) => void;
 }
 
-type Status = "loading" | "ready" | "error";
-
-export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, onNewEventConsumed }: EventMenuProps) {
+export function EventMenu({
+  events,
+  status,
+  errorMessage,
+  onRetry,
+  selectedEventId,
+  onSelect,
+  onCreateNew,
+  onEditEvent,
+  onDeleteEvent,
+}: EventMenuProps) {
   const [open, setOpen] = useState(false);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [status, setStatus] = useState<Status>("loading");
-  const [errorMessage, setErrorMessage] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<Array<HTMLElement | null>>([]);
-
-  async function load() {
-    setStatus("loading");
-    try {
-      const data = await apiFetch<Event[]>("/eventos/");
-      setEvents(data);
-      setStatus("ready");
-    } catch (err) {
-      setErrorMessage(err instanceof ApiError ? err.message : "No pudimos cargar tus eventos.");
-      setStatus("error");
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // Solo al montar: la recarga manual usa el botón "Reintentar".
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!newEvent) return;
-    setEvents((prev) => [newEvent, ...prev.filter((event) => event.eid !== newEvent.eid)]);
-    onNewEventConsumed?.();
-  }, [newEvent, onNewEventConsumed]);
 
   useEffect(() => {
     if (!open) return;
@@ -68,11 +56,11 @@ export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, on
   }, [open]);
 
   useEffect(() => {
-    // Si el menú se abre mientras la lista todavía está cargando, los
-    // botones aún no existen: hay que esperar a que el status pase a
-    // "ready" para poder enfocar el primer ítem.
+    // activeIndex ya se resetea a 0 en el click que abre el menú (ver el
+    // botón disparador); acá solo falta el foco imperativo, y hay que
+    // esperar a que status pase a "ready" porque mientras carga los
+    // botones de la lista todavía no existen.
     if (open && status === "ready") {
-      setActiveIndex(0);
       itemRefs.current[0]?.focus();
     }
   }, [open, status]);
@@ -85,7 +73,13 @@ export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, on
   }
 
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
-  const rowCount = events.length + 1; // + fila "Nuevo"
+  // "Nuevo" siempre está; "Editar evento"/"Eliminar evento" solo si hay
+  // selección. Van al final como menuitem propios (no botones sueltos
+  // dentro de la fila) para que participen del mismo roving tabindex y de
+  // las flechas arriba/abajo, igual que el resto de filas del menú.
+  const editEventIndex = events.length + 1;
+  const deleteEventIndex = events.length + 2;
+  const rowCount = events.length + (selectedEvent ? 3 : 1);
 
   function closeAndFocusTrigger() {
     setOpen(false);
@@ -130,7 +124,13 @@ export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, on
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() =>
+          setOpen((prev) => {
+            const next = !prev;
+            if (next) setActiveIndex(0); // el mismo evento que abre el menú resetea la selección activa
+            return next;
+          })
+        }
         className="inline-flex items-center justify-center gap-[5px] rounded-full bg-[#8b1a1a] px-3 py-[6px] font-jost text-[12px] leading-4 text-white"
       >
         {selectedEvent?.name ?? "Nuevo Evento"}
@@ -142,7 +142,7 @@ export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, on
           role="menu"
           aria-label="Eventos"
           onKeyDown={handleMenuKeyDown}
-          className="absolute top-[calc(100%+8px)] right-0 z-40 w-[150px] rounded-[6px] border border-[#e1e5ea] bg-white py-1 shadow-sm"
+          className="absolute top-[calc(100%+8px)] right-0 z-40 w-[180px] rounded-[6px] border border-[#e1e5ea] bg-white py-1 shadow-sm"
         >
           {status === "loading" && (
             <p className="px-3 py-2 font-jost text-[12px] text-[rgba(16,24,40,0.6)]">Cargando…</p>
@@ -155,7 +155,7 @@ export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, on
               </p>
               <button
                 type="button"
-                onClick={load}
+                onClick={onRetry}
                 className="mt-1 font-jost text-[12px] text-[#8b1a1a] underline"
               >
                 Reintentar
@@ -168,26 +168,29 @@ export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, on
           )}
 
           {status === "ready" &&
-            events.map((event, index) => (
-              <button
-                key={event.eid}
-                ref={(node) => {
-                  itemRefs.current[index] = node;
-                }}
-                type="button"
-                role="menuitemradio"
-                aria-checked={event.eid === selectedEventId}
-                tabIndex={activeIndex === index ? 0 : -1}
-                onClick={() => selectEvent(event)}
-                onFocus={() => setActiveIndex(index)}
-                className={cn(
-                  "block w-full border-b border-[#e1e5ea] px-3 py-2 text-left font-jost text-[12px] text-[#101828] hover:bg-[#f7f5f2] focus-visible:bg-[#f7f5f2] focus-visible:outline-none",
-                  event.eid === selectedEventId && "bg-[#f7f5f2] font-semibold"
-                )}
-              >
-                {event.name}
-              </button>
-            ))}
+            events.map((event, index) => {
+              const isSelected = event.eid === selectedEventId;
+              return (
+                <button
+                  key={event.eid}
+                  ref={(node) => {
+                    itemRefs.current[index] = node;
+                  }}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={isSelected}
+                  tabIndex={activeIndex === index ? 0 : -1}
+                  onClick={() => selectEvent(event)}
+                  onFocus={() => setActiveIndex(index)}
+                  className={cn(
+                    "block w-full truncate border-b border-[#e1e5ea] px-3 py-2 text-left font-jost text-[12px] text-[#101828] hover:bg-[#f7f5f2] focus-visible:bg-[#f7f5f2] focus-visible:outline-none",
+                    isSelected && "bg-[#f7f5f2] font-semibold"
+                  )}
+                >
+                  {event.name}
+                </button>
+              );
+            })}
 
           <button
             ref={(node) => {
@@ -198,11 +201,53 @@ export function EventMenu({ selectedEventId, onSelect, onCreateNew, newEvent, on
             tabIndex={activeIndex === events.length ? 0 : -1}
             onClick={startCreate}
             onFocus={() => setActiveIndex(events.length)}
-            className="flex w-full items-center justify-between px-3 py-2 text-left font-jost text-[12px] text-[rgba(16,24,40,0.6)] hover:bg-[#f7f5f2] focus-visible:bg-[#f7f5f2] focus-visible:outline-none"
+            className={cn(
+              "flex w-full items-center justify-between px-3 py-2 text-left font-jost text-[12px] text-[rgba(16,24,40,0.6)] hover:bg-[#f7f5f2] focus-visible:bg-[#f7f5f2] focus-visible:outline-none",
+              selectedEvent && "border-b border-[#e1e5ea]"
+            )}
           >
             Nuevo
             <Plus size={14} aria-hidden="true" />
           </button>
+
+          {selectedEvent && (
+            <>
+              <button
+                ref={(node) => {
+                  itemRefs.current[editEventIndex] = node;
+                }}
+                type="button"
+                role="menuitem"
+                tabIndex={activeIndex === editEventIndex ? 0 : -1}
+                onFocus={() => setActiveIndex(editEventIndex)}
+                onClick={() => {
+                  onEditEvent(selectedEvent);
+                  closeAndFocusTrigger();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left font-jost text-[12px] text-[#101828] hover:bg-[#f7f5f2] focus-visible:bg-[#f7f5f2] focus-visible:outline-none"
+              >
+                <Pencil size={13} aria-hidden="true" />
+                Editar evento
+              </button>
+              <button
+                ref={(node) => {
+                  itemRefs.current[deleteEventIndex] = node;
+                }}
+                type="button"
+                role="menuitem"
+                tabIndex={activeIndex === deleteEventIndex ? 0 : -1}
+                onFocus={() => setActiveIndex(deleteEventIndex)}
+                onClick={() => {
+                  onDeleteEvent(selectedEvent);
+                  closeAndFocusTrigger();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left font-jost text-[12px] text-[#8b1a1a] hover:bg-[#fff0f0] focus-visible:bg-[#fff0f0] focus-visible:outline-none"
+              >
+                <Trash2 size={13} aria-hidden="true" />
+                Eliminar evento
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

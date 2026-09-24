@@ -62,6 +62,16 @@ try {
 }
 ```
 
+## Modo sin backend (mock)
+
+`npm run dev:mock` levanta la app (modo `mock`, carga `.env.mock`) sin necesitar el Django local: `src/lib/api.ts` intercepta cada `apiFetch` y la responde `src/mocks/handler.ts` con datos guardados en `localStorage`, simulando latencia (~400 ms, configurable con `VITE_MOCK_DELAY`) y las mismas validaciones y contratos de error que el backend real. Alcanza para recorrer todo el flujo: crear, editar y eliminar eventos y gestiones, y crear tipos de evento/categorías personalizados.
+
+- `?mock-reset` en la URL reinicia los datos a la semilla inicial (3 eventos con gestiones repartidas entre vencidas, de hoy y próximas). Se consume antes de montar React y se quita de la URL enseguida (`history.replaceState`), así que no se "pega" en las siguientes navegaciones ni recargas.
+- `?mock-fail=network` hace fallar las escrituras (POST/PATCH/DELETE) como un error de red.
+- `?mock-fail=load` hace fallar las lecturas (GET). A diferencia de `mock-reset`, `mock-fail` sí se queda en la URL mientras lo dejes puesto: es intencional, para poder probar el estado de error navegando o recargando sin tener que volver a escribirlo.
+
+Los builds normales (`npm run build`, `npm run dev`) no incluyen nada de `src/mocks/`: el import es dinámico y solo se ejecuta cuando `VITE_USE_MOCKS=true`, así que Vite lo deja fuera del bundle.
+
 ## Despliegue
 
 Tres ambientes (dev, qa, prod) en Render. El detalle completo —variables de entorno, modos de build y configuración de los sitios— está en [DEPLOYMENT.md](./DEPLOYMENT.md).

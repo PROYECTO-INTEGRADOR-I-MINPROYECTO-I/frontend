@@ -1,6 +1,8 @@
 // Cliente HTTP único para hablar con el backend.
 // Centraliza la URL base, las cabeceras por defecto y el manejo de errores.
 
+import type { CreateSubtaskPayload, Subtask } from "./types";
+
 const API_URL = import.meta.env.VITE_API_URL;
 
 if (!API_URL) {
@@ -168,6 +170,26 @@ async function buildApiError(response: Response): Promise<ApiError> {
   }
 }
 
+// Único punto de enganche del modo mock (npm run dev:mock): en vez de pegarle
+// al backend real, la petición la responde src/mocks/handler.ts con datos en
+// localStorage. El import es dinámico y la condición es sobre una env var que
+// Vite reemplaza en build time, así que en `npm run build` normal esta rama
+// queda muerta y el bundler descarta src/mocks/ por completo.
+async function performFetch(path: string, options: RequestInit): Promise<Response> {
+  if (import.meta.env.VITE_USE_MOCKS === "true") {
+    const { handleMockRequest } = await import("../mocks/handler");
+    return handleMockRequest(path, options.method ?? "GET", options.body ?? null, options.signal ?? undefined);
+  }
+  return fetch(`${API_URL}${path}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+}
+
 /**
  * Hace una petición al backend y devuelve el cuerpo ya parseado como JSON.
  * Fusiona los headers recibidos con los headers por defecto y envía
@@ -179,14 +201,7 @@ export async function apiFetch<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
+    response = await performFetch(path, options);
   } catch (err) {
     // Un abort (por ejemplo un AbortController del caller) no es una falla de
     // red: se re-lanza tal cual para que quien canceló lo maneje a su modo.
@@ -216,4 +231,25 @@ export async function apiFetch<T>(
   }
 
   return JSON.parse(text) as T;
+}
+
+/**
+ * Crea una gestión (POST /eventos/<eid>/subtareas/). Único punto donde se
+ * arma el body de creación, para que el valor fijo de `priority` (ver TODO)
+ * no quede disperso por los componentes.
+ */
+export async function createSubtask(
+  eventId: number,
+  payload: CreateSubtaskPayload
+): Promise<Subtask & { warnings?: string[] }> {
+  return apiFetch<Subtask & { warnings?: string[] }>(`/eventos/${eventId}/subtareas/`, {
+    method: "POST",
+    body: JSON.stringify({
+      ...payload,
+      // TODO(backend): SubtaskSerializer todavía exige `priority`. Quitar este
+      // valor fijo cuando backend elimine priority (Subtasks) y
+      // progress_percentage (Events) del modelo, el serializer y la BD.
+      priority: "medium",
+    }),
+  });
 }
