@@ -26,3 +26,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Resumen de tests que genera `npm run test:ci`
+test-summary.json
