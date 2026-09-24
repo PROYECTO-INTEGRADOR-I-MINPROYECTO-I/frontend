@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { HomePage } from "./homepage";
@@ -62,6 +63,39 @@ function stubHomepageFetch() {
   return fetchMock;
 }
 
+// Igual que stubHomepageFetch, pero además atiende el PATCH /subtareas/<id>/
+// (marcar/desmarcar completada) con la respuesta que decida `patchHandler`.
+function stubHomepageFetchWithPatch(
+  patchHandler: (subtaskId: number, body: Record<string, unknown>) => Promise<Response>
+) {
+  const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+    const href = String(url);
+    const method = options?.method ?? "GET";
+    const patchMatch = method === "PATCH" && href.match(/\/subtareas\/(\d+)\/$/);
+    if (patchMatch) {
+      const body = JSON.parse(String(options?.body ?? "{}"));
+      return patchHandler(Number(patchMatch[1]), body);
+    }
+    if (href.includes("/eventos/1/subtareas/")) {
+      return Promise.resolve(
+        new Response(JSON.stringify(subtasks), { status: 200, headers: { "Content-Type": "application/json" } })
+      );
+    }
+    if (href.includes("/eventos/")) {
+      return Promise.resolve(
+        new Response(JSON.stringify([event]), { status: 200, headers: { "Content-Type": "application/json" } })
+      );
+    }
+    return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function jsonResponse(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
 function columnCardTitles(headingName: string): string[] {
   const heading = screen.getByRole("heading", { name: headingName });
   const column = heading.closest("article");
@@ -107,5 +141,104 @@ describe("HomePage", () => {
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
+  });
+
+  test("marcar una gestión pendiente la mueve a Completadas y envía el PATCH {status: 'done'}", async () => {
+    const fetchMock = stubHomepageFetchWithPatch((subtaskId, body) =>
+      Promise.resolve(jsonResponse({ ...subtasks.find((item) => item.subtask_id === subtaskId), ...body }, 200))
+    );
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Hoy A");
+
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy A como completada" }));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url, options]) => {
+        const patchCall = String(url).includes("/subtareas/4/") && options?.method === "PATCH";
+        return patchCall && JSON.parse(String(options.body)).status === "done";
+      })).toBe(true)
+    );
+
+    const completedSection = screen.getByText("Completadas").closest(".today-panel") as HTMLElement;
+    await waitFor(() =>
+      expect(
+        within(completedSection)
+          .getAllByRole("button")
+          .map((button) => button.getAttribute("aria-label"))
+      ).toContain("Hoy A")
+    );
+  });
+
+  test("desmarcar una gestión completada envía el PATCH {status: 'pending'}", async () => {
+    const fetchMock = stubHomepageFetchWithPatch((subtaskId, body) =>
+      Promise.resolve(jsonResponse({ ...subtasks.find((item) => item.subtask_id === subtaskId), ...body }, 200))
+    );
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Hoy Hecha");
+
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy Hecha como completada" }));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url, options]) => {
+        const patchCall = String(url).includes("/subtareas/6/") && options?.method === "PATCH";
+        return patchCall && JSON.parse(String(options.body)).status === "pending";
+      })).toBe(true)
+    );
+  });
+
+  test("si el PATCH falla, revierte el cambio y 'Reintentar' vuelve a intentar con éxito", async () => {
+    let callCount = 0;
+    stubHomepageFetchWithPatch((subtaskId, body) => {
+      callCount += 1;
+      if (callCount === 1) {
+        return Promise.reject(new TypeError("Failed to fetch"));
+      }
+      return Promise.resolve(jsonResponse({ ...subtasks.find((item) => item.subtask_id === subtaskId), ...body }, 200));
+    });
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Hoy B");
+
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy B como completada" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Sin conexión. No se guardó el cambio.");
+
+    // Se revirtió: "Hoy B" sigue en Pendientes, no en Completadas.
+    const pendingSection = screen.getByText("Pendientes").closest(".today-panel") as HTMLElement;
+    expect(
+      within(pendingSection)
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label"))
+    ).toContain("Hoy B");
+
+    await user.click(within(alert).getByRole("button", { name: "Reintentar" }));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    const completedSection = screen.getByText("Completadas").closest(".today-panel") as HTMLElement;
+    await waitFor(() =>
+      expect(
+        within(completedSection)
+          .getAllByRole("button")
+          .map((button) => button.getAttribute("aria-label"))
+      ).toContain("Hoy B")
+    );
   });
 });

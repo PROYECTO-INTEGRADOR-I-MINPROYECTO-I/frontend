@@ -1,7 +1,7 @@
 // Cliente HTTP único para hablar con el backend.
 // Centraliza la URL base, las cabeceras por defecto y el manejo de errores.
 
-import type { CreateSubtaskPayload, Subtask } from "./types";
+import type { CreateSubtaskPayload, Subtask, SubtaskStatus } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -251,5 +251,18 @@ export async function createSubtask(
       // progress_percentage (Events) del modelo, el serializer y la BD.
       priority: "medium",
     }),
+  });
+}
+
+/**
+ * Marca/desmarca una gestión como completada (PATCH /subtareas/<id>/).
+ * Único punto de esta acción, igual que `createSubtask`, para que la
+ * actualización optimista con reversión (ver homepage.tsx) tenga un solo
+ * lugar de dónde partir.
+ */
+export async function setSubtaskStatus(subtaskId: number, status: SubtaskStatus): Promise<Subtask> {
+  return apiFetch<Subtask>(`/subtareas/${subtaskId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
   });
 }

@@ -9,9 +9,10 @@ import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
 import { SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
-import { apiFetch, ApiError } from "../lib/api";
+import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
 import { todayLocalDateString } from "../lib/dates";
 import { sortSubtasksByDateThenHours } from "../lib/subtask-display";
+import { describeSaveError } from "../lib/subtask-errors";
 import type { Event, Subtask, SubtaskStatus } from "../lib/types";
 import "./homepage.css";
 
@@ -99,6 +100,16 @@ export function HomePage() {
 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const successTimeoutRef = useRef<number | null>(null);
+
+  // Completar/despausar una gestión (US-09): actualización optimista con
+  // reversión si el PATCH falla (servidor caído, sin internet, 404 porque el
+  // backend real todavía no tiene el endpoint, etc.). `pendingToggleId`
+  // deshabilita el control mientras la petición está en curso, para evitar
+  // dobles clics; `toggleError` guarda el mensaje y a qué gestión reintentarle.
+  const [pendingToggleId, setPendingToggleId] = useState<number | null>(null);
+  const [toggleError, setToggleError] = useState<{ subtaskId: number; message: string; retry: () => void } | null>(
+    null
+  );
 
   // Se incrementa en cada carga (cambio de evento o "Reintentar"). Si la
   // respuesta llega y ya no coincide con el contador actual, es una carga
@@ -254,6 +265,34 @@ export function HomePage() {
     showSuccess("Cambios guardados");
   }
 
+  function applySubtaskUpdate(updated: Subtask) {
+    setSubtasks((prev) => prev.map((item) => (item.subtask_id === updated.subtask_id ? updated : item)));
+    setDetailSubtask((prev) => (prev && prev.subtask_id === updated.subtask_id ? updated : prev));
+  }
+
+  async function handleToggleComplete(subtask: Subtask) {
+    if (pendingToggleId === subtask.subtask_id) return; // ya hay un cambio en curso para esta gestión: evita dobles clics
+    const nextStatus: SubtaskStatus = subtask.status === "done" ? "pending" : "done";
+
+    setToggleError(null);
+    setPendingToggleId(subtask.subtask_id);
+    applySubtaskUpdate({ ...subtask, status: nextStatus }); // optimista
+
+    try {
+      const updated = await setSubtaskStatus(subtask.subtask_id, nextStatus);
+      applySubtaskUpdate(updated);
+    } catch (err) {
+      applySubtaskUpdate(subtask); // revierte al estado anterior a la petición
+      setToggleError({
+        subtaskId: subtask.subtask_id,
+        message: describeSaveError(err),
+        retry: () => handleToggleComplete(subtask),
+      });
+    } finally {
+      setPendingToggleId((current) => (current === subtask.subtask_id ? null : current));
+    }
+  }
+
   function requestDeleteSubtask(subtask: Subtask) {
     setDetailSubtask(null);
     setDeleteSubtaskError(null);
@@ -323,15 +362,18 @@ export function HomePage() {
 
   for (const subtask of subtasks) {
     if (subtask.scheduled_date > todayDate) {
-      upcoming.push(subtask);
+      if (subtask.status !== "done") upcoming.push(subtask);
     } else if (subtask.scheduled_date === todayDate) {
       (subtask.status === "done" ? todayDone : todayPending).push(subtask);
     } else if (subtask.status !== "done") {
       overdue.push(subtask);
     }
-    // Completada con fecha anterior a hoy: no cae en ninguna columna según el
-    // ticket (Vencidas excluye "done", Para hoy exige fecha == hoy). Si en el
-    // futuro se necesita ver ese historial, hay que decidir dónde mostrarlo.
+    // Completada con fecha distinta a hoy (antes o después): no cae en
+    // ninguna columna (Vencidas y Próximas excluyen "done"; Para hoy exige
+    // fecha == hoy). Así, al marcar como completada una gestión vencida o
+    // próxima (US-09), sale de su columna en vez de quedar mostrada ahí con
+    // el check activado. Si en el futuro se necesita ver ese historial, hay
+    // que decidir dónde mostrarlo.
   }
 
   const sortedUpcoming = sortSubtasksByDateThenHours(upcoming);
@@ -361,6 +403,23 @@ export function HomePage() {
       <div aria-live="polite" role="status" className="success-toast" data-visible={Boolean(successMessage)}>
         {successMessage}
       </div>
+
+      {toggleError && toggleError.subtaskId !== detailSubtask?.subtask_id && (
+        <div
+          role="alert"
+          className="mx-6 flex items-center justify-between gap-3 rounded-lg bg-[#fff0f0] px-4 py-3 text-[13px] text-[#8b1a1a]"
+        >
+          <span>{toggleError.message}</span>
+          <div className="flex shrink-0 gap-3">
+            <button type="button" onClick={toggleError.retry} className="font-jost text-[12px] underline">
+              Reintentar
+            </button>
+            <button type="button" onClick={() => setToggleError(null)} className="font-jost text-[12px] underline">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       <section className="planner-intro" aria-labelledby="today-heading">
         <div className="intro-row">
@@ -427,7 +486,13 @@ export function HomePage() {
             {selectedEventId != null && sortedUpcoming.length > 0 && (
               <div className="column-list">
                 {sortedUpcoming.map((subtask) => (
-                  <SubtaskCard key={subtask.subtask_id} subtask={subtask} onOpen={setDetailSubtask} />
+                  <SubtaskCard
+                    key={subtask.subtask_id}
+                    subtask={subtask}
+                    onOpen={setDetailSubtask}
+                    onToggleComplete={handleToggleComplete}
+                    pending={pendingToggleId === subtask.subtask_id}
+                  />
                 ))}
               </div>
             )}
@@ -478,6 +543,8 @@ export function HomePage() {
                   items={sortedTodayPending}
                   emptyHint="Sin pendientes para hoy."
                   onOpen={setDetailSubtask}
+                  onToggleComplete={handleToggleComplete}
+                  pendingToggleId={pendingToggleId}
                 />
                 <TodayPanel
                   label="Completadas"
@@ -487,6 +554,8 @@ export function HomePage() {
                   items={sortedTodayDone}
                   emptyHint="Sin gestiones completadas."
                   onOpen={setDetailSubtask}
+                  onToggleComplete={handleToggleComplete}
+                  pendingToggleId={pendingToggleId}
                   completed
                 />
               </div>
@@ -497,7 +566,14 @@ export function HomePage() {
             {selectedEventId != null && sortedOverdue.length > 0 && (
               <div className="column-list">
                 {sortedOverdue.map((subtask) => (
-                  <SubtaskCard key={subtask.subtask_id} subtask={subtask} onOpen={setDetailSubtask} overdue />
+                  <SubtaskCard
+                    key={subtask.subtask_id}
+                    subtask={subtask}
+                    onOpen={setDetailSubtask}
+                    onToggleComplete={handleToggleComplete}
+                    pending={pendingToggleId === subtask.subtask_id}
+                    overdue
+                  />
                 ))}
               </div>
             )}
@@ -547,6 +623,13 @@ export function HomePage() {
           onClose={() => setDetailSubtask(null)}
           onEdit={openEditSubtaskForm}
           onDelete={requestDeleteSubtask}
+          onToggleComplete={handleToggleComplete}
+          togglePending={pendingToggleId === detailSubtask.subtask_id}
+          toggleError={
+            toggleError && toggleError.subtaskId === detailSubtask.subtask_id
+              ? { message: toggleError.message, onRetry: toggleError.retry }
+              : null
+          }
         />
       )}
 
@@ -617,6 +700,8 @@ function TodayPanel({
   items,
   emptyHint,
   onOpen,
+  onToggleComplete,
+  pendingToggleId,
   completed = false,
 }: {
   label: string;
@@ -626,6 +711,8 @@ function TodayPanel({
   items: Subtask[];
   emptyHint: string;
   onOpen: (subtask: Subtask) => void;
+  onToggleComplete: (subtask: Subtask) => void;
+  pendingToggleId: number | null;
   completed?: boolean;
 }) {
   return (
@@ -644,7 +731,14 @@ function TodayPanel({
           <p className="column-empty-hint">{emptyHint}</p>
         ) : (
           items.map((subtask) => (
-            <SubtaskCard key={subtask.subtask_id} subtask={subtask} onOpen={onOpen} completed={completed} />
+            <SubtaskCard
+              key={subtask.subtask_id}
+              subtask={subtask}
+              onOpen={onOpen}
+              onToggleComplete={onToggleComplete}
+              pending={pendingToggleId === subtask.subtask_id}
+              completed={completed}
+            />
           ))
         )}
       </div>

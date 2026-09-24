@@ -1,6 +1,7 @@
-// Modal de detalle de una gestión, solo lectura (PIM1-27, luego PIM1-31
-// añade Editar y Eliminar). Completar (US-09) no va en este ticket: el pie
-// solo tiene "Editar", como en detalle.png.
+// Modal de detalle de una gestión, con Editar, Eliminar y completar (US-09):
+// el pie tiene "Editar" y "Marcar como completada"/"Marcar como pendiente".
+// El toggle de completar lo controla el padre (ver handleToggleComplete en
+// homepage.tsx, con actualización optimista y reversión si falla el PATCH).
 
 import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
 import {
@@ -13,18 +14,37 @@ import {
 import type { Subtask } from "../lib/types";
 import { Modal } from "./modal";
 
+export interface SubtaskToggleError {
+  message: string;
+  onRetry: () => void;
+}
+
 interface SubtaskDetailModalProps {
   subtask: Subtask;
   onClose: () => void;
   onEdit: (subtask: Subtask) => void;
   onDelete: (subtask: Subtask) => void;
+  onToggleComplete: (subtask: Subtask) => void;
+  /** Deshabilita el botón mientras el PATCH está en curso, para evitar dobles clics. */
+  togglePending?: boolean;
+  /** Error del último intento de completar/despausar, con su acción de reintento. */
+  toggleError?: SubtaskToggleError | null;
 }
 
-export function SubtaskDetailModal({ subtask, onClose, onEdit, onDelete }: SubtaskDetailModalProps) {
+export function SubtaskDetailModal({
+  subtask,
+  onClose,
+  onEdit,
+  onDelete,
+  onToggleComplete,
+  togglePending = false,
+  toggleError = null,
+}: SubtaskDetailModalProps) {
   const timeStatus = subtaskTimeStatus(subtask.status, subtask.scheduled_date, todayLocalDateString());
   const timeStatusStyle = TIME_STATUS_STYLES[timeStatus];
   const categoryStyle = categoryChipStyle(subtask.category);
   const hoursLabel = formatDuration(subtask.estimated_hours);
+  const isDone = subtask.status === "done";
 
   return (
     <Modal
@@ -36,16 +56,36 @@ export function SubtaskDetailModal({ subtask, onClose, onEdit, onDelete }: Subta
         { label: subtask.category, style: { backgroundColor: categoryStyle.bg, color: categoryStyle.text } },
       ]}
       footer={
-        <button
-          type="button"
-          onClick={() => onEdit(subtask)}
-          className="flex-1 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a]"
-        >
-          Editar
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => onEdit(subtask)}
+            className="flex-1 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a]"
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleComplete(subtask)}
+            disabled={togglePending}
+            aria-busy={togglePending}
+            className="flex-1 rounded-lg bg-[#8b1a1a] py-[10px] font-jost text-[14px] text-white disabled:opacity-60"
+          >
+            {isDone ? "Marcar como pendiente" : "Marcar como completada"}
+          </button>
+        </>
       }
     >
       <div className="flex flex-col gap-4">
+        {toggleError && (
+          <div role="alert" className="flex flex-col gap-2 rounded-lg bg-[#fff0f0] p-3 text-[13px] text-[#8b1a1a]">
+            <span>{toggleError.message}</span>
+            <button type="button" onClick={toggleError.onRetry} className="w-fit font-jost text-[12px] underline">
+              Reintentar
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
             <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Fecha</span>
