@@ -10,6 +10,7 @@ import { isoDateTimeToLocalDateString } from "../lib/dates";
 import type { Category, CreateSubtaskPayload, Subtask, UpdateSubtaskPayload } from "../lib/types";
 import { Modal } from "./modal";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
+import { HoursPicker } from "./hours-picker";
 import { cn } from "../lib/utils";
 
 interface SubtaskFormModalProps {
@@ -344,25 +345,29 @@ export function SubtaskFormModal({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label htmlFor="subtask-hours" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+            <label
+              id="subtask-hours-label"
+              htmlFor="subtask-hours"
+              className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase"
+            >
               Horas estimadas
             </label>
-            <input
-              id="subtask-hours"
-              type="number"
-              step={0.5}
-              inputMode="decimal"
-              aria-required="true"
-              aria-invalid={Boolean(errors.estimated_hours)}
-              aria-describedby={errors.estimated_hours ? "subtask-hours-error" : undefined}
-              className={cn(
-                "h-8 rounded-lg border border-[#d4d5d7] px-2 font-source text-[14px] text-[#1e2939] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]",
-                errors.estimated_hours && "border-red-600"
-              )}
-              {...register("estimated_hours", {
+            <Controller
+              name="estimated_hours"
+              control={control}
+              rules={{
                 required: "Indica las horas estimadas.",
                 validate: (value) => Number(value) > 0 || "Las horas estimadas deben ser mayores a 0.",
-              })}
+              }}
+              render={({ field }) => (
+                <HoursPicker
+                  id="subtask-hours"
+                  value={field.value}
+                  onChange={field.onChange}
+                  invalid={Boolean(errors.estimated_hours)}
+                  describedBy={errors.estimated_hours ? "subtask-hours-error" : undefined}
+                />
+              )}
             />
             {errors.estimated_hours && (
               <p id="subtask-hours-error" role="alert" className="text-[12px] text-red-600">

@@ -52,6 +52,41 @@ export const TIME_STATUS_STYLES: Record<SubtaskTimeStatus, { bg: string; text: s
   done: { bg: "#ecfdf5", text: "#007a55" },
 };
 
+// Minutos mínimos/máximos permitidos en HoursPicker: 5 min (backend exige
+// horas > 0) hasta 24 h (1440 min), siempre en pasos de 5 min.
+const MIN_DURATION_MINUTES = 5;
+const MAX_DURATION_MINUTES = 24 * 60;
+
+/**
+ * Convierte horas (string, tal como viaja `estimated_hours`) a minutos,
+ * redondeando al múltiplo de 5 más cercano. Así "0.08" (2 decimales, lo
+ * máximo que guarda el backend) vuelve a dar 5 min en vez de 4.8.
+ */
+export function hoursToMinutes(hoursString: string): number {
+  const hours = Number(hoursString);
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  const minutes = Math.round((hours * 60) / 5) * 5;
+  return Math.min(MAX_DURATION_MINUTES, Math.max(MIN_DURATION_MINUTES, minutes));
+}
+
+/**
+ * Convierte minutos a horas con 2 decimales (lo que soporta
+ * `estimated_hours`, un DecimalField(max_digits=4, decimal_places=2)).
+ */
+export function minutesToHours(minutes: number): string {
+  return (minutes / 60).toFixed(2);
+}
+
+/** Etiqueta legible de una duración en horas: "5 min", "1 h", "2 h 30 min". */
+export function formatDuration(hoursString: string): string {
+  const totalMinutes = hoursToMinutes(hoursString);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes} min`;
+  if (minutes === 0) return `${hours} h`;
+  return `${hours} h ${minutes} min`;
+}
+
 /** Por fecha ascendente y, en empate, por horas estimadas descendente (más horas primero). */
 export function sortSubtasksByDateThenHours(items: Subtask[]): Subtask[] {
   return [...items].sort((a, b) => {

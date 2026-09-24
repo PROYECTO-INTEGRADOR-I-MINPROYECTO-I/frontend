@@ -5,7 +5,7 @@
 
 import { CheckSquare } from "lucide-react";
 import type { Subtask } from "../lib/types";
-import { categoryChipStyle } from "../lib/subtask-display";
+import { categoryChipStyle, formatDuration } from "../lib/subtask-display";
 import { formatShortDateEs } from "../lib/dates";
 import { cn } from "../lib/utils";
 
@@ -20,8 +20,7 @@ interface SubtaskCardProps {
 
 export function SubtaskCard({ subtask, onOpen, overdue = false, completed = false }: SubtaskCardProps) {
   const categoryStyle = categoryChipStyle(subtask.category);
-  const hours = Number(subtask.estimated_hours);
-  const hoursLabel = Number.isFinite(hours) ? `${hours} h` : `${subtask.estimated_hours} h`;
+  const hoursLabel = formatDuration(subtask.estimated_hours);
 
   return (
     <button

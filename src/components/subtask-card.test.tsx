@@ -20,7 +20,7 @@ describe("SubtaskCard", () => {
 
     expect(screen.getByRole("button", { name: "Confirmar catering" })).toBeInTheDocument();
     expect(screen.getByText("Catering")).toBeInTheDocument();
-    expect(screen.getByText("2.5 h")).toBeInTheDocument();
+    expect(screen.getByText("2 h 30 min")).toBeInTheDocument();
     expect(screen.getByText("19 sept")).toBeInTheDocument();
 
     expect(screen.queryByText(/baja|media|alta|urgente/i)).not.toBeInTheDocument();

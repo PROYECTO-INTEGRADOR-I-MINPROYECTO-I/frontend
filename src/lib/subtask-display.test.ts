@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { categoryChipStyle, sortSubtasksByDateThenHours, subtaskTimeStatus } from "./subtask-display";
+import {
+  categoryChipStyle,
+  formatDuration,
+  hoursToMinutes,
+  minutesToHours,
+  sortSubtasksByDateThenHours,
+  subtaskTimeStatus,
+} from "./subtask-display";
 import type { Subtask } from "./types";
 
 function makeSubtask(overrides: Partial<Subtask>): Subtask {
@@ -76,6 +83,32 @@ describe("subtaskTimeStatus", () => {
 
   test("upcoming cuando la fecha es posterior a hoy", () => {
     expect(subtaskTimeStatus("pending", "2026-09-25", today)).toBe("upcoming");
+  });
+});
+
+describe("hoursToMinutes / minutesToHours", () => {
+  test.each([5, 10, 15, 20, 45, 90, 150])("ida y vuelta sin deriva para %i minutos", (minutes) => {
+    const hours = minutesToHours(minutes);
+    expect(hoursToMinutes(hours)).toBe(minutes);
+  });
+
+  test("redondea al múltiplo de 5 más cercano (0.08 h -> 5 min, no 4.8)", () => {
+    expect(hoursToMinutes("0.08")).toBe(5);
+  });
+});
+
+describe("formatDuration", () => {
+  test("minutos puros: 5 -> '5 min', 45 -> '45 min'", () => {
+    expect(formatDuration(minutesToHours(5))).toBe("5 min");
+    expect(formatDuration(minutesToHours(45))).toBe("45 min");
+  });
+
+  test("horas exactas: 60 -> '1 h'", () => {
+    expect(formatDuration(minutesToHours(60))).toBe("1 h");
+  });
+
+  test("horas y minutos: 150 -> '2 h 30 min'", () => {
+    expect(formatDuration(minutesToHours(150))).toBe("2 h 30 min");
   });
 });
 

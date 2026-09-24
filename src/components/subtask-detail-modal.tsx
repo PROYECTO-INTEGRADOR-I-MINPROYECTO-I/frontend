@@ -5,6 +5,7 @@
 import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
 import {
   categoryChipStyle,
+  formatDuration,
   subtaskTimeStatus,
   TIME_STATUS_LABELS,
   TIME_STATUS_STYLES,
@@ -23,8 +24,7 @@ export function SubtaskDetailModal({ subtask, onClose, onEdit, onDelete }: Subta
   const timeStatus = subtaskTimeStatus(subtask.status, subtask.scheduled_date, todayLocalDateString());
   const timeStatusStyle = TIME_STATUS_STYLES[timeStatus];
   const categoryStyle = categoryChipStyle(subtask.category);
-  const hours = Number(subtask.estimated_hours);
-  const hoursLabel = Number.isFinite(hours) ? `${hours} h` : `${subtask.estimated_hours} h`;
+  const hoursLabel = formatDuration(subtask.estimated_hours);
 
   return (
     <Modal

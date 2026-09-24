@@ -60,6 +60,54 @@ describe("SubtaskFormModal", () => {
     expect(await screen.findByText("Indica las horas estimadas.")).toBeInTheDocument();
   });
 
+  test("elegir un chip de duración envía el estimated_hours correcto", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const href = String(url);
+      if (href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              subtask_id: 11,
+              eid: 1,
+              title: "Confirmar catering",
+              description: "",
+              category: "Catering",
+              estimated_hours: "0.08",
+              scheduled_date: "2026-10-01",
+              status: "pending",
+            },
+            201
+          )
+        );
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubtaskFormModal eventId={1} eventName="Boda Luisa & Carlos" onClose={vi.fn()} onCreated={onCreated} />);
+    const categorySelect = await waitForCategoriesLoaded();
+
+    await user.type(screen.getByLabelText("Nombre"), "Confirmar catering");
+    await user.selectOptions(categorySelect, "Catering");
+    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-10-01" } });
+    await user.click(screen.getByRole("button", { name: "5 min" }));
+
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+
+    const postCall = fetchMock.mock.calls.find(([url]) => String(url).includes("/eventos/1/subtareas/"));
+    expect(postCall).toBeDefined();
+    const [, options] = postCall!;
+    const sentBody = JSON.parse(options.body as string);
+    expect(sentBody.estimated_hours).toBe("0.08");
+  });
+
   test("crear envía el payload correcto, con priority fijo agregado por la capa de API", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
@@ -95,7 +143,7 @@ describe("SubtaskFormModal", () => {
     await user.type(screen.getByLabelText("Nombre"), "Confirmar catering");
     await user.selectOptions(categorySelect, "Catering");
     fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-10-01" } });
-    await user.type(screen.getByLabelText("Horas estimadas"), "2");
+    await user.click(screen.getByRole("button", { name: "2 h" }));
 
     await user.click(screen.getByRole("button", { name: "Guardar" }));
 
@@ -188,7 +236,7 @@ describe("SubtaskFormModal", () => {
     await user.type(screen.getByLabelText("Nombre"), "x");
     await user.selectOptions(categorySelect, "Catering");
     fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-10-01" } });
-    await user.type(screen.getByLabelText("Horas estimadas"), "2");
+    await user.click(screen.getByRole("button", { name: "2 h" }));
 
     await user.click(screen.getByRole("button", { name: "Guardar" }));
 
