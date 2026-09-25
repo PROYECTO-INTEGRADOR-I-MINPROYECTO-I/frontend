@@ -105,11 +105,25 @@ export function Modal({ open, onClose, title, chips, children, footer, className
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onClose se lee via onCloseRef a propósito, ver comentario arriba.
   }, [open, initialFocusRef]);
 
+  // Mientras el modal está abierto la página de fondo no scrollea: el scroll
+  // queda solo dentro del cuerpo del modal.
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   if (!open) return null;
 
+  // El diálogo nunca pasa del alto de la pantalla (dvh, para que la barra
+  // del navegador móvil no lo tape): cabecera y pie quedan fijos y el cuerpo
+  // scrollea por dentro.
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 sm:p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -120,11 +134,11 @@ export function Modal({ open, onClose, title, chips, children, footer, className
         aria-modal="true"
         aria-labelledby={titleId}
         className={cn(
-          "w-full max-w-[448px] rounded-[10px] bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]",
+          "flex max-h-[calc(100dvh-1rem)] w-full max-w-[448px] flex-col overflow-hidden rounded-[10px] bg-white shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] sm:max-h-[calc(100dvh-2rem)]",
           className
         )}
       >
-        <div className="relative rounded-t-[10px] bg-[#8b1a1a] px-6 pt-8 pb-6">
+        <div className="relative shrink-0 rounded-t-[10px] bg-[#8b1a1a] px-4 pt-8 pb-6 sm:px-6">
           {chips && chips.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {chips.map((chip) => (
@@ -160,11 +174,13 @@ export function Modal({ open, onClose, title, chips, children, footer, className
           </button>
         </div>
 
-        <div ref={bodyRef} className="px-6 py-6">
+        <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-6">
           {children}
         </div>
 
-        {footer && <div className="flex gap-3 border-t border-[#f3f4f6] px-6 py-4">{footer}</div>}
+        {footer && (
+          <div className="flex shrink-0 flex-wrap gap-3 border-t border-[#f3f4f6] px-4 py-4 sm:px-6">{footer}</div>
+        )}
       </div>
     </div>
   );

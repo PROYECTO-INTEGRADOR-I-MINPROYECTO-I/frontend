@@ -86,7 +86,7 @@ export function SubtaskDetailModal({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2">
           <div className="flex flex-col gap-1">
             <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Fecha</span>
             <span className="font-source text-[14px] text-[#1e2939]">{formatShortDateEs(subtask.scheduled_date)}</span>

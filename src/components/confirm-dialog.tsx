@@ -93,7 +93,7 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 sm:p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !busy) onCancel();
       }}
@@ -104,7 +104,7 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-description"
-        className="w-full max-w-[384px] rounded-[10px] bg-white p-6 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]"
+        className="max-h-[calc(100dvh-1rem)] w-full max-w-[384px] overflow-y-auto rounded-[10px] bg-white p-5 sm:p-6 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]"
       >
         <h2 id="confirm-dialog-title" className="font-jost text-[18px] leading-[23px] text-[#1e2939]">
           {title}
@@ -119,7 +119,7 @@ export function ConfirmDialog({
           </p>
         )}
 
-        <div className="mt-5 flex gap-3">
+        <div className="mt-5 flex flex-wrap gap-3">
           <Button
             type="button"
             variant="outline"

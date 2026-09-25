@@ -132,7 +132,7 @@ export function HoursPicker({ id, value, onChange, invalid = false, describedBy 
       className="flex flex-col gap-3 rounded-xl border border-[#d4d5d7] p-3"
     >
       {/* Fila de valor: −, "H h MM min" editable, +. */}
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <button
           type="button"
           onClick={() => step(-STEP_MINUTES)}
@@ -157,7 +157,7 @@ export function HoursPicker({ id, value, onChange, invalid = false, describedBy 
             onBlur={commitDraft}
             onKeyDown={handleFieldKeyDown}
             className={cn(
-              "w-12 rounded-lg border border-[#d4d5d7] py-1 text-center text-[20px]",
+              "w-11 rounded-lg border border-[#d4d5d7] py-1 text-center text-[20px]",
               focusRing
             )}
           />
@@ -172,7 +172,7 @@ export function HoursPicker({ id, value, onChange, invalid = false, describedBy 
             onBlur={commitDraft}
             onKeyDown={handleFieldKeyDown}
             className={cn(
-              "w-12 rounded-lg border border-[#d4d5d7] py-1 text-center text-[20px]",
+              "w-11 rounded-lg border border-[#d4d5d7] py-1 text-center text-[20px]",
               focusRing
             )}
           />

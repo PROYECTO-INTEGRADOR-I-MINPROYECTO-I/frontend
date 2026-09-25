@@ -321,7 +321,7 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <label htmlFor="event-date" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
               Fecha
@@ -410,7 +410,7 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
           />
         </div>
 
-        <div className="flex gap-3 border-t border-[#f3f4f6] pt-4">
+        <div className="flex flex-wrap gap-3 border-t border-[#f3f4f6] pt-4">
           <button
             type="button"
             onClick={handleClose}
