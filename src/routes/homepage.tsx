@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Sun } from "lucide-react";
+import { CheckCircle2, Plus, Sun } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
 import { EventMenu } from "../components/event-menu";
@@ -11,6 +11,7 @@ import { SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
 import { todayLocalDateString } from "../lib/dates";
+import { creationMessage } from "../lib/success-messages";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { describeSaveError } from "../lib/subtask-errors";
 import type { Event, Subtask, SubtaskStatus } from "../lib/types";
@@ -184,7 +185,7 @@ export function HomePage() {
   function showSuccess(message: string) {
     setSuccessMessage(message);
     if (successTimeoutRef.current) window.clearTimeout(successTimeoutRef.current);
-    successTimeoutRef.current = window.setTimeout(() => setSuccessMessage(null), 4000);
+    successTimeoutRef.current = window.setTimeout(() => setSuccessMessage(null), 5000);
   }
 
   function handleSelectEvent(event: Event | null) {
@@ -228,7 +229,7 @@ export function HomePage() {
     setIsFormOpen(false);
     setEvents((prev) => [event, ...prev.filter((item) => item.eid !== event.eid)]);
     handleSelectEvent(event);
-    showSuccess("Evento creado exitosamente");
+    showSuccess(creationMessage("event", event.name));
   }
 
   function handleEventUpdated(event: Event) {
@@ -379,7 +380,7 @@ export function HomePage() {
   function handleSubtaskCreated(subtask: Subtask, warnings?: string[]) {
     setIsSubtaskFormOpen(false);
     const extra = warnings && warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
-    showSuccess(`Gestión agregada.${extra}`);
+    showSuccess(`${creationMessage("subtask", subtask.title)}${extra}`);
 
     // Se asume que el 201 de POST /eventos/<eid>/subtareas/ siempre trae
     // scheduled_date ("YYYY-MM-DD") y status válidos, que es lo que usa el
@@ -450,7 +451,8 @@ export function HomePage() {
       </header>
 
       <div aria-live="polite" role="status" className="success-toast" data-visible={Boolean(successMessage)}>
-        {successMessage}
+        <CheckCircle2 aria-hidden="true" size={16} />
+        <span>{successMessage}</span>
       </div>
 
       {toggleError && toggleError.subtaskId !== detailSubtask?.subtask_id && (
