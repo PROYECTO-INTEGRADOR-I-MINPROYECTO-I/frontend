@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { HomePage } from "./homepage";
 import type { Event, Subtask } from "../lib/types";
@@ -530,5 +530,107 @@ describe("HomePage", () => {
     expect(
       await screen.findByText("Se ha creado exitosamente la gestión «Confirmar catering».")
     ).toBeInTheDocument();
+  });
+
+  test("por defecto se ve la vista 'Plan inicial' con las columnas", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    expect(screen.getByRole("heading", { name: /Plan inicial/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vencidas" })).toBeInTheDocument();
+  });
+
+  test("la pestaña Hoy muestra el estado 'Próximamente' y oculta las columnas", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+
+    expect(
+      await screen.findByText(
+        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+    expect(document.getElementById("plan-inicial-panel")).toHaveAttribute("hidden");
+  });
+
+  test("volver a 'Plan inicial' desde Hoy conserva el evento seleccionado", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+    // Muestra la query string actual para poder leerla desde el test.
+    function LocationProbe() {
+      return <output data-testid="location-search">{useLocation().search}</output>;
+    }
+    const currentParams = () => new URLSearchParams(screen.getByTestId("location-search").textContent ?? "");
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+    await screen.findByText(
+      "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+    );
+    // Cambiar de vista no pisa ?evento= en la URL.
+    expect(currentParams().get("evento")).toBe("1");
+    expect(currentParams().get("vista")).toBe("hoy");
+
+    await user.click(screen.getByRole("tab", { name: "Plan inicial" }));
+
+    expect(await screen.findByText("Vencida A")).toBeInTheDocument();
+    expect(currentParams().get("evento")).toBe("1");
+  });
+
+  test("un ?vista= inválido cae en Plan inicial", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1&vista=xyz"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("Vencida A")).toBeInTheDocument();
+  });
+
+  test("?vista=hoy en la URL abre directamente la pestaña Hoy", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1&vista=hoy"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
+    expect(
+      await screen.findByText(
+        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
   });
 });
