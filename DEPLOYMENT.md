@@ -111,39 +111,8 @@ Si Render asigna un nombre distinto al previsto (pasa cuando el nombre ya está 
 
 ---
 
-## Formularios pendientes de conectar
-
-`src/components/login-form.tsx` y `src/components/register-form.tsx` **no están montados en la aplicación**. La pantalla de login que se usa hoy es `src/routes/login.tsx`, que es autocontenida. Nadie importa esos dos archivos.
-
-Ambos importan piezas que todavía no existen en el repositorio:
-
-| Import | Qué es |
-|---|---|
-| `@/components/ui/form` | Componente de shadcn/ui, no instalado |
-| `@/components/ui/input` | Componente de shadcn/ui, no instalado |
-| `@/components/ui/button` | Existe, pero en `components/button.tsx` |
-| `../hooks/use-login` | Lógica de la aplicación, sin escribir |
-| `../hooks/use-register` | Lógica de la aplicación, sin escribir |
-
-Por eso están **excluidos del type-check** en `tsconfig.app.json`. Sin esa exclusión, `tsc -b` falla, `npm run build` no genera `dist/` y el static site de Render no puede desplegar — aunque la aplicación funcione perfectamente en local, porque `npm run dev` no revisa tipos y Vite solo empaqueta lo que se alcanza desde `main.tsx`.
-
-La exclusión no esconde nada: si alguien los importa, Vite falla de inmediato con `UNRESOLVED_IMPORT` señalando el archivo que falta. Lo que sí se pierde mientras tanto es la revisión de tipos sobre esos dos archivos.
-
-### Para montarlos
-
-1. Quitar ambos del `exclude` en `tsconfig.app.json`.
-2. Generar los componentes con el CLI de shadcn (el proyecto aún no tiene `components.json`, así que hay que inicializarlo):
-   ```bash
-   npx shadcn@latest init
-   npx shadcn@latest add form input button
-   ```
-   Eso los deja en `src/components/ui/`, que es donde el código los busca, y resuelve de paso la ubicación de `button.tsx`.
-3. Escribir `use-login` y `use-register`. Ambos deben devolver `{ form, onSubmit, isLoading, error }`; los campos son `email`/`password` en login y `name`/`email`/`password`/`confirmPassword` en registro.
-4. Decidir el contrato con el backend: hoy Django solo expone `/api/test/` y `/api/health/`, no hay endpoints de autenticación. Hay que definir las rutas, si la sesión va por cookie o por token, y qué ocurre tras un login exitoso.
-5. Usar `apiFetch` de `src/lib/api.ts` para las llamadas, para no atar el código a un dominio fijo.
-
 ## Pendiente del equipo
 
-**Elegir router.** El proyecto importa dos distintos: `react-router-dom` en `main.tsx`, `routes/homepage.tsx` y `routes/login.tsx`, y `@tanstack/react-router` en los dos formularios sin montar. Ambos están instalados para que el build compile, pero hay que decidir cuál se queda y unificar los imports.
+**Conectar el login al backend.** `src/routes/login.tsx` es la pantalla de login en uso, pero todavía es autocontenida: el `handleSubmit` no llama al backend. Mientras ningún componente use `src/lib/api.ts`, ese módulo no entra al bundle y los tres modos de build generan un artefacto idéntico. En cuanto se conecte la primera llamada, cada ambiente empezará a incluir su propia `VITE_API_URL`.
 
-**Conectar el primer formulario.** Mientras ningún componente use `src/lib/api.ts`, ese módulo no entra al bundle y los tres modos de build generan un artefacto idéntico. En cuanto se conecte la primera llamada, cada ambiente empezará a incluir su propia `VITE_API_URL`.
+Django hoy solo expone `/api/test/` y `/api/health/`, no hay endpoints de autenticación. Hay que definir las rutas, si la sesión va por cookie o por token, y qué ocurre tras un login exitoso, y usar `apiFetch` de `src/lib/api.ts` para no atar el código a un dominio fijo.
