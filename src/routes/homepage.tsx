@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Sun } from "lucide-react";
+import { CheckCircle2, ClipboardList, Plus, Sun } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
 import { EventMenu } from "../components/event-menu";
@@ -9,8 +9,10 @@ import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
 import { SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
+import { ViewSwitcher, type ViewSwitcherValue } from "../components/view-switcher";
 import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
 import { todayLocalDateString } from "../lib/dates";
+import { creationMessage } from "../lib/success-messages";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { describeSaveError } from "../lib/subtask-errors";
 import type { Event, Subtask, SubtaskStatus } from "../lib/types";
@@ -129,6 +131,11 @@ export function HomePage() {
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
 
+  // ?vista=plan|hoy, igual que ?evento=; "plan" es el valor por defecto
+  // (cualquier otro valor que no sea "hoy" cae en "plan").
+  const vistaParam = searchParams.get("vista");
+  const currentView: ViewSwitcherValue = vistaParam === "hoy" ? "hoy" : "plan";
+
   useEffect(() => {
     return () => {
       if (successTimeoutRef.current) window.clearTimeout(successTimeoutRef.current);
@@ -184,7 +191,7 @@ export function HomePage() {
   function showSuccess(message: string) {
     setSuccessMessage(message);
     if (successTimeoutRef.current) window.clearTimeout(successTimeoutRef.current);
-    successTimeoutRef.current = window.setTimeout(() => setSuccessMessage(null), 4000);
+    successTimeoutRef.current = window.setTimeout(() => setSuccessMessage(null), 5000);
   }
 
   function handleSelectEvent(event: Event | null) {
@@ -193,6 +200,20 @@ export function HomePage() {
         const next = new URLSearchParams(prev);
         if (event) next.set("evento", String(event.eid));
         else next.delete("evento");
+        return next;
+      },
+      { replace: true }
+    );
+  }
+
+  // Conserva ?evento= al cambiar de vista, así volver a "Plan inicial"
+  // mantiene el mismo evento seleccionado.
+  function handleSelectView(view: ViewSwitcherValue) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (view === "plan") next.delete("vista");
+        else next.set("vista", view);
         return next;
       },
       { replace: true }
@@ -228,7 +249,7 @@ export function HomePage() {
     setIsFormOpen(false);
     setEvents((prev) => [event, ...prev.filter((item) => item.eid !== event.eid)]);
     handleSelectEvent(event);
-    showSuccess("Evento creado exitosamente");
+    showSuccess(creationMessage("event", event.name));
   }
 
   function handleEventUpdated(event: Event) {
@@ -379,7 +400,7 @@ export function HomePage() {
   function handleSubtaskCreated(subtask: Subtask, warnings?: string[]) {
     setIsSubtaskFormOpen(false);
     const extra = warnings && warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
-    showSuccess(`Gestión agregada.${extra}`);
+    showSuccess(`${creationMessage("subtask", subtask.title)}${extra}`);
 
     // Se asume que el 201 de POST /eventos/<eid>/subtareas/ siempre trae
     // scheduled_date ("YYYY-MM-DD") y status válidos, que es lo que usa el
@@ -449,8 +470,13 @@ export function HomePage() {
         <div className="avatar" aria-label="Perfil de AL">AL</div>
       </header>
 
+      <div className="view-switcher-row">
+        <ViewSwitcher value={currentView} onChange={handleSelectView} />
+      </div>
+
       <div aria-live="polite" role="status" className="success-toast" data-visible={Boolean(successMessage)}>
-        {successMessage}
+        <CheckCircle2 aria-hidden="true" size={16} />
+        <span>{successMessage}</span>
       </div>
 
       {toggleError && toggleError.subtaskId !== detailSubtask?.subtask_id && (
@@ -470,168 +496,191 @@ export function HomePage() {
         </div>
       )}
 
-      <section className="planner-intro" aria-labelledby="today-heading">
-        <div className="intro-row">
-          <h1 id="today-heading">Hoy <SunIcon /></h1>
-          <div className="intro-actions">
-            {selectedEventId != null && subtasksStatus === "ready" && subtasks.length > 0 && (
-              <button
-                ref={createTaskButtonRef}
-                type="button"
-                className="create-task-button create-task-button--compact"
-                onClick={openSubtaskForm}
-              >
-                Crear gestión <Plus aria-hidden="true" size={16} />
-              </button>
-            )}
-            <EventMenu
-              events={events}
-              status={eventsStatus}
-              errorMessage={eventsError}
-              onRetry={loadEvents}
-              selectedEventId={selectedEventId}
-              onSelect={handleSelectEvent}
-              onCreateNew={openCreateForm}
-              onEditEvent={openEditEventForm}
-              onDeleteEvent={requestDeleteEvent}
-            />
+      <div
+        role="tabpanel"
+        id="plan-inicial-panel"
+        aria-labelledby="plan-tab"
+        hidden={currentView !== "plan"}
+      >
+        <section className="planner-intro" aria-labelledby="plan-inicial-heading">
+          <div className="intro-row">
+            <h1 id="plan-inicial-heading">
+              Plan inicial <ClipboardList aria-hidden="true" className="plan-inicial-icon" size={26} />
+            </h1>
+            <div className="intro-actions">
+              {selectedEventId != null && subtasksStatus === "ready" && subtasks.length > 0 && (
+                <button
+                  ref={createTaskButtonRef}
+                  type="button"
+                  className="create-task-button create-task-button--compact"
+                  onClick={openSubtaskForm}
+                >
+                  Crear gestión <Plus aria-hidden="true" size={16} />
+                </button>
+              )}
+              <EventMenu
+                events={events}
+                status={eventsStatus}
+                errorMessage={eventsError}
+                onRetry={loadEvents}
+                selectedEventId={selectedEventId}
+                onSelect={handleSelectEvent}
+                onCreateNew={openCreateForm}
+                onEditEvent={openEditEventForm}
+                onDeleteEvent={requestDeleteEvent}
+              />
+            </div>
           </div>
-        </div>
 
-        <div className="filter-row" aria-label="Filtros de gestiones">
-          <span className="filter-label">Filtros</span>
-          {filters.map((filter) => (
-            <button
-              className={`filter-button${activeFilter === filter ? " filter-button--active" : ""}`}
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              type="button"
-              aria-pressed={activeFilter === filter}
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {selectedEventId != null && subtasksStatus === "loading" && (
-        <p role="status" className="subtasks-status">
-          Cargando gestiones…
-        </p>
-      )}
-
-      {selectedEventId != null && subtasksStatus === "error" && (
-        <div role="alert" className="subtasks-status subtasks-status--error">
-          <p>{subtasksError}</p>
-          <button type="button" onClick={() => loadSubtasks(selectedEventId)}>
-            Reintentar
-          </button>
-        </div>
-      )}
-
-      {(selectedEventId == null || subtasksStatus === "ready") && (
-        <section className="task-columns" aria-label="Gestiones del día">
-          <TaskColumn title="Próximas" countClass="count--blue" count={String(sortedUpcoming.length)} showClock>
-            {selectedEventId != null && sortedUpcoming.length > 0 && (
-              <div className="column-list">
-                {sortedUpcoming.map((subtask) => (
-                  <SubtaskCard
-                    key={subtask.subtask_id}
-                    subtask={subtask}
-                    onOpen={setDetailSubtask}
-                    onToggleComplete={handleToggleComplete}
-                    pending={pendingToggleIds.has(subtask.subtask_id)}
-                  />
-                ))}
-              </div>
-            )}
-            {selectedEventId != null && subtasks.length > 0 && sortedUpcoming.length === 0 && (
-              <p className="column-empty-hint">Sin gestiones próximas.</p>
-            )}
-          </TaskColumn>
-
-          <TaskColumn
-            title="Para Hoy"
-            countClass="count--red"
-            count={String(sortedTodayPending.length + todayDoneCount)}
-            headingRef={todayColumnHeadingRef}
-          >
-            {selectedEventId == null ? (
-              <div className="column-empty-wrap">
-                <div className="empty-state">
-                  <p>
-                    Aún no tienes gestiones
-                    <br />
-                    ¡Crea una nueva!
-                  </p>
-                  <button className="create-task-button" type="button" onClick={openCreateForm}>
-                    Crear gestión <Plus aria-hidden="true" size={22} />
-                  </button>
-                </div>
-              </div>
-            ) : subtasks.length === 0 ? (
-              <div className="column-empty-wrap">
-                <div className="empty-state">
-                  <p>
-                    Aún no has agregado
-                    <br />
-                    gestiones a este evento
-                  </p>
-                  <button className="create-task-button" type="button" onClick={openSubtaskForm}>
-                    Crear gestión <Plus aria-hidden="true" size={22} />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="today-panels">
-                <TodayPanel
-                  label="Pendientes"
-                  dotColor="#ffb900"
-                  countBg="#fffbeb"
-                  countText="#bb4d00"
-                  items={sortedTodayPending}
-                  emptyHint="Sin pendientes para hoy."
-                  onOpen={setDetailSubtask}
-                  onToggleComplete={handleToggleComplete}
-                  pendingToggleIds={pendingToggleIds}
-                />
-                <TodayPanel
-                  label="Completadas"
-                  dotColor="#00d492"
-                  countBg="#ecfdf5"
-                  countText="#007a55"
-                  items={sortedDone}
-                  emptyHint="Sin gestiones completadas."
-                  onOpen={setDetailSubtask}
-                  onToggleComplete={handleToggleComplete}
-                  pendingToggleIds={pendingToggleIds}
-                  completed
-                />
-              </div>
-            )}
-          </TaskColumn>
-
-          <TaskColumn title="Vencidas" countClass="count--red" count={String(sortedOverdue.length)} showClock>
-            {selectedEventId != null && sortedOverdue.length > 0 && (
-              <div className="column-list">
-                {sortedOverdue.map((subtask) => (
-                  <SubtaskCard
-                    key={subtask.subtask_id}
-                    subtask={subtask}
-                    onOpen={setDetailSubtask}
-                    onToggleComplete={handleToggleComplete}
-                    pending={pendingToggleIds.has(subtask.subtask_id)}
-                    overdue
-                  />
-                ))}
-              </div>
-            )}
-            {selectedEventId != null && subtasks.length > 0 && sortedOverdue.length === 0 && (
-              <p className="column-empty-hint">Sin gestiones vencidas.</p>
-            )}
-          </TaskColumn>
+          <div className="filter-row" aria-label="Filtros de gestiones">
+            <span className="filter-label">Filtros</span>
+            {filters.map((filter) => (
+              <button
+                className={`filter-button${activeFilter === filter ? " filter-button--active" : ""}`}
+                key={filter}
+                onClick={() => setActiveFilter(filter)}
+                type="button"
+                aria-pressed={activeFilter === filter}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
         </section>
-      )}
+
+        {selectedEventId != null && subtasksStatus === "loading" && (
+          <p role="status" className="subtasks-status">
+            Cargando gestiones…
+          </p>
+        )}
+
+        {selectedEventId != null && subtasksStatus === "error" && (
+          <div role="alert" className="subtasks-status subtasks-status--error">
+            <p>{subtasksError}</p>
+            <button type="button" onClick={() => loadSubtasks(selectedEventId)}>
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {(selectedEventId == null || subtasksStatus === "ready") && (
+          <section className="task-columns" aria-label="Gestiones del día">
+            <TaskColumn title="Próximas" countClass="count--blue" count={String(sortedUpcoming.length)} showClock>
+              {selectedEventId != null && sortedUpcoming.length > 0 && (
+                <div className="column-list">
+                  {sortedUpcoming.map((subtask) => (
+                    <SubtaskCard
+                      key={subtask.subtask_id}
+                      subtask={subtask}
+                      onOpen={setDetailSubtask}
+                      onToggleComplete={handleToggleComplete}
+                      pending={pendingToggleIds.has(subtask.subtask_id)}
+                    />
+                  ))}
+                </div>
+              )}
+              {selectedEventId != null && subtasks.length > 0 && sortedUpcoming.length === 0 && (
+                <p className="column-empty-hint">Sin gestiones próximas.</p>
+              )}
+            </TaskColumn>
+
+            <TaskColumn
+              title="Para Hoy"
+              countClass="count--red"
+              count={String(sortedTodayPending.length + todayDoneCount)}
+              headingRef={todayColumnHeadingRef}
+            >
+              {selectedEventId == null ? (
+                <div className="column-empty-wrap">
+                  <div className="empty-state">
+                    <p>
+                      Aún no tienes gestiones
+                      <br />
+                      ¡Crea una nueva!
+                    </p>
+                    <button className="create-task-button" type="button" onClick={openCreateForm}>
+                      Crear gestión <Plus aria-hidden="true" size={22} />
+                    </button>
+                  </div>
+                </div>
+              ) : subtasks.length === 0 ? (
+                <div className="column-empty-wrap">
+                  <div className="empty-state">
+                    <p>
+                      Aún no has agregado
+                      <br />
+                      gestiones a este evento
+                    </p>
+                    <button className="create-task-button" type="button" onClick={openSubtaskForm}>
+                      Crear gestión <Plus aria-hidden="true" size={22} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="today-panels">
+                  <TodayPanel
+                    label="Pendientes"
+                    dotColor="#ffb900"
+                    countBg="#fffbeb"
+                    countText="#bb4d00"
+                    items={sortedTodayPending}
+                    emptyHint="Sin pendientes para hoy."
+                    onOpen={setDetailSubtask}
+                    onToggleComplete={handleToggleComplete}
+                    pendingToggleIds={pendingToggleIds}
+                  />
+                  <TodayPanel
+                    label="Completadas"
+                    dotColor="#00d492"
+                    countBg="#ecfdf5"
+                    countText="#007a55"
+                    items={sortedDone}
+                    emptyHint="Sin gestiones completadas."
+                    onOpen={setDetailSubtask}
+                    onToggleComplete={handleToggleComplete}
+                    pendingToggleIds={pendingToggleIds}
+                    completed
+                  />
+                </div>
+              )}
+            </TaskColumn>
+
+            <TaskColumn title="Vencidas" countClass="count--red" count={String(sortedOverdue.length)} showClock>
+              {selectedEventId != null && sortedOverdue.length > 0 && (
+                <div className="column-list">
+                  {sortedOverdue.map((subtask) => (
+                    <SubtaskCard
+                      key={subtask.subtask_id}
+                      subtask={subtask}
+                      onOpen={setDetailSubtask}
+                      onToggleComplete={handleToggleComplete}
+                      pending={pendingToggleIds.has(subtask.subtask_id)}
+                      overdue
+                    />
+                  ))}
+                </div>
+              )}
+              {selectedEventId != null && subtasks.length > 0 && sortedOverdue.length === 0 && (
+                <p className="column-empty-hint">Sin gestiones vencidas.</p>
+              )}
+            </TaskColumn>
+          </section>
+        )}
+      </div>
+
+      {/* TODO(US-Hoy): implementar la vista real (gestiones de hoy de todos
+          los eventos, con fetch propio); por ahora solo un estado vacío. */}
+      <div role="tabpanel" id="hoy-panel" aria-labelledby="hoy-tab" hidden={currentView !== "hoy"}>
+        {currentView === "hoy" && (
+          <div className="hoy-placeholder">
+            <SunIcon />
+            <h1>Hoy</h1>
+            <p>
+              La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos.
+            </p>
+          </div>
+        )}
+      </div>
 
       <button className="help-button" type="button" aria-label="Ayuda">
         <img src={helpRing} alt="" />

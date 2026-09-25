@@ -1,6 +1,6 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { HomePage } from "./homepage";
 import type { Event, Subtask } from "../lib/types";
@@ -412,5 +412,225 @@ describe("HomePage", () => {
     await user.click(screen.getByRole("button", { name: "Hoy B" }));
     expect(await screen.findByText("Descripción editada mientras se completaba")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Marcar como completada" })).toBeInTheDocument();
+  });
+
+  test("crear un evento muestra el aviso con el nombre del evento creado", async () => {
+    const user = userEvent.setup();
+    const createdEvent: Event = {
+      eid: 2,
+      user: 1,
+      name: "Cumpleaños de Ana",
+      description: "",
+      due_date: "2026-11-01T18:00:00.000Z",
+      status: "pending",
+      progress_percentage: 0,
+      created_at: "2026-09-20T00:00:00.000Z",
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      if (href.includes("/tipos-evento/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (method === "POST" && href.includes("/eventos/")) {
+        return Promise.resolve(
+          new Response(JSON.stringify(createdEvent), { status: 201, headers: { "Content-Type": "application/json" } })
+        );
+      }
+      if (href.includes("/eventos/2/subtareas/")) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } })
+        );
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(
+          new Response(JSON.stringify([event]), { status: 200, headers: { "Content-Type": "application/json" } })
+        );
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Nuevo Evento" }));
+    await user.click(screen.getByRole("menuitem", { name: "Nuevo" }));
+
+    const typeSelect = await screen.findByLabelText("Tipo");
+    await waitFor(() => expect(typeSelect).not.toBeDisabled());
+
+    await user.type(screen.getByLabelText("Nombre"), "Cumpleaños de Ana");
+    await user.selectOptions(typeSelect, "Boda");
+    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-11-01" } });
+    fireEvent.change(screen.getByLabelText("Hora"), { target: { value: "18:00" } });
+
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(
+      await screen.findByText("Se ha creado exitosamente el evento «Cumpleaños de Ana».")
+    ).toBeInTheDocument();
+  });
+
+  test("crear una gestión muestra el aviso con el título de la gestión creada", async () => {
+    const user = userEvent.setup();
+    const createdSubtask: Subtask = subtask({
+      subtask_id: 99,
+      title: "Confirmar catering",
+      scheduled_date: "2026-09-20",
+      estimated_hours: "0.25",
+    });
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      if (href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (method === "POST" && href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(
+          new Response(JSON.stringify(createdSubtask), { status: 201, headers: { "Content-Type": "application/json" } })
+        );
+      }
+      if (href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(
+          new Response(JSON.stringify(subtasks), { status: 200, headers: { "Content-Type": "application/json" } })
+        );
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(
+          new Response(JSON.stringify([event]), { status: 200, headers: { "Content-Type": "application/json" } })
+        );
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("button", { name: /Crear gestión/ }));
+
+    const categorySelect = await screen.findByLabelText("Categoría");
+    await waitFor(() => expect(categorySelect).not.toBeDisabled());
+
+    await user.type(screen.getByLabelText("Nombre"), "Confirmar catering");
+    await user.selectOptions(categorySelect, "Catering");
+    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-20" } });
+    await user.click(screen.getByRole("button", { name: "15 min" }));
+
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(
+      await screen.findByText("Se ha creado exitosamente la gestión «Confirmar catering».")
+    ).toBeInTheDocument();
+  });
+
+  test("por defecto se ve la vista 'Plan inicial' con las columnas", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    expect(screen.getByRole("heading", { name: /Plan inicial/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vencidas" })).toBeInTheDocument();
+  });
+
+  test("la pestaña Hoy muestra el estado 'Próximamente' y oculta las columnas", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+
+    expect(
+      await screen.findByText(
+        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+    expect(document.getElementById("plan-inicial-panel")).toHaveAttribute("hidden");
+  });
+
+  test("volver a 'Plan inicial' desde Hoy conserva el evento seleccionado", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+    // Muestra la query string actual para poder leerla desde el test.
+    function LocationProbe() {
+      return <output data-testid="location-search">{useLocation().search}</output>;
+    }
+    const currentParams = () => new URLSearchParams(screen.getByTestId("location-search").textContent ?? "");
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+    await screen.findByText(
+      "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+    );
+    // Cambiar de vista no pisa ?evento= en la URL.
+    expect(currentParams().get("evento")).toBe("1");
+    expect(currentParams().get("vista")).toBe("hoy");
+
+    await user.click(screen.getByRole("tab", { name: "Plan inicial" }));
+
+    expect(await screen.findByText("Vencida A")).toBeInTheDocument();
+    expect(currentParams().get("evento")).toBe("1");
+  });
+
+  test("un ?vista= inválido cae en Plan inicial", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1&vista=xyz"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("Vencida A")).toBeInTheDocument();
+  });
+
+  test("?vista=hoy en la URL abre directamente la pestaña Hoy", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1&vista=hoy"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
+    expect(
+      await screen.findByText(
+        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
   });
 });
