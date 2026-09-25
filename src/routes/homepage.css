@@ -6,7 +6,20 @@
   min-height: 100vh;
   background: var(--surface);
   color: var(--ink);
-  font-family: "Century Gothic", "Trebuchet MS", sans-serif;
+  font-family: "Source Sans 3", "Century Gothic", "Trebuchet MS", sans-serif;
+}
+
+.planner-shell h1,
+.planner-shell h2,
+.planner-shell .brand-name,
+.planner-shell .event-button,
+.planner-shell .create-task-button,
+.planner-shell .filter-button,
+.planner-shell .filter-label,
+.planner-shell .date-label span:first-child,
+.planner-shell .task-count,
+.planner-shell .avatar {
+  font-family: "Jost", "Century Gothic", "Trebuchet MS", sans-serif;
 }
 
 .planner-header {
@@ -66,7 +79,22 @@
 .planner-intro { padding: 28px 32px 20px; }
 .intro-row { justify-content: space-between; }
 .intro-row h1 { margin: 0; font-size: 32px; font-weight: 400; letter-spacing: -0.6px; }
-.sun-icon { display: inline-block; margin-left: 5px; font-size: 32px; line-height: 1; vertical-align: -2px; }
+.sun-icon { display: inline-flex; align-items: center; margin-left: 5px; vertical-align: -4px; color: var(--ink); }
+.plan-inicial-icon { display: inline-block; margin-left: 5px; vertical-align: -4px; color: var(--ink); }
+.intro-actions { display: flex; align-items: center; gap: 12px; }
+
+.view-switcher-row { padding: 0 32px; margin-top: 12px; }
+
+.hoy-placeholder {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 64px 32px;
+  text-align: center;
+  color: var(--muted);
+}
+.hoy-placeholder h1 { margin: 0; font-family: "Jost", "Century Gothic", "Trebuchet MS", sans-serif; font-size: 28px; font-weight: 400; color: var(--ink); }
+.hoy-placeholder p { margin: 0; max-width: 420px; font-size: 15px; line-height: 1.4; }
 
 .event-button,
 .create-task-button,
@@ -106,8 +134,7 @@
 .task-count { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
 .count--blue { background: #eff6ff; color: #1447e6; }
 .count--red { background: #fff0f0; color: var(--wine); }
-.column-body { min-height: 460px; }
-.task-column--today .column-body { display: grid; place-items: center; }
+.column-body { min-height: 460px; display: flex; flex-direction: column; }
 
 .clock-icon { position: relative; display: inline-block; width: 13px; height: 13px; border: 2px solid #9ca3af; border-radius: 50%; }
 .clock-icon::before { content: ""; position: absolute; left: 5px; top: 2px; width: 1px; height: 4px; background: #9ca3af; }
@@ -115,13 +142,116 @@
 .clock-icon--muted { border-color: #e99b9b; }
 .clock-icon--muted::before, .clock-icon--muted::after { background: #e99b9b; }
 
+.column-empty-wrap { display: grid; place-items: center; flex: 1; min-height: 420px; }
 .empty-state { display: grid; justify-items: center; gap: 20px; transform: translateY(-5px); }
 .empty-state p { margin: 0; color: var(--muted); font-size: 30px; line-height: 1.16; text-align: center; }
 .create-task-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 208px; height: 46px; border-radius: 999px; background: var(--wine); color: #fff; font-size: 22px; }
-.create-task-button span { font-size: 25px; line-height: 1; }
+.create-task-button--compact { width: auto; height: 34px; padding: 0 16px; font-size: 14px; gap: 6px; }
+
+.column-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.column-empty-hint { margin: 0; padding: 12px 0; color: var(--muted); font-size: 12px; }
+
+.today-panels { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.today-panel { display: flex; flex-direction: column; width: 100%; background: #fff; border: 0.635px solid #f3f4f6; border-radius: 12px; overflow: hidden; }
+.today-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 12px; border-bottom: 0.635px solid #f3f4f6; }
+.today-panel-title { display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: #4a5565; }
+.today-panel-dot { width: 8px; height: 8px; border-radius: 999px; }
+.today-panel-count { padding: 2px 8px; border-radius: 999px; font-size: 11px; }
+.today-panel-body { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+
+.subtasks-status { margin: 0; padding: 24px 32px; color: var(--muted); font-size: 14px; text-align: center; }
+.subtasks-status--error { color: var(--wine); }
+.subtasks-status--error p { margin: 0 0 8px; }
+.subtasks-status button { border: none; background: none; color: var(--wine); text-decoration: underline; cursor: pointer; font: inherit; }
 
 .help-button { position: fixed; right: 14px; bottom: 10px; width: 58px; height: 58px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .help-button img { width: 58px; height: 58px; }
+
+.success-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  /* Por debajo del overlay del modal (z-index 50 en modal.tsx): si hay un
+     modal abierto, el aviso queda oculto detrás en vez de taparlo. */
+  z-index: 40;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #007a55;
+  font-size: 14px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.success-toast[data-visible="true"] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Slider del HoursPicker (src/components/hours-picker.tsx): estilo nativo
+   de <input type="range"> normalizado entre navegadores, con el tramo
+   recorrido (índice dentro de DURATION_STOPS, no lineal) pintado en vino y
+   un thumb de ~20px. --range-progress lo fija el componente en línea según
+   la posición actual del thumb. */
+.hours-picker-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 44px;
+  background: transparent;
+  cursor: pointer;
+}
+.hours-picker-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    #8b1a1a var(--range-progress, 0%),
+    #e5e7eb var(--range-progress, 0%)
+  );
+}
+.hours-picker-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 9999px;
+  background: #8b1a1a;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.hours-picker-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: #e5e7eb;
+}
+.hours-picker-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: #8b1a1a;
+}
+.hours-picker-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: #8b1a1a;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.hours-picker-slider:focus-visible {
+  outline: 2px solid #8b1a1a;
+  outline-offset: 2px;
+}
 
 @media (max-width: 760px) {
   .planner-header { padding: 10px 18px; }
@@ -130,10 +260,18 @@
   .brand-mark img { width: 18px; height: 18px; }
   .date-label { display: none; }
   .planner-intro { padding: 24px 18px 20px; }
+  .view-switcher-row { padding: 0 18px; }
+  /* En pantallas angostas las acciones bajan a su propia fila para que
+     "Plan inicial" y los botones no se partan en varias líneas. */
+  .intro-row { flex-wrap: wrap; row-gap: 12px; }
+  .intro-row h1 { white-space: nowrap; }
+  .intro-actions { width: 100%; justify-content: flex-end; }
+  .intro-actions button { white-space: nowrap; }
   .task-columns { grid-template-columns: 1fr; gap: 18px; padding: 0 18px 24px; }
   .task-column { min-height: 120px; }
   .column-body { min-height: 70px; }
   .task-column--today { min-height: 255px; }
   .task-column--today .column-body { min-height: 215px; }
   .empty-state p { font-size: 26px; }
+  .hoy-placeholder { padding: 40px 18px; }
 }
