@@ -77,22 +77,27 @@
 }
 
 .planner-intro { padding: 28px 32px 20px; }
-.intro-row { justify-content: space-between; }
-.intro-row h1 { margin: 0; font-size: 32px; font-weight: 400; letter-spacing: -0.6px; }
+/* Grid en vez de flex: la columna central (auto) centra el heading en todo el
+   ancho de la fila sin importar si "Crear gestión" está presente o no, porque
+   la columna izquierda (1fr) reserva el mismo espacio que la derecha. */
+.intro-row { display: grid; grid-template-columns: 1fr auto 1fr; }
+.intro-row h1 {
+  grid-column: 2;
+  justify-self: center;
+  margin: 0;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.6px;
+  text-align: center;
+}
 .sun-icon { display: inline-flex; align-items: center; margin-left: 5px; vertical-align: -4px; color: var(--ink); }
-.plan-inicial-icon { display: inline-block; margin-left: 5px; vertical-align: -4px; color: var(--ink); }
-.intro-actions { display: flex; align-items: center; gap: 12px; }
+.intro-actions { grid-column: 3; display: flex; align-items: center; justify-self: end; gap: 12px; }
 
 .event-selector-row {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  justify-content: center;
   padding: 4px 32px 20px;
-  text-align: center;
 }
-.event-selector-label { margin: 0; font-size: 13px; color: var(--muted); }
-.event-selector-label strong { color: var(--ink); font-weight: 600; }
 
 .view-switcher-row { padding: 0 32px; margin-top: 12px; }
 
@@ -273,11 +278,11 @@
   .planner-intro { padding: 24px 18px 20px; }
   .event-selector-row { padding: 4px 18px 20px; }
   .view-switcher-row { padding: 0 18px; }
-  /* En pantallas angostas las acciones bajan a su propia fila para que
-     "Plan inicial" y los botones no se partan en varias líneas. */
-  .intro-row { flex-wrap: wrap; row-gap: 12px; }
-  .intro-row h1 { white-space: nowrap; }
-  .intro-actions { width: 100%; justify-content: flex-end; }
+  /* En pantallas angostas el heading y las acciones bajan a su propia fila
+     (una sola columna) para que no se partan en varias líneas. */
+  .intro-row { grid-template-columns: 1fr; row-gap: 12px; }
+  .intro-row h1 { grid-column: 1; white-space: nowrap; }
+  .intro-actions { grid-column: 1; width: 100%; justify-self: stretch; justify-content: flex-end; }
   .intro-actions button { white-space: nowrap; }
   .task-columns { grid-template-columns: 1fr; gap: 18px; padding: 0 18px 24px; }
   .task-column { min-height: 120px; }

@@ -457,7 +457,7 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
 
-    await user.click(screen.getByRole("button", { name: "Nuevo Evento" }));
+    await user.click(screen.getByRole("button", { name: "Todos los eventos" }));
     await user.click(screen.getByRole("menuitem", { name: "Nuevo" }));
 
     const typeSelect = await screen.findByLabelText("Tipo");
@@ -543,7 +543,7 @@ describe("HomePage", () => {
 
     await screen.findByText("Vencida A");
 
-    expect(screen.getByRole("heading", { name: /Plan inicial/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
@@ -634,7 +634,7 @@ describe("HomePage", () => {
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
   });
 
-  test("PIM1-12: con un evento seleccionado se ve el label 'Viendo gestiones del evento'", async () => {
+  test("PIM1-12: con un evento seleccionado, el heading fijo 'Viendo gestiones de:' no repite el nombre (ya está en el selector)", async () => {
     stubHomepageFetch();
 
     render(
@@ -645,15 +645,11 @@ describe("HomePage", () => {
 
     await screen.findByText("Vencida A");
 
-    expect(screen.getByText("Viendo gestiones del evento:")).toBeInTheDocument();
-    // Aparece dos veces: en el trigger del selector y en el label nuevo.
-    expect(screen.getAllByText("Boda Luisa & Carlos")).toHaveLength(2);
-    // El selector ya no es el pill chico en la esquina: el trigger muestra el
-    // nombre del evento y sigue siendo accesible como botón.
-    expect(screen.getByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
   });
 
-  test("sin evento seleccionado no se muestra el label 'Viendo gestiones del evento'", async () => {
+  test("sin evento seleccionado el selector dice 'Todos los eventos' (el heading es siempre el mismo texto)", async () => {
     stubHomepageFetch();
 
     render(
@@ -662,7 +658,28 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
 
-    await screen.findByRole("button", { name: "Nuevo Evento" });
-    expect(screen.queryByText(/Viendo gestiones del evento/)).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: "Todos los eventos" });
+    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
+  });
+
+  test("PIM1-12: elegir 'Todos' en el menú vuelve al modo agregado", async () => {
+    const user = userEvent.setup();
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("button", { name: "Boda Luisa & Carlos" }));
+    const todosOption = screen.getByRole("menuitemradio", { name: /Todos/ });
+    expect(todosOption).toHaveAttribute("aria-checked", "false");
+    await user.click(todosOption);
+
+    expect(screen.getByRole("button", { name: "Todos los eventos" })).toBeInTheDocument();
+    expect(screen.queryByText("Vencida A")).not.toBeInTheDocument();
   });
 });
