@@ -633,4 +633,36 @@ describe("HomePage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
   });
+
+  test("PIM1-12: con un evento seleccionado se ve el label 'Viendo gestiones del evento'", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    expect(screen.getByText("Viendo gestiones del evento:")).toBeInTheDocument();
+    // Aparece dos veces: en el trigger del selector y en el label nuevo.
+    expect(screen.getAllByText("Boda Luisa & Carlos")).toHaveLength(2);
+    // El selector ya no es el pill chico en la esquina: el trigger muestra el
+    // nombre del evento y sigue siendo accesible como botón.
+    expect(screen.getByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
+  });
+
+  test("sin evento seleccionado no se muestra el label 'Viendo gestiones del evento'", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole("button", { name: "Nuevo Evento" });
+    expect(screen.queryByText(/Viendo gestiones del evento/)).not.toBeInTheDocument();
+  });
 });

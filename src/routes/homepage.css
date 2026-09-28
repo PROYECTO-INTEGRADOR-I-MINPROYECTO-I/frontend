@@ -83,6 +83,17 @@
 .plan-inicial-icon { display: inline-block; margin-left: 5px; vertical-align: -4px; color: var(--ink); }
 .intro-actions { display: flex; align-items: center; gap: 12px; }
 
+.event-selector-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 32px 20px;
+  text-align: center;
+}
+.event-selector-label { margin: 0; font-size: 13px; color: var(--muted); }
+.event-selector-label strong { color: var(--ink); font-weight: 600; }
+
 .view-switcher-row { padding: 0 32px; margin-top: 12px; }
 
 .hoy-placeholder {
@@ -260,6 +271,7 @@
   .brand-mark img { width: 18px; height: 18px; }
   .date-label { display: none; }
   .planner-intro { padding: 24px 18px 20px; }
+  .event-selector-row { padding: 4px 18px 20px; }
   .view-switcher-row { padding: 0 18px; }
   /* En pantallas angostas las acciones bajan a su propia fila para que
      "Plan inicial" y los botones no se partan en varias líneas. */

@@ -131,10 +131,10 @@ export function EventMenu({
             return next;
           })
         }
-        className="inline-flex items-center justify-center gap-[5px] rounded-full bg-[#8b1a1a] px-3 py-[6px] font-jost text-[12px] leading-4 text-white"
+        className="inline-flex items-center justify-center gap-2 rounded-full border border-[#8b1a1a]/30 bg-white px-5 py-[10px] font-jost text-[15px] leading-5 text-[#8b1a1a] shadow-sm hover:bg-[#fff0f0]"
       >
         {selectedEvent?.name ?? "Nuevo Evento"}
-        <ChevronDown size={17} aria-hidden="true" />
+        <ChevronDown size={18} aria-hidden="true" />
       </button>
 
       {open && (
@@ -142,7 +142,7 @@ export function EventMenu({
           role="menu"
           aria-label="Eventos"
           onKeyDown={handleMenuKeyDown}
-          className="absolute top-[calc(100%+8px)] right-0 z-40 w-[180px] rounded-[6px] border border-[#e1e5ea] bg-white py-1 shadow-sm"
+          className="absolute top-[calc(100%+8px)] left-1/2 z-40 w-[220px] -translate-x-1/2 rounded-[6px] border border-[#e1e5ea] bg-white py-1 shadow-sm"
         >
           {status === "loading" && (
             <p className="px-3 py-2 font-jost text-[12px] text-[rgba(16,24,40,0.6)]">Cargando…</p>

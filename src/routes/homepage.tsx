@@ -518,18 +518,29 @@ export function HomePage() {
                   Crear gestión <Plus aria-hidden="true" size={16} />
                 </button>
               )}
-              <EventMenu
-                events={events}
-                status={eventsStatus}
-                errorMessage={eventsError}
-                onRetry={loadEvents}
-                selectedEventId={selectedEventId}
-                onSelect={handleSelectEvent}
-                onCreateNew={openCreateForm}
-                onEditEvent={openEditEventForm}
-                onDeleteEvent={requestDeleteEvent}
-              />
             </div>
+          </div>
+
+          {/* PIM1-12: selector de evento grande y centrado, en vez del menú
+              desplegable chico en la esquina que confundió al profesor en la
+              clínica de Sprint 1 (pensó que las gestiones eran los eventos). */}
+          <div className="event-selector-row">
+            <EventMenu
+              events={events}
+              status={eventsStatus}
+              errorMessage={eventsError}
+              onRetry={loadEvents}
+              selectedEventId={selectedEventId}
+              onSelect={handleSelectEvent}
+              onCreateNew={openCreateForm}
+              onEditEvent={openEditEventForm}
+              onDeleteEvent={requestDeleteEvent}
+            />
+            {selectedEvent && (
+              <p className="event-selector-label">
+                Viendo gestiones del evento: <strong>{selectedEvent.name}</strong>
+              </p>
+            )}
           </div>
 
           <div className="filter-row" aria-label="Filtros de gestiones">
