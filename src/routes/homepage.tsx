@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, ClipboardList, Plus, Sun } from "lucide-react";
+import { CheckCircle2, Plus, Sun } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
 import { EventMenu } from "../components/event-menu";
@@ -504,9 +504,11 @@ export function HomePage() {
       >
         <section className="planner-intro" aria-labelledby="plan-inicial-heading">
           <div className="intro-row">
-            <h1 id="plan-inicial-heading">
-              Plan inicial <ClipboardList aria-hidden="true" className="plan-inicial-icon" size={26} />
-            </h1>
+            {/* PIM1-12: este heading reemplaza al antiguo "Plan inicial <icono>"
+                (el profesor lo señaló como redundante: la pestaña ya indica en
+                qué vista se está). Texto fijo: el selector de abajo ("Todos
+                los eventos" o el nombre del evento) ya completa la oración. */}
+            <h1 id="plan-inicial-heading">Viendo gestiones de:</h1>
             <div className="intro-actions">
               {selectedEventId != null && subtasksStatus === "ready" && subtasks.length > 0 && (
                 <button
@@ -518,18 +520,26 @@ export function HomePage() {
                   Crear gestión <Plus aria-hidden="true" size={16} />
                 </button>
               )}
-              <EventMenu
-                events={events}
-                status={eventsStatus}
-                errorMessage={eventsError}
-                onRetry={loadEvents}
-                selectedEventId={selectedEventId}
-                onSelect={handleSelectEvent}
-                onCreateNew={openCreateForm}
-                onEditEvent={openEditEventForm}
-                onDeleteEvent={requestDeleteEvent}
-              />
             </div>
+          </div>
+
+          {/* PIM1-12: selector de evento grande y centrado, en vez del menú
+              desplegable chico en la esquina que confundió al profesor en la
+              clínica de Sprint 1 (pensó que las gestiones eran los eventos).
+              El nombre del evento ya se lee en el propio selector, así que el
+              heading de arriba no lo repite. */}
+          <div className="event-selector-row">
+            <EventMenu
+              events={events}
+              status={eventsStatus}
+              errorMessage={eventsError}
+              onRetry={loadEvents}
+              selectedEventId={selectedEventId}
+              onSelect={handleSelectEvent}
+              onCreateNew={openCreateForm}
+              onEditEvent={openEditEventForm}
+              onDeleteEvent={requestDeleteEvent}
+            />
           </div>
 
           <div className="filter-row" aria-label="Filtros de gestiones">

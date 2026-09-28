@@ -457,7 +457,7 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
 
-    await user.click(screen.getByRole("button", { name: "Nuevo Evento" }));
+    await user.click(screen.getByRole("button", { name: "Todos los eventos" }));
     await user.click(screen.getByRole("menuitem", { name: "Nuevo" }));
 
     const typeSelect = await screen.findByLabelText("Tipo");
@@ -543,7 +543,7 @@ describe("HomePage", () => {
 
     await screen.findByText("Vencida A");
 
-    expect(screen.getByRole("heading", { name: /Plan inicial/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
@@ -632,5 +632,54 @@ describe("HomePage", () => {
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+  });
+
+  test("PIM1-12: con un evento seleccionado, el heading fijo 'Viendo gestiones de:' no repite el nombre (ya está en el selector)", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+  });
+
+  test("sin evento seleccionado el selector dice 'Todos los eventos' (el heading es siempre el mismo texto)", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole("button", { name: "Todos los eventos" });
+    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
+  });
+
+  test("PIM1-12: elegir 'Todos' en el menú vuelve al modo agregado", async () => {
+    const user = userEvent.setup();
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("button", { name: "Boda Luisa & Carlos" }));
+    const todosOption = screen.getByRole("menuitemradio", { name: /Todos/ });
+    expect(todosOption).toHaveAttribute("aria-checked", "false");
+    await user.click(todosOption);
+
+    expect(screen.getByRole("button", { name: "Todos los eventos" })).toBeInTheDocument();
+    expect(screen.queryByText("Vencida A")).not.toBeInTheDocument();
   });
 });

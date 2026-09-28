@@ -1,12 +1,13 @@
-// Pill "Nuevo Evento" / nombre del evento seleccionado (Figma nodo 5:3716).
-// Al desplegarse lista los eventos del usuario y una fila final "Nuevo" para
-// crear uno. Componente controlado (PIM1-31): HomePage es dueña del listado
-// y de su carga, porque también necesita mutarlo al editar/borrar eventos;
-// EventMenu solo se encarga de la interacción del menú (abrir/cerrar,
-// navegación con flechas, foco).
+// Selector "Todos los eventos" / nombre del evento seleccionado (Figma nodo
+// 5:3716, adaptado en PIM1-12). Al desplegarse lista "Todos" (modo agregado),
+// los eventos del usuario, y una fila final "Nuevo" para crear uno.
+// Componente controlado (PIM1-31): HomePage es dueña del listado y de su
+// carga, porque también necesita mutarlo al editar/borrar eventos; EventMenu
+// solo se encarga de la interacción del menú (abrir/cerrar, navegación con
+// flechas, foco).
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Globe, Pencil, Plus, Trash2 } from "lucide-react";
 import type { Event } from "../lib/types";
 import { cn } from "../lib/utils";
 
@@ -57,13 +58,13 @@ export function EventMenu({
 
   useEffect(() => {
     // activeIndex ya se resetea a 0 en el click que abre el menú (ver el
-    // botón disparador); acá solo falta el foco imperativo, y hay que
-    // esperar a que status pase a "ready" porque mientras carga los
-    // botones de la lista todavía no existen.
-    if (open && status === "ready") {
+    // botón disparador); acá solo falta el foco imperativo. "Todos" (índice 0)
+    // siempre se renderiza sin importar el status, así que no hay que esperar
+    // a "ready" como antes.
+    if (open) {
       itemRefs.current[0]?.focus();
     }
-  }, [open, status]);
+  }, [open]);
 
   function handleBlur(event: React.FocusEvent<HTMLDivElement>) {
     const nextTarget = event.relatedTarget as Node | null;
@@ -73,13 +74,14 @@ export function EventMenu({
   }
 
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
-  // "Nuevo" siempre está; "Editar evento"/"Eliminar evento" solo si hay
-  // selección. Van al final como menuitem propios (no botones sueltos
-  // dentro de la fila) para que participen del mismo roving tabindex y de
-  // las flechas arriba/abajo, igual que el resto de filas del menú.
-  const editEventIndex = events.length + 1;
-  const deleteEventIndex = events.length + 2;
-  const rowCount = events.length + (selectedEvent ? 3 : 1);
+  // Índices del roving tabindex, en el orden en que se renderizan las filas:
+  // "Todos" (0) primero, luego los eventos, luego "Nuevo", y por último
+  // "Editar evento"/"Eliminar evento" solo si hay selección.
+  const todosIndex = 0;
+  const newIndex = events.length + 1;
+  const editEventIndex = events.length + 2;
+  const deleteEventIndex = events.length + 3;
+  const rowCount = events.length + 2 + (selectedEvent ? 2 : 0);
 
   function closeAndFocusTrigger() {
     setOpen(false);
@@ -112,6 +114,11 @@ export function EventMenu({
     closeAndFocusTrigger();
   }
 
+  function selectAll() {
+    onSelect(null);
+    closeAndFocusTrigger();
+  }
+
   function startCreate() {
     onCreateNew();
     closeAndFocusTrigger();
@@ -131,10 +138,10 @@ export function EventMenu({
             return next;
           })
         }
-        className="inline-flex items-center justify-center gap-[5px] rounded-full bg-[#8b1a1a] px-3 py-[6px] font-jost text-[12px] leading-4 text-white"
+        className="inline-flex items-center justify-center gap-2 rounded-full border border-[#8b1a1a]/30 bg-white px-5 py-[10px] font-jost text-[15px] leading-5 text-[#8b1a1a] shadow-sm hover:bg-[#fff0f0]"
       >
-        {selectedEvent?.name ?? "Nuevo Evento"}
-        <ChevronDown size={17} aria-hidden="true" />
+        {selectedEvent?.name ?? "Todos los eventos"}
+        <ChevronDown size={18} aria-hidden="true" />
       </button>
 
       {open && (
@@ -142,8 +149,30 @@ export function EventMenu({
           role="menu"
           aria-label="Eventos"
           onKeyDown={handleMenuKeyDown}
-          className="absolute top-[calc(100%+8px)] right-0 z-40 w-[180px] rounded-[6px] border border-[#e1e5ea] bg-white py-1 shadow-sm"
+          className="absolute top-[calc(100%+8px)] left-1/2 z-40 w-[220px] -translate-x-1/2 rounded-[6px] border border-[#e1e5ea] bg-white py-1 shadow-sm"
         >
+          {/* "Todos": vuelve al modo agregado (selectedEventId = null). Se
+              renderiza siempre, sin depender de status, porque no lista
+              eventos: es un filtro fijo, no una carga de datos. */}
+          <button
+            ref={(node) => {
+              itemRefs.current[todosIndex] = node;
+            }}
+            type="button"
+            role="menuitemradio"
+            aria-checked={selectedEventId === null}
+            tabIndex={activeIndex === todosIndex ? 0 : -1}
+            onClick={selectAll}
+            onFocus={() => setActiveIndex(todosIndex)}
+            className={cn(
+              "flex w-full items-center justify-between border-b border-[#e1e5ea] px-3 py-2 text-left font-jost text-[12px] text-[#101828] hover:bg-[#f7f5f2] focus-visible:bg-[#f7f5f2] focus-visible:outline-none",
+              selectedEventId === null && "bg-[#f7f5f2] font-semibold"
+            )}
+          >
+            Todos
+            <Globe size={14} aria-hidden="true" />
+          </button>
+
           {status === "loading" && (
             <p className="px-3 py-2 font-jost text-[12px] text-[rgba(16,24,40,0.6)]">Cargando…</p>
           )}
@@ -170,18 +199,19 @@ export function EventMenu({
           {status === "ready" &&
             events.map((event, index) => {
               const isSelected = event.eid === selectedEventId;
+              const itemIndex = index + 1; // +1 porque "Todos" ocupa el índice 0
               return (
                 <button
                   key={event.eid}
                   ref={(node) => {
-                    itemRefs.current[index] = node;
+                    itemRefs.current[itemIndex] = node;
                   }}
                   type="button"
                   role="menuitemradio"
                   aria-checked={isSelected}
-                  tabIndex={activeIndex === index ? 0 : -1}
+                  tabIndex={activeIndex === itemIndex ? 0 : -1}
                   onClick={() => selectEvent(event)}
-                  onFocus={() => setActiveIndex(index)}
+                  onFocus={() => setActiveIndex(itemIndex)}
                   className={cn(
                     "block w-full truncate border-b border-[#e1e5ea] px-3 py-2 text-left font-jost text-[12px] text-[#101828] hover:bg-[#f7f5f2] focus-visible:bg-[#f7f5f2] focus-visible:outline-none",
                     isSelected && "bg-[#f7f5f2] font-semibold"
@@ -194,13 +224,13 @@ export function EventMenu({
 
           <button
             ref={(node) => {
-              itemRefs.current[events.length] = node;
+              itemRefs.current[newIndex] = node;
             }}
             type="button"
             role="menuitem"
-            tabIndex={activeIndex === events.length ? 0 : -1}
+            tabIndex={activeIndex === newIndex ? 0 : -1}
             onClick={startCreate}
-            onFocus={() => setActiveIndex(events.length)}
+            onFocus={() => setActiveIndex(newIndex)}
             className={cn(
               "flex w-full items-center justify-between px-3 py-2 text-left font-jost text-[12px] text-[rgba(16,24,40,0.6)] hover:bg-[#f7f5f2] focus-visible:bg-[#f7f5f2] focus-visible:outline-none",
               selectedEvent && "border-b border-[#e1e5ea]"
