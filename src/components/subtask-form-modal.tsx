@@ -6,9 +6,10 @@ import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { apiFetch, ApiError, createSubtask } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
-import { isoDateTimeToLocalDateString } from "../lib/dates";
+import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
 import type { Category, CreateSubtaskPayload, Subtask, UpdateSubtaskPayload } from "../lib/types";
 import { Modal } from "./modal";
+import { ConfirmDialog } from "./confirm-dialog";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { HoursPicker } from "./hours-picker";
 import { cn } from "../lib/utils";
@@ -113,6 +114,10 @@ export function SubtaskFormModal({
   const [categories, setCategories] = useState<SelectOption[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [apiError, setApiError] = useState<ApiError | null>(null);
+  // PIM1-110: valores en espera de confirmación cuando scheduled_date ya venció.
+  // No basta con el mensaje inline (el profesor lo pasó por alto en la clínica
+  // de Sprint 1); esto interrumpe el guardado con un popup que no se puede ignorar.
+  const [pendingPastDateValues, setPendingPastDateValues] = useState<SubtaskFormValues | null>(null);
 
   const {
     register,
@@ -182,6 +187,16 @@ export function SubtaskFormModal({
   const dateAfterEventDue = Boolean(eventDueLocalDate && scheduledDate && scheduledDate > eventDueLocalDate);
 
   async function submit(values: SubtaskFormValues) {
+    // Solo al crear: si ya se está editando una gestión pasada, no interrumpir
+    // guardados de otros campos con este popup en cada edición.
+    if (mode === "create" && values.scheduled_date < todayLocalDateString()) {
+      setPendingPastDateValues(values);
+      return;
+    }
+    await performSubmit(values);
+  }
+
+  async function performSubmit(values: SubtaskFormValues) {
     setApiError(null);
 
     if (mode === "edit" && initialValues) {
@@ -413,6 +428,24 @@ export function SubtaskFormModal({
           </button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={pendingPastDateValues !== null}
+        title="Esta gestión ya está vencida"
+        description={
+          pendingPastDateValues
+            ? `La fecha objetivo (${formatShortDateEs(pendingPastDateValues.scheduled_date)}) ya pasó. Puedes crearla de todos modos o volver a elegir la fecha.`
+            : ""
+        }
+        confirmLabel="Crear de todos modos"
+        cancelLabel="Cambiar fecha"
+        onConfirm={() => {
+          const values = pendingPastDateValues;
+          setPendingPastDateValues(null);
+          if (values) void performSubmit(values);
+        }}
+        onCancel={() => setPendingPastDateValues(null)}
+      />
     </Modal>
   );
 }

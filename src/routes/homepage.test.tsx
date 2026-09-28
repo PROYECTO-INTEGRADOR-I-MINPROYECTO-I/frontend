@@ -462,7 +462,7 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
 
-    await user.click(screen.getByRole("button", { name: "Nuevo Evento" }));
+    await user.click(screen.getByRole("button", { name: "Todos los eventos" }));
     await user.click(screen.getByRole("menuitem", { name: "Nuevo" }));
 
     const typeSelect = await screen.findByLabelText("Tipo");
@@ -548,7 +548,7 @@ describe("HomePage", () => {
 
     await screen.findByText("Vencida A");
 
-    expect(screen.getByRole("heading", { name: /Plan inicial/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
