@@ -26,8 +26,13 @@ const EVENT_ID_PATTERN = /^\d+$/;
 const SCHEDULED_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const KNOWN_SUBTASK_STATUSES: SubtaskStatus[] = ["pending", "done", "postponed"];
 
-function ClockIcon({ muted = false }: { muted?: boolean }) {
-  return <span aria-hidden="true" className={`clock-icon${muted ? " clock-icon--muted" : ""}`} />;
+// PIM1-11 (corrección del profesor): Vencidas debe ser el ícono más
+// prominente de los tres, no el más apagado. Antes `urgent` se llamaba
+// `muted` y se aplicaba igual a Vencidas, pero con un estilo "atenuado"
+// (border-color: #e99b9b, más claro que el gris neutro de Próximas) —
+// justo al revés de la jerarquía de urgencia que pide la vista Hoy.
+function ClockIcon({ urgent = false }: { urgent?: boolean }) {
+  return <span aria-hidden="true" className={`clock-icon${urgent ? " clock-icon--urgent" : ""}`} />;
 }
 
 // subtaskCount es null cuando las gestiones del evento a borrar no están
@@ -461,18 +466,14 @@ export function HomePage() {
           <span className="brand-name">PlanificApp</span>
         </div>
 
-        <div className="date-label" aria-label="Hoy, 17 de septiembre de 2026">
-          <span>Hoy</span>
-          <span className="date-divider">—</span>
-          <time dateTime="2026-09-17">17 sep. 2026</time>
-        </div>
+        {/* PIM1-11: reemplaza al label "Hoy — 17 sep. 2026" (el profesor lo
+            señaló como poco útil) por el selector real de vista, que sí
+            comunica algo — en qué pestaña está el usuario — y deja lista la
+            barra superior para cuando se agregue el switcher Hoy/Eventos. */}
+        <ViewSwitcher value={currentView} onChange={handleSelectView} />
 
         <div className="avatar" aria-label="Perfil de AL">AL</div>
       </header>
-
-      <div className="view-switcher-row">
-        <ViewSwitcher value={currentView} onChange={handleSelectView} />
-      </div>
 
       <div aria-live="polite" role="status" className="success-toast" data-visible={Boolean(successMessage)}>
         <CheckCircle2 aria-hidden="true" size={16} />
@@ -585,6 +586,7 @@ export function HomePage() {
                       onOpen={setDetailSubtask}
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
+                      eventName={selectedEvent?.name}
                     />
                   ))}
                 </div>
@@ -638,6 +640,7 @@ export function HomePage() {
                     onOpen={setDetailSubtask}
                     onToggleComplete={handleToggleComplete}
                     pendingToggleIds={pendingToggleIds}
+                    eventName={selectedEvent?.name}
                   />
                   <TodayPanel
                     label="Completadas"
@@ -650,6 +653,7 @@ export function HomePage() {
                     onToggleComplete={handleToggleComplete}
                     pendingToggleIds={pendingToggleIds}
                     completed
+                    eventName={selectedEvent?.name}
                   />
                 </div>
               )}
@@ -666,6 +670,7 @@ export function HomePage() {
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
                       overdue
+                      eventName={selectedEvent?.name}
                     />
                   ))}
                 </div>
@@ -791,7 +796,7 @@ function TaskColumn({
           <h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>
             {title}
           </h2>
-          {showClock && <ClockIcon muted={title === "Vencidas"} />}
+          {showClock && <ClockIcon urgent={title === "Vencidas"} />}
         </div>
         <span className={`task-count ${countClass}`}>{count}</span>
       </div>
@@ -811,6 +816,7 @@ function TodayPanel({
   onToggleComplete,
   pendingToggleIds,
   completed = false,
+  eventName,
 }: {
   label: string;
   dotColor: string;
@@ -822,6 +828,7 @@ function TodayPanel({
   onToggleComplete: (subtask: Subtask) => void;
   pendingToggleIds: Set<number>;
   completed?: boolean;
+  eventName?: string;
 }) {
   return (
     <div className="today-panel">
@@ -846,6 +853,7 @@ function TodayPanel({
               onToggleComplete={onToggleComplete}
               pending={pendingToggleIds.has(subtask.subtask_id)}
               completed={completed}
+              eventName={eventName}
             />
           ))
         )}

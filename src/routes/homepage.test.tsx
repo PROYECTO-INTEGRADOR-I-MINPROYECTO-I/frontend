@@ -137,7 +137,8 @@ describe("HomePage", () => {
     expect(pendingSection).not.toBeNull();
     const pendingTitles = within(pendingSection as HTMLElement)
       .getAllByRole("button")
-      .map((button) => button.getAttribute("aria-label"));
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label): label is string => label !== null);
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
@@ -171,6 +172,7 @@ describe("HomePage", () => {
         within(completedSection)
           .getAllByRole("button")
           .map((button) => button.getAttribute("aria-label"))
+          .filter((label): label is string => label !== null)
       ).toContain("Hoy A")
     );
   });
@@ -227,6 +229,7 @@ describe("HomePage", () => {
       within(pendingSection)
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label"))
+        .filter((label): label is string => label !== null)
     ).toContain("Hoy B");
 
     await user.click(within(alert).getByRole("button", { name: "Reintentar" }));
@@ -238,6 +241,7 @@ describe("HomePage", () => {
         within(completedSection)
           .getAllByRole("button")
           .map((button) => button.getAttribute("aria-label"))
+          .filter((label): label is string => label !== null)
       ).toContain("Hoy B")
     );
   });
@@ -268,7 +272,8 @@ describe("HomePage", () => {
     const completedTitles = () =>
       within(screen.getByText("Completadas").closest(".today-panel") as HTMLElement)
         .getAllByRole("button")
-        .map((button) => button.getAttribute("aria-label"));
+        .map((button) => button.getAttribute("aria-label"))
+        .filter((label): label is string => label !== null);
 
     await waitFor(() => expect(completedTitles()).toEqual(expect.arrayContaining(["Vencida A", "Próxima A"])));
 
@@ -634,7 +639,7 @@ describe("HomePage", () => {
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
   });
 
-  test("PIM1-12: con un evento seleccionado, el heading fijo 'Viendo gestiones de:' no repite el nombre (ya está en el selector)", async () => {
+  test("PIM1-11: el selector de vistas vive en el header y el label de fecha vieja ya no existe", async () => {
     stubHomepageFetch();
 
     render(
@@ -645,24 +650,62 @@ describe("HomePage", () => {
 
     await screen.findByText("Vencida A");
 
-    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    const tablist = screen.getByRole("tablist", { name: "Vistas" });
+    const header = tablist.closest("header");
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getByText("PlanificApp")).toBeInTheDocument();
+    expect(screen.queryByText("17 sep. 2026")).not.toBeInTheDocument();
   });
 
-  test("sin evento seleccionado el selector dice 'Todos los eventos' (el heading es siempre el mismo texto)", async () => {
+  test("PIM1-11: el ícono de Vencidas es el prominente, no el de Próximas", async () => {
     stubHomepageFetch();
 
-    render(
-      <MemoryRouter initialEntries={["/"]}>
+    const { container } = render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
         <HomePage />
       </MemoryRouter>
     );
 
-    await screen.findByRole("button", { name: "Todos los eventos" });
-    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
+    await screen.findByText("Vencida A");
+
+    const vencidasIcon = screen
+      .getByRole("heading", { name: "Vencidas" })
+      .closest(".column-title")
+      ?.querySelector(".clock-icon");
+    const proximasIcon = screen
+      .getByRole("heading", { name: "Próximas" })
+      .closest(".column-title")
+      ?.querySelector(".clock-icon");
+
+    expect(vencidasIcon).toHaveClass("clock-icon--urgent");
+    expect(proximasIcon).not.toHaveClass("clock-icon--urgent");
+    expect(container.querySelectorAll(".clock-icon--muted")).toHaveLength(0);
   });
 
-  test("PIM1-12: elegir 'Todos' en el menú vuelve al modo agregado", async () => {
+  test("PIM1-11: cada card de gestión muestra el nombre del evento como botón", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    // Una gestión de cada columna (Vencidas, Para Hoy, Próximas) basta para
+    // confirmar que el label se propagó a las tres, no solo a una.
+    const vencidaCard = screen.getByRole("button", { name: "Vencida A" });
+    const hoyCard = screen.getByRole("button", { name: "Hoy A" });
+    const proximaCard = screen.getByRole("button", { name: "Próxima A" });
+
+    for (const card of [vencidaCard, hoyCard, proximaCard]) {
+      expect(within(card).getByText("Evento:")).toBeInTheDocument();
+      expect(within(card).getByRole("button", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    }
+  });
+
+  test("PIM1-11: clickear el nombre del evento en una card no abre el detalle de la gestión", async () => {
     const user = userEvent.setup();
     stubHomepageFetch();
 
@@ -674,12 +717,11 @@ describe("HomePage", () => {
 
     await screen.findByText("Vencida A");
 
-    await user.click(screen.getByRole("button", { name: "Boda Luisa & Carlos" }));
-    const todosOption = screen.getByRole("menuitemradio", { name: /Todos/ });
-    expect(todosOption).toHaveAttribute("aria-checked", "false");
-    await user.click(todosOption);
+    const vencidaCard = screen.getByRole("button", { name: "Vencida A" });
+    await user.click(within(vencidaCard).getByRole("button", { name: "Boda Luisa & Carlos" }));
 
-    expect(screen.getByRole("button", { name: "Todos los eventos" })).toBeInTheDocument();
-    expect(screen.queryByText("Vencida A")).not.toBeInTheDocument();
+    // Sin destino todavía (HU-13 no existe): el click no hace nada visible,
+    // pero sobre todo NO debe abrir el popup de detalle de la gestión.
+    expect(screen.queryByRole("dialog", { name: "Vencida A" })).not.toBeInTheDocument();
   });
 });
