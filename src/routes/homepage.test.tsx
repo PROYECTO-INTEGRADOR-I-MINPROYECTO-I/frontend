@@ -137,7 +137,8 @@ describe("HomePage", () => {
     expect(pendingSection).not.toBeNull();
     const pendingTitles = within(pendingSection as HTMLElement)
       .getAllByRole("button")
-      .map((button) => button.getAttribute("aria-label"));
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label): label is string => label !== null);
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
@@ -171,6 +172,7 @@ describe("HomePage", () => {
         within(completedSection)
           .getAllByRole("button")
           .map((button) => button.getAttribute("aria-label"))
+          .filter((label): label is string => label !== null)
       ).toContain("Hoy A")
     );
   });
@@ -227,6 +229,7 @@ describe("HomePage", () => {
       within(pendingSection)
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label"))
+        .filter((label): label is string => label !== null)
     ).toContain("Hoy B");
 
     await user.click(within(alert).getByRole("button", { name: "Reintentar" }));
@@ -238,6 +241,7 @@ describe("HomePage", () => {
         within(completedSection)
           .getAllByRole("button")
           .map((button) => button.getAttribute("aria-label"))
+          .filter((label): label is string => label !== null)
       ).toContain("Hoy B")
     );
   });
@@ -268,7 +272,8 @@ describe("HomePage", () => {
     const completedTitles = () =>
       within(screen.getByText("Completadas").closest(".today-panel") as HTMLElement)
         .getAllByRole("button")
-        .map((button) => button.getAttribute("aria-label"));
+        .map((button) => button.getAttribute("aria-label"))
+        .filter((label): label is string => label !== null);
 
     await waitFor(() => expect(completedTitles()).toEqual(expect.arrayContaining(["Vencida A", "Próxima A"])));
 
@@ -632,5 +637,91 @@ describe("HomePage", () => {
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+  });
+
+  test("PIM1-11: el selector de vistas vive en el header y el label de fecha vieja ya no existe", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    const tablist = screen.getByRole("tablist", { name: "Vistas" });
+    const header = tablist.closest("header");
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getByText("PlanificApp")).toBeInTheDocument();
+    expect(screen.queryByText("17 sep. 2026")).not.toBeInTheDocument();
+  });
+
+  test("PIM1-11: el ícono de Vencidas es el prominente, no el de Próximas", async () => {
+    stubHomepageFetch();
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    const vencidasIcon = screen
+      .getByRole("heading", { name: "Vencidas" })
+      .closest(".column-title")
+      ?.querySelector(".clock-icon");
+    const proximasIcon = screen
+      .getByRole("heading", { name: "Próximas" })
+      .closest(".column-title")
+      ?.querySelector(".clock-icon");
+
+    expect(vencidasIcon).toHaveClass("clock-icon--urgent");
+    expect(proximasIcon).not.toHaveClass("clock-icon--urgent");
+    expect(container.querySelectorAll(".clock-icon--muted")).toHaveLength(0);
+  });
+
+  test("PIM1-11: cada card de gestión muestra el nombre del evento como botón", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    // Una gestión de cada columna (Vencidas, Para Hoy, Próximas) basta para
+    // confirmar que el label se propagó a las tres, no solo a una.
+    const vencidaCard = screen.getByRole("button", { name: "Vencida A" });
+    const hoyCard = screen.getByRole("button", { name: "Hoy A" });
+    const proximaCard = screen.getByRole("button", { name: "Próxima A" });
+
+    for (const card of [vencidaCard, hoyCard, proximaCard]) {
+      expect(within(card).getByText("Evento:")).toBeInTheDocument();
+      expect(within(card).getByRole("button", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    }
+  });
+
+  test("PIM1-11: clickear el nombre del evento en una card no abre el detalle de la gestión", async () => {
+    const user = userEvent.setup();
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    const vencidaCard = screen.getByRole("button", { name: "Vencida A" });
+    await user.click(within(vencidaCard).getByRole("button", { name: "Boda Luisa & Carlos" }));
+
+    // Sin destino todavía (HU-13 no existe): el click no hace nada visible,
+    // pero sobre todo NO debe abrir el popup de detalle de la gestión.
+    expect(screen.queryByRole("dialog", { name: "Vencida A" })).not.toBeInTheDocument();
   });
 });

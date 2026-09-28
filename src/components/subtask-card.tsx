@@ -27,6 +27,21 @@ interface SubtaskCardProps {
   onToggleComplete?: (subtask: Subtask) => void;
   /** Deshabilita el checkbox mientras el cambio está en curso, para evitar dobles clics. */
   pending?: boolean;
+  /**
+   * PIM1-11 (corrección del profesor): nombre del evento al que pertenece la
+   * gestión, para distinguirla cuando la vista no está filtrada por un solo
+   * evento. Hoy siempre se pasa `selectedEvent.name` (mismo valor en todas
+   * las tarjetas); cuando exista el agregado real de /hoy, cada gestión
+   * traerá su propio evento y este prop pasará a variar por card.
+   */
+  eventName?: string;
+  /**
+   * Click en el nombre del evento (botón real, no solo texto). Sin destino
+   * todavía — HU-13 (/evento/:id) no existe — así que por ahora queda sin
+   * pasar en homepage.tsx: el botón existe y es accesible, pero no navega a
+   * nada hasta que se conecte esta prop.
+   */
+  onEventClick?: () => void;
 }
 
 export function SubtaskCard({
@@ -36,6 +51,8 @@ export function SubtaskCard({
   completed = false,
   onToggleComplete,
   pending = false,
+  eventName,
+  onEventClick,
 }: SubtaskCardProps) {
   const categoryStyle = categoryChipStyle(subtask.category);
   const hoursLabel = formatDuration(subtask.estimated_hours);
@@ -105,6 +122,22 @@ export function SubtaskCard({
             {formatShortDateEs(subtask.scheduled_date)}
           </span>
         </div>
+
+        {eventName && (
+          <p className="flex items-center gap-1 pt-1 font-source text-[12px]">
+            <span className="font-semibold text-[#1e2939]">Evento:</span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onEventClick?.();
+              }}
+              className="rounded-sm font-medium text-[#8b1a1a] underline decoration-[#8b1a1a]/40 hover:decoration-[#8b1a1a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
+            >
+              {eventName}
+            </button>
+          </p>
+        )}
 
         {overdue && (
           <div className="flex items-center gap-1 pt-2">
