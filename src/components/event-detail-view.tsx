@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import { ArrowLeft, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { EventCover } from "./event-cover";
 import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours, subtaskTimeStatus } from "../lib/subtask-display";
 import type { Event, Subtask } from "../lib/types";
@@ -66,55 +67,59 @@ export function EventDetailView({
           Volver a Eventos
         </button>
 
-        <div className="flex flex-col gap-4 rounded-lg border border-[#f3f4f6] bg-white p-6">
-          <div className="flex flex-col gap-2">
-            <h1 className="font-jost text-[24px] leading-[30px] text-[#101828]">{event.name}</h1>
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex items-center gap-1 font-jost text-[13px] text-[#4a5565] hover:text-[#101828]"
-              >
-                <Pencil aria-hidden="true" size={14} />
-                Editar
-              </button>
-              <button
-                type="button"
-                onClick={onDelete}
-                className="inline-flex items-center gap-1 font-jost text-[13px] text-[#8b1a1a] hover:text-[#6f1515]"
-              >
-                <Trash2 aria-hidden="true" size={14} />
-                Borrar
-              </button>
+        <div className="overflow-hidden rounded-lg border border-[#f3f4f6] bg-white">
+          <EventCover event={event} className="aspect-video w-full" />
+
+          <div className="flex flex-col gap-4 p-6">
+            <div className="flex flex-col gap-2">
+              <h1 className="font-jost text-[24px] leading-[30px] text-[#101828]">{event.name}</h1>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="inline-flex items-center gap-1 font-jost text-[13px] text-[#4a5565] hover:text-[#101828]"
+                >
+                  <Pencil aria-hidden="true" size={14} />
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="inline-flex items-center gap-1 font-jost text-[13px] text-[#8b1a1a] hover:text-[#6f1515]"
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                  Borrar
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {eventTypeName && (
-              <span className="shrink-0 rounded px-[6px] py-0.5 font-jost text-[10px] text-[#4a5565] bg-[#f3f4f6]">
-                {eventTypeName}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {eventTypeName && (
+                <span className="shrink-0 rounded px-[6px] py-0.5 font-jost text-[10px] text-[#4a5565] bg-[#f3f4f6]">
+                  {eventTypeName}
+                </span>
+              )}
+              <span className="font-source text-[13px] text-[#99a1af]">{dateLabel}</span>
+            </div>
+
+            {event.place && (
+              <p className="font-source text-[14px] text-[#4a5565]">
+                <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Lugar: </span>
+                {event.place}
+              </p>
             )}
-            <span className="font-source text-[13px] text-[#99a1af]">{dateLabel}</span>
+
+            {event.client_contact && (
+              <p className="font-source text-[14px] text-[#4a5565]">
+                <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Contacto: </span>
+                {event.client_contact}
+              </p>
+            )}
+
+            {event.description && (
+              <p className="font-source text-[14px] leading-[22.75px] text-[#4a5565]">{event.description}</p>
+            )}
           </div>
-
-          {event.place && (
-            <p className="font-source text-[14px] text-[#4a5565]">
-              <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Lugar: </span>
-              {event.place}
-            </p>
-          )}
-
-          {event.client_contact && (
-            <p className="font-source text-[14px] text-[#4a5565]">
-              <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Contacto: </span>
-              {event.client_contact}
-            </p>
-          )}
-
-          {event.description && (
-            <p className="font-source text-[14px] leading-[22.75px] text-[#4a5565]">{event.description}</p>
-          )}
         </div>
 
         <div className="mt-6 flex flex-col gap-3">

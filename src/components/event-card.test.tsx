@@ -54,6 +54,20 @@ describe("EventCard", () => {
     expect(screen.getByText("1 dic")).toBeInTheDocument();
     expect(screen.getByText("3 de 5 gestiones completadas")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
+    // La portada (EventCover) vive dentro de la card.
+    expect(screen.getByRole("button", { name: "Cambiar portada del evento" })).toBeInTheDocument();
+  });
+
+  test("Enter y Espacio sobre la card enfocada también llaman a onOpen", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    render(<EventCard event={event} completed={0} total={0} todayCount={0} onOpen={onOpen} {...baseProps} />);
+
+    screen.getByRole("button", { name: /Boda Luisa & Carlos/ }).focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+
+    expect(onOpen).toHaveBeenCalledTimes(2);
   });
 
   test("sin gestiones (total 0) no muestra la barra de progreso", () => {

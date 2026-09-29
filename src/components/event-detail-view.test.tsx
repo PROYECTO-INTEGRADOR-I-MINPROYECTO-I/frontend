@@ -66,6 +66,8 @@ describe("EventDetailView", () => {
     expect(screen.getByText("Salón Jardín")).toBeInTheDocument();
     expect(screen.getByText("Luisa Pérez")).toBeInTheDocument();
     expect(screen.getByText("Ceremonia y recepción.")).toBeInTheDocument();
+    // El banner (EventCover) va antes del título, mismo aspect-ratio que la card del roulette.
+    expect(screen.getByRole("button", { name: "Cambiar portada del evento" })).toBeInTheDocument();
   });
 
   test("mientras cargan las gestiones, no muestra las 4 tablas", () => {

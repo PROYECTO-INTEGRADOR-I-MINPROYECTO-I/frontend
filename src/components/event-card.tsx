@@ -1,11 +1,18 @@
 // Card de evento para la vista "Eventos" (HU-13/PIM1-111, ver "Correcciones
 // de UI dadas por el profesor durante clinica de sprint 1.txt"): portada
-// 16:9, título, tipo + fecha, barra de progreso, contador de completadas y
-// una mini-lista de las próximas gestiones. Pensada para vivir en un roulette
-// de scroll horizontal (ver EventsView), por eso el aspecto vertical y el
-// ancho fijo en vez de estirarse a lo ancho del contenedor.
+// 16:9 (EventCover, personalizable al pasar el mouse), título, tipo + fecha,
+// barra de progreso, contador de completadas y una mini-lista de las
+// próximas gestiones. Pensada para vivir en un roulette de scroll horizontal
+// (ver EventsView), por eso el aspecto vertical y el ancho fijo en vez de
+// estirarse a lo ancho del contenedor.
+//
+// La card entera es clickeable (abre el evento), pero EventCover necesita un
+// botón real anidado para personalizar la portada; un <button> no puede
+// contener otro <button> (HTML inválido), así que la raíz es un
+// div role="button" en vez de un <button> — mismo patrón de tabIndex +
+// onClick + onKeyDown que las filas de gestión en event-detail-view.tsx.
 
-import { eventCoverColor } from "../lib/event-display";
+import { EventCover } from "./event-cover";
 import { formatShortDateEs, isoDateTimeToLocalDateString } from "../lib/dates";
 import type { Event, Subtask } from "../lib/types";
 
@@ -37,17 +44,23 @@ export function EventCard({
   loading = false,
   onOpen,
 }: EventCardProps) {
-  const coverColor = eventCoverColor(event.name);
   const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
   const dateLabel = formatShortDateEs(isoDateTimeToLocalDateString(event.due_date));
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className="flex w-60 shrink-0 flex-col overflow-hidden rounded-lg border border-[#f3f4f6] bg-white text-left transition-shadow hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
+      onKeyDown={(keyEvent) => {
+        if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+          keyEvent.preventDefault();
+          onOpen();
+        }
+      }}
+      className="flex w-60 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-[#f3f4f6] bg-white text-left transition-shadow hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
     >
-      <div className="aspect-video w-full" style={{ backgroundColor: coverColor }} aria-hidden="true" />
+      <EventCover event={event} className="aspect-video w-full" />
 
       <div className="flex flex-1 flex-col gap-2 p-4">
         <p className="font-jost text-[16px] leading-[20px] text-[#101828]">{event.name}</p>
@@ -101,6 +114,6 @@ export function EventCard({
           </>
         )}
       </div>
-    </button>
+    </div>
   );
 }
