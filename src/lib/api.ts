@@ -11,6 +11,21 @@ if (!API_URL) {
   );
 }
 
+// PIM1-42: AuthProvider registra acá un callback (limpiar el usuario y
+// redirigir a /login) para cuando cualquier request devuelve 401 a mitad de
+// uso (sesión expirada/inválida). api.ts no puede navegar por su cuenta (no
+// es un componente), por eso el indirect.
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
+}
+
+// Un 401 en estas rutas es "credenciales inválidas" (login) o similar, no una
+// sesión que expiró: no debe disparar el manejador global ni redirigir.
+const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/"];
+
 // Error estructurado para que las vistas puedan pintar mensajes por campo
 // sin tener que parsear el cuerpo de la respuesta cada una por su cuenta.
 export class ApiError extends Error {
@@ -143,6 +158,19 @@ function buildApiErrorFromBody(body: unknown, status: number): ApiError {
   const fallback = defaultMessageFor(status);
 
   if (isRecord(body) && isRecord(body.error)) {
+    // Envoltorio real de custom_exception_handler (event/exceptions.py):
+    // { success: false, error: { type: "NombreDeExcepcion", details: <cuerpo estándar de DRF> } }.
+    // `details` tiene la misma forma que un cuerpo de DRF normal (detail /
+    // non_field_errors / { campo: [...] }), así que se reusa el mismo parser.
+    if (isRecord(body.error.details)) {
+      const error = buildFromDrfBody(body.error.details, status, fallback);
+      if (error) return error;
+    } else if (typeof body.error.details === "string") {
+      const code = typeof body.error.type === "string" ? body.error.type : fallback.code;
+      return new ApiError(body.error.details, status, code, {});
+    }
+    // Contrato "agreed" (TS-03) { error: { code, message, fields } }: no lo
+    // manda ningún endpoint hoy, pero se conserva por si algún ambiente lo usa.
     return buildFromAgreedContract(body.error, status, fallback);
   }
 
@@ -217,6 +245,9 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
+    if (response.status === 401 && unauthorizedHandler && !AUTH_ENDPOINTS.some((p) => path.startsWith(p))) {
+      unauthorizedHandler();
+    }
     throw await buildApiError(response);
   }
 

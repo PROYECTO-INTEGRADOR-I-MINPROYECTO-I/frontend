@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { apiFetch, ApiError, createSubtask } from "./api";
+import { apiFetch, ApiError, createSubtask, setUnauthorizedHandler } from "./api";
 import type { CreateSubtaskPayload } from "./types";
 
 function jsonResponse(body: unknown, status: number): Response {
@@ -75,6 +75,60 @@ describe("apiFetch", () => {
       status: 0,
     });
     await expect(apiFetch("/eventos/")).rejects.toBeInstanceOf(ApiError);
+  });
+
+  // custom_exception_handler real del backend (event/exceptions.py):
+  // { success: false, error: { type, details } }, no el contrato "agreed"
+  // { error: { code, message, fields } } que este cliente asumía antes.
+  test("el envoltorio real del backend con detail como string se lee como el mensaje", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({ success: false, error: { type: "InvalidCredentials", details: { detail: "Credenciales inválidas" } } }, 401)
+      )
+    );
+
+    await expect(apiFetch("/auth/login/", { method: "POST" })).rejects.toMatchObject({
+      message: "Credenciales inválidas",
+      status: 401,
+    });
+  });
+
+  test("el envoltorio real del backend con errores de campo los expone en fields", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({ success: false, error: { type: "ValidationError", details: { name: ["Escribe el nombre del evento."] } } }, 400)
+      )
+    );
+
+    await expect(apiFetch("/eventos/", { method: "POST" })).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      status: 400,
+      fields: { name: "Escribe el nombre del evento." },
+    });
+  });
+
+  test("un 401 llama al manejador global registrado con setUnauthorizedHandler", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+
+    await expect(apiFetch("/eventos/")).rejects.toBeInstanceOf(ApiError);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    setUnauthorizedHandler(null);
+  });
+
+  test("un 401 de /auth/login/ NO llama al manejador global (es credencial inválida, no sesión expirada)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+
+    await expect(apiFetch("/auth/login/", { method: "POST" })).rejects.toBeInstanceOf(ApiError);
+
+    expect(handler).not.toHaveBeenCalled();
+    setUnauthorizedHandler(null);
   });
 });
 
