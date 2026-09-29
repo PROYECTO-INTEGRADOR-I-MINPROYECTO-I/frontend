@@ -697,17 +697,22 @@ export function HomePage() {
       {/* HU-13/PIM1-111: listado de cards + vista expandida del evento (paso
           1: solo información). Las tablas de gestiones son el paso
           siguiente; ver el comentario de EventsView.
-          flex-1 (junto con planner-shell ahora siendo flex-column, ver
-          homepage.css): sin esto el panel solo medía lo que ocupaba su
-          contenido y el roulette quedaba centrado dentro de su propia caja
-          de 420px, pero esa caja se veía pegada arriba de la página en vez
-          de centrada en el alto disponible de la pantalla. */}
+          flex flex-col flex-1 (junto con planner-shell ahora siendo
+          flex-column, ver homepage.css): sin esto el panel solo medía lo que
+          ocupaba su contenido y el roulette quedaba pegado arriba de la
+          página en vez de centrado en el alto disponible de la pantalla.
+          flex-col (no solo flex-1) es necesario porque el roulette usa
+          `flex-1` para llenar este panel — un `height: 100%` ahí no
+          funciona: la altura de este panel viene de flex-grow, no de un
+          valor de `height` explícito, así que no cuenta como "definida"
+          para que un hijo resuelva un porcentaje (confirmado con Claude in
+          Chrome: `h-full` medía 420px en vez de estirarse). */}
       <div
         role="tabpanel"
         id="eventos-panel"
         aria-labelledby="eventos-tab"
         hidden={currentView !== "eventos"}
-        className="flex-1"
+        className="flex flex-1 flex-col"
       >
         {currentView === "eventos" && (
           <EventsView

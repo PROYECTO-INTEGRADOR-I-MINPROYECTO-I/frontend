@@ -171,7 +171,7 @@ export function EventsView({
     // Corrección del profesor (clínica de Sprint 1): sin eventos, ocultar
     // todo y dejar solo el mensaje + un único botón de crear.
     return (
-      <div className="grid h-full min-h-[420px] place-items-center px-8">
+      <div className="grid flex-1 min-h-[420px] place-items-center px-8">
         <div className="grid justify-items-center gap-5 text-center">
           <p className="m-0 text-[28px] leading-[1.16] text-[#99a1af]">
             Aún no tienes eventos
@@ -195,13 +195,15 @@ export function EventsView({
     // min-h + items-center: sin altura mínima el contenedor solo mide lo que
     // ocupan las cards y quedan pegadas arriba (mismo criterio que el
     // min-h-[420px] del estado vacío, para que no salte al cambiar de estado).
-    // h-full: min-h por sí solo solo centra dentro de su propia caja de
+    // flex-1: min-h por sí solo solo centra dentro de su propia caja de
     // 420px, que quedaba pegada arriba de la página si la pantalla tiene más
-    // alto disponible que eso. Con h-full toma el alto real que le da
-    // eventos-panel (flex-1 sobre planner-shell, ver homepage.tsx/css), así
+    // alto disponible que eso. flex-1 (no h-full: eventos-panel no tiene un
+    // `height` explícito, es flex-grow, así que un % no resuelve — verificado
+    // con Claude in Chrome) toma el alto real que le da eventos-panel
+    // (flex flex-col flex-1 sobre planner-shell, ver homepage.tsx/css), así
     // que el centrado es contra el alto real de la pantalla, no solo 420px.
     <div
-      className="flex h-full min-h-[420px] items-center gap-4 overflow-x-auto px-8 pb-8"
+      className="flex flex-1 min-h-[420px] items-center gap-4 overflow-x-auto px-8 pb-8"
       style={{ justifyContent: "safe center" }}
     >
       <CreateEventCard onClick={onCreateEvent} />
