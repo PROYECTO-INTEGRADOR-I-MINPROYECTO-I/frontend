@@ -1,23 +1,50 @@
-// Vista expandida de un evento (HU-13/PIM1-111, paso 1: solo información del
-// evento + editar/borrar). Reemplaza al "no teníamos forma de ver la
-// información del evento aparte de editar" que señaló el profesor en la
-// clínica de Sprint 1. Las tablas de gestiones (Para hoy/Vencidas/Próximas/
-// Completadas) quedan para un paso siguiente.
+// Vista expandida de un evento (HU-13/PIM1-111). Paso 1: información del
+// evento + editar/borrar. Paso 2 (este): las 4 tablas de gestiones (Para
+// hoy/Vencidas/Próximas/Completadas), expandidas por defecto, con contador
+// "- X GESTIONES" y columnas Nombre/Tipo/Fecha/Descripción/Estado — ver
+// Correcciones de UI...txt. Clickear una fila para abrir el detalle de esa
+// gestión queda para un paso siguiente (ver el comentario en events-view.tsx
+// sobre por qué SubtaskFormModal necesita un ajuste primero).
 
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
-import { formatShortDateEs, isoDateTimeToLocalDateString } from "../lib/dates";
-import type { Event } from "../lib/types";
+import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
+import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours, subtaskTimeStatus } from "../lib/subtask-display";
+import type { Event, Subtask } from "../lib/types";
 
 interface EventDetailViewProps {
   event: Event;
   eventTypeName?: string;
+  subtasks: Subtask[];
+  subtasksLoading: boolean;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-export function EventDetailView({ event, eventTypeName, onBack, onEdit, onDelete }: EventDetailViewProps) {
+export function EventDetailView({
+  event,
+  eventTypeName,
+  subtasks,
+  subtasksLoading,
+  onBack,
+  onEdit,
+  onDelete,
+}: EventDetailViewProps) {
   const dateLabel = formatShortDateEs(isoDateTimeToLocalDateString(event.due_date));
+  const today = todayLocalDateString();
+
+  const vencidas = sortSubtasksByDateThenHours(
+    subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "overdue")
+  );
+  const paraHoy = sortSubtasksByDateThenHours(
+    subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "today")
+  );
+  const proximas = sortSubtasksByDateThenHours(
+    subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "upcoming")
+  );
+  const completadas = sortCompletedSubtasksByDateDesc(
+    subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "done")
+  );
 
   return (
     <div className="px-8 pb-8">
@@ -82,9 +109,72 @@ export function EventDetailView({ event, eventTypeName, onBack, onEdit, onDelete
           )}
         </div>
 
-        {/* TODO(HU-13, paso 2): tablas Para hoy/Vencidas/Próximas/Completadas con
-            contador y filtro por tipo, ver Correcciones de UI...txt. */}
+        <div className="mt-6 flex flex-col gap-3">
+          {subtasksLoading ? (
+            <p className="font-source text-[13px] text-[#99a1af]">Cargando gestiones…</p>
+          ) : (
+            <>
+              <GestionGroup label="Para hoy" items={paraHoy} emptyHint="Sin gestiones para hoy." />
+              <GestionGroup label="Vencidas" items={vencidas} emptyHint="Sin gestiones vencidas." />
+              <GestionGroup label="Próximas" items={proximas} emptyHint="Sin gestiones próximas." />
+              <GestionGroup label="Completadas" items={completadas} emptyHint="Sin gestiones completadas." />
+            </>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+interface GestionGroupProps {
+  label: string;
+  items: Subtask[];
+  emptyHint: string;
+}
+
+function GestionGroup({ label, items, emptyHint }: GestionGroupProps) {
+  return (
+    <details open className="rounded-lg border border-[#f3f4f6] bg-white">
+      <summary className="flex cursor-pointer items-center justify-between px-4 py-3 font-jost text-[13px] tracking-[0.5px] text-[#101828] uppercase">
+        <span>{label}</span>
+        <span className="font-source text-[11px] normal-case text-[#99a1af]">- {items.length} GESTIONES</span>
+      </summary>
+      <div className="border-t border-[#f3f4f6] px-4 py-3">
+        {items.length === 0 ? (
+          <p className="font-source text-[13px] text-[#99a1af]">{emptyHint}</p>
+        ) : (
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="border-b border-[#f3f4f6] font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">
+                <th className="py-2 pr-2 font-normal">Nombre</th>
+                <th className="py-2 pr-2 font-normal">Tipo</th>
+                <th className="py-2 pr-2 font-normal">Fecha</th>
+                <th className="hidden py-2 pr-2 font-normal sm:table-cell">Descripción</th>
+                <th className="py-2 font-normal">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((subtask) => (
+                <tr key={subtask.subtask_id} className="border-b border-[#f3f4f6] last:border-0">
+                  <td className="max-w-[160px] truncate py-2 pr-2 font-source text-[13px] text-[#1e2939]">
+                    {subtask.title}
+                  </td>
+                  <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">{subtask.category}</td>
+                  <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">
+                    {formatShortDateEs(subtask.scheduled_date)}
+                  </td>
+                  <td className="hidden max-w-[220px] truncate py-2 pr-2 font-source text-[13px] text-[#99a1af] sm:table-cell">
+                    {subtask.description || "—"}
+                  </td>
+                  <td className="py-2 font-source text-[13px] text-[#4a5565]">
+                    {subtask.status === "done" ? "Completada" : "Pendiente"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </details>
   );
 }

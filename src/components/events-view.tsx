@@ -1,10 +1,15 @@
 // Vista "Eventos" (HU-13/PIM1-111): roulette de scroll horizontal con una
 // card por evento (más la card especial "Crear nuevo evento" siempre
 // presente, primera en la fila). Clickear una card muestra la vista
-// expandida del evento (EventDetailView) en el lugar del roulette; "Volver a
-// Eventos" regresa. Paso 1: la vista expandida solo trae la información del
-// evento — las tablas de gestiones (Para hoy/Vencidas/Próximas/Completadas)
-// son el paso siguiente.
+// expandida del evento (EventDetailView) en el lugar del roulette, con info
+// del evento y sus gestiones en 4 tablas (Para hoy/Vencidas/Próximas/
+// Completadas); "Volver a Eventos" regresa.
+//
+// Paso siguiente (no en este commit): clickear una fila de gestión para
+// abrir su detalle — reutilizar el SubtaskDetailModal/SubtaskFormModal que ya
+// existen en homepage.tsx implica resolver primero que SubtaskFormModal (modo
+// editar) depende hoy de `selectedEvent` (el filtro de la pestaña Hoy), que
+// puede no ser el evento que se está viendo acá.
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
@@ -23,6 +28,8 @@ interface EventProgress {
   today: number;
   preview: Subtask[];
   previewMoreCount: number;
+  /** Lista completa (sin recortar) para las 4 tablas de la vista expandida. */
+  all: Subtask[];
 }
 
 interface EventsViewProps {
@@ -94,12 +101,16 @@ export function EventsView({
               today: todayCount,
               preview: pending.slice(0, PREVIEW_LIMIT),
               previewMoreCount: Math.max(0, pending.length - PREVIEW_LIMIT),
+              all: subtasks,
             },
           ] as const;
         } catch {
           // Progreso no disponible para este evento puntual: se muestra como
           // "sin gestiones" en vez de tumbar toda la vista por un solo fetch fallido.
-          return [event.eid, { completed: 0, total: 0, today: 0, preview: [], previewMoreCount: 0 }] as const;
+          return [
+            event.eid,
+            { completed: 0, total: 0, today: 0, preview: [], previewMoreCount: 0, all: [] },
+          ] as const;
         }
       })
     ).then((entries) => {
@@ -134,10 +145,13 @@ export function EventsView({
   const expandedEvent = expandedEventId != null ? (events.find((event) => event.eid === expandedEventId) ?? null) : null;
 
   if (expandedEvent) {
+    const expandedProgress = progressByEvent[expandedEvent.eid];
     return (
       <EventDetailView
         event={expandedEvent}
         eventTypeName={eventTypeNameFor(expandedEvent)}
+        subtasks={expandedProgress?.all ?? []}
+        subtasksLoading={!expandedProgress}
         onBack={() => setExpandedEventId(null)}
         onEdit={() => onEditEvent(expandedEvent)}
         onDelete={() => onDeleteEvent(expandedEvent)}
