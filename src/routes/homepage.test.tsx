@@ -537,7 +537,7 @@ describe("HomePage", () => {
     ).toBeInTheDocument();
   });
 
-  test("por defecto se ve la vista 'Plan inicial' con las columnas", async () => {
+  test("por defecto se ve la vista 'Hoy' con las columnas", async () => {
     stubHomepageFetch();
 
     render(
@@ -549,13 +549,13 @@ describe("HomePage", () => {
     await screen.findByText("Vencida A");
 
     expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Vencidas" })).toBeInTheDocument();
   });
 
-  test("la pestaña Hoy muestra el estado 'Próximamente' y oculta las columnas", async () => {
+  test("la pestaña Eventos muestra el estado 'Próximamente' y oculta las columnas", async () => {
     stubHomepageFetch();
     const user = userEvent.setup();
 
@@ -566,18 +566,18 @@ describe("HomePage", () => {
     );
     await screen.findByText("Vencida A");
 
-    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+    await user.click(screen.getByRole("tab", { name: "Eventos" }));
 
     expect(
       await screen.findByText(
-        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+        "La vista Eventos estará disponible pronto: aquí verás tus eventos organizados en tarjetas, con acceso al detalle de cada uno."
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
-    expect(document.getElementById("plan-inicial-panel")).toHaveAttribute("hidden");
+    expect(document.getElementById("hoy-panel")).toHaveAttribute("hidden");
   });
 
-  test("volver a 'Plan inicial' desde Hoy conserva el evento seleccionado", async () => {
+  test("volver a 'Hoy' desde Eventos conserva el evento seleccionado", async () => {
     stubHomepageFetch();
     const user = userEvent.setup();
     // Muestra la query string actual para poder leerla desde el test.
@@ -594,21 +594,23 @@ describe("HomePage", () => {
     );
     await screen.findByText("Vencida A");
 
-    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+    await user.click(screen.getByRole("tab", { name: "Eventos" }));
     await screen.findByText(
-      "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+      "La vista Eventos estará disponible pronto: aquí verás tus eventos organizados en tarjetas, con acceso al detalle de cada uno."
     );
     // Cambiar de vista no pisa ?evento= en la URL.
     expect(currentParams().get("evento")).toBe("1");
-    expect(currentParams().get("vista")).toBe("hoy");
+    expect(currentParams().get("vista")).toBe("eventos");
 
-    await user.click(screen.getByRole("tab", { name: "Plan inicial" }));
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
 
     expect(await screen.findByText("Vencida A")).toBeInTheDocument();
     expect(currentParams().get("evento")).toBe("1");
+    // "Hoy" es la vista por defecto: al volver a ella, ?vista= se limpia de la URL.
+    expect(currentParams().get("vista")).toBeNull();
   });
 
-  test("un ?vista= inválido cae en Plan inicial", async () => {
+  test("un ?vista= inválido cae en Hoy", async () => {
     stubHomepageFetch();
 
     render(
@@ -617,23 +619,23 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByText("Vencida A")).toBeInTheDocument();
   });
 
-  test("?vista=hoy en la URL abre directamente la pestaña Hoy", async () => {
+  test("?vista=eventos en la URL abre directamente la pestaña Eventos", async () => {
     stubHomepageFetch();
 
     render(
-      <MemoryRouter initialEntries={["/?evento=1&vista=hoy"]}>
+      <MemoryRouter initialEntries={["/?evento=1&vista=eventos"]}>
         <HomePage />
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
     expect(
       await screen.findByText(
-        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+        "La vista Eventos estará disponible pronto: aquí verás tus eventos organizados en tarjetas, con acceso al detalle de cada uno."
       )
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();

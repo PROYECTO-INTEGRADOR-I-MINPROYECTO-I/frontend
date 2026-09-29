@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, Plus, Sun } from "lucide-react";
+import { Calendar, CheckCircle2, Plus } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
 import { EventMenu } from "../components/event-menu";
@@ -55,12 +55,10 @@ function subtaskDeleteDescription(subtask: Subtask): string {
   return `¿Eliminar la gestión «${subtask.title}»? Esta acción no se puede deshacer.`;
 }
 
-function SunIcon() {
-  // El glifo ☼ no existe en Source Sans 3 (fuente cargada tras PIM1-89):
-  // se reemplaza por el icono equivalente de lucide-react.
+function EventosPlaceholderIcon() {
   return (
     <span aria-hidden="true" className="sun-icon">
-      <Sun size={28} />
+      <Calendar size={28} />
     </span>
   );
 }
@@ -136,10 +134,11 @@ export function HomePage() {
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
 
-  // ?vista=plan|hoy, igual que ?evento=; "plan" es el valor por defecto
-  // (cualquier otro valor que no sea "hoy" cae en "plan").
+  // ?vista=eventos|hoy, igual que ?evento=; "hoy" es el valor por defecto
+  // (cualquier otro valor que no sea "eventos" cae en "hoy") — PIM1-11: esta
+  // vista siempre fue la de "Hoy", así que es la que debe verse sin tocar nada.
   const vistaParam = searchParams.get("vista");
-  const currentView: ViewSwitcherValue = vistaParam === "hoy" ? "hoy" : "plan";
+  const currentView: ViewSwitcherValue = vistaParam === "eventos" ? "eventos" : "hoy";
 
   useEffect(() => {
     return () => {
@@ -211,13 +210,13 @@ export function HomePage() {
     );
   }
 
-  // Conserva ?evento= al cambiar de vista, así volver a "Plan inicial"
-  // mantiene el mismo evento seleccionado.
+  // Conserva ?evento= al cambiar de vista, así volver a "Hoy" mantiene el
+  // mismo evento seleccionado.
   function handleSelectView(view: ViewSwitcherValue) {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        if (view === "plan") next.delete("vista");
+        if (view === "hoy") next.delete("vista");
         else next.set("vista", view);
         return next;
       },
@@ -499,17 +498,17 @@ export function HomePage() {
 
       <div
         role="tabpanel"
-        id="plan-inicial-panel"
-        aria-labelledby="plan-tab"
-        hidden={currentView !== "plan"}
+        id="hoy-panel"
+        aria-labelledby="hoy-tab"
+        hidden={currentView !== "hoy"}
       >
-        <section className="planner-intro" aria-labelledby="plan-inicial-heading">
+        <section className="planner-intro" aria-labelledby="hoy-heading">
           <div className="intro-row">
             {/* PIM1-12: este heading reemplaza al antiguo "Plan inicial <icono>"
                 (el profesor lo señaló como redundante: la pestaña ya indica en
                 qué vista se está). Texto fijo: el selector de abajo ("Todos
                 los eventos" o el nombre del evento) ya completa la oración. */}
-            <h1 id="plan-inicial-heading">Viendo gestiones de:</h1>
+            <h1 id="hoy-heading">Viendo gestiones de:</h1>
             <div className="intro-actions">
               {selectedEventId != null && subtasksStatus === "ready" && subtasks.length > 0 && (
                 <button
@@ -683,15 +682,17 @@ export function HomePage() {
         )}
       </div>
 
-      {/* TODO(US-Hoy): implementar la vista real (gestiones de hoy de todos
-          los eventos, con fetch propio); por ahora solo un estado vacío. */}
-      <div role="tabpanel" id="hoy-panel" aria-labelledby="hoy-tab" hidden={currentView !== "hoy"}>
-        {currentView === "hoy" && (
+      {/* TODO(HU-13/PIM1-111): implementar la vista real de Eventos (cards +
+          detalle expandido, ver Correcciones de UI...txt); por ahora solo un
+          estado vacío. */}
+      <div role="tabpanel" id="eventos-panel" aria-labelledby="eventos-tab" hidden={currentView !== "eventos"}>
+        {currentView === "eventos" && (
           <div className="hoy-placeholder">
-            <SunIcon />
-            <h1>Hoy</h1>
+            <EventosPlaceholderIcon />
+            <h1>Eventos</h1>
             <p>
-              La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos.
+              La vista Eventos estará disponible pronto: aquí verás tus eventos organizados en tarjetas, con
+              acceso al detalle de cada uno.
             </p>
           </div>
         )}
