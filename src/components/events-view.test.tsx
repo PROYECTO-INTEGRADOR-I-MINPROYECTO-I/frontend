@@ -46,7 +46,8 @@ describe("EventsView", () => {
         errorMessage=""
         onRetry={vi.fn()}
         onCreateEvent={vi.fn()}
-        onOpenEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
       />
     );
     expect(screen.getByText("Cargando eventos…")).toBeInTheDocument();
@@ -62,7 +63,8 @@ describe("EventsView", () => {
         errorMessage="No pudimos cargar tus eventos."
         onRetry={onRetry}
         onCreateEvent={vi.fn()}
-        onOpenEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
       />
     );
 
@@ -81,7 +83,8 @@ describe("EventsView", () => {
         errorMessage=""
         onRetry={vi.fn()}
         onCreateEvent={onCreateEvent}
-        onOpenEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
       />
     );
 
@@ -100,7 +103,8 @@ describe("EventsView", () => {
         errorMessage=""
         onRetry={vi.fn()}
         onCreateEvent={vi.fn()}
-        onOpenEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
       />
     );
 
@@ -132,7 +136,8 @@ describe("EventsView", () => {
         errorMessage=""
         onRetry={vi.fn()}
         onCreateEvent={vi.fn()}
-        onOpenEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
       />
     );
 
@@ -157,7 +162,8 @@ describe("EventsView", () => {
         errorMessage=""
         onRetry={vi.fn()}
         onCreateEvent={vi.fn()}
-        onOpenEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
       />
     );
 
@@ -165,9 +171,8 @@ describe("EventsView", () => {
     expect(screen.queryByText("Boda")).not.toBeInTheDocument();
   });
 
-  test("clickear una card llama a onOpenEvent con ese evento", async () => {
+  test("clickear una card muestra la vista expandida del evento, y 'Volver a Eventos' regresa al roulette", async () => {
     const user = userEvent.setup();
-    const onOpenEvent = vi.fn();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([])));
 
     render(
@@ -177,11 +182,48 @@ describe("EventsView", () => {
         errorMessage=""
         onRetry={vi.fn()}
         onCreateEvent={vi.fn()}
-        onOpenEvent={onOpenEvent}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
       />
     );
 
     await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
-    expect(onOpenEvent).toHaveBeenCalledWith(event);
+
+    expect(screen.getByRole("heading", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Borrar" })).toBeInTheDocument();
+    // El roulette ya no está mientras se ve el detalle.
+    expect(screen.queryByRole("button", { name: "Crear nuevo evento" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Volver a Eventos" }));
+
+    expect(screen.getByRole("button", { name: "Crear nuevo evento" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Boda Luisa & Carlos" })).not.toBeInTheDocument();
+  });
+
+  test("en la vista expandida, Editar y Borrar llaman a onEditEvent/onDeleteEvent con el evento", async () => {
+    const user = userEvent.setup();
+    const onEditEvent = vi.fn();
+    const onDeleteEvent = vi.fn();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([])));
+
+    render(
+      <EventsView
+        events={[event]}
+        status="ready"
+        errorMessage=""
+        onRetry={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEditEvent={onEditEvent}
+        onDeleteEvent={onDeleteEvent}
+      />
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(onEditEvent).toHaveBeenCalledWith(event);
+
+    await user.click(screen.getByRole("button", { name: "Borrar" }));
+    expect(onDeleteEvent).toHaveBeenCalledWith(event);
   });
 });

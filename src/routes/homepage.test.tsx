@@ -632,7 +632,7 @@ describe("HomePage", () => {
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
   });
 
-  test("clickear una card en Eventos selecciona ese evento y cambia a la pestaña Hoy", async () => {
+  test("clickear una card en Eventos muestra la vista expandida del evento", async () => {
     stubHomepageFetch();
     const user = userEvent.setup();
 
@@ -645,8 +645,31 @@ describe("HomePage", () => {
     const card = await screen.findByRole("button", { name: /Boda Luisa & Carlos/ });
     await user.click(card);
 
-    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
-    expect(await screen.findByText("Vencida A")).toBeInTheDocument();
+    // Sigue en la pestaña Eventos: ya no salta a Hoy (eso era el puente temporal).
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Borrar" })).toBeInTheDocument();
+  });
+
+  test("desde la vista expandida de Eventos, Editar abre el formulario y Borrar el diálogo de confirmación", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(await screen.findByRole("dialog", { name: "Editar evento" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await user.click(screen.getByRole("button", { name: "Borrar" }));
+    expect(await screen.findByRole("alertdialog", { name: "Eliminar evento" })).toBeInTheDocument();
   });
 
   test("sin eventos, la pestaña Eventos solo muestra el mensaje y el botón de crear", async () => {

@@ -1,11 +1,10 @@
 // Vista "Eventos" (HU-13/PIM1-111): roulette de scroll horizontal con una
 // card por evento (más la card especial "Crear nuevo evento" siempre
-// presente, primera en la fila). Primer corte — el click en una card
-// todavía no abre el detalle expandido (tablas Para hoy/Vencidas/
-// Próximas/Completadas) que pide la corrección del profesor, eso queda para
-// una siguiente rama. Por ahora, clickear una card selecciona ese evento y
-// lleva a la vista "Hoy" filtrada por él (comportamiento real ya existente,
-// no un placeholder muerto).
+// presente, primera en la fila). Clickear una card muestra la vista
+// expandida del evento (EventDetailView) en el lugar del roulette; "Volver a
+// Eventos" regresa. Paso 1: la vista expandida solo trae la información del
+// evento — las tablas de gestiones (Para hoy/Vencidas/Próximas/Completadas)
+// son el paso siguiente.
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
@@ -14,6 +13,7 @@ import { sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import type { Event, EventType, Subtask } from "../lib/types";
 import { EventCard } from "./event-card";
 import { CreateEventCard } from "./create-event-card";
+import { EventDetailView } from "./event-detail-view";
 
 const PREVIEW_LIMIT = 3;
 
@@ -31,12 +31,22 @@ interface EventsViewProps {
   errorMessage: string;
   onRetry: () => void;
   onCreateEvent: () => void;
-  onOpenEvent: (event: Event) => void;
+  onEditEvent: (event: Event) => void;
+  onDeleteEvent: (event: Event) => void;
 }
 
-export function EventsView({ events, status, errorMessage, onRetry, onCreateEvent, onOpenEvent }: EventsViewProps) {
+export function EventsView({
+  events,
+  status,
+  errorMessage,
+  onRetry,
+  onCreateEvent,
+  onEditEvent,
+  onDeleteEvent,
+}: EventsViewProps) {
   const [progressByEvent, setProgressByEvent] = useState<Record<number, EventProgress>>({});
   const [eventTypeNames, setEventTypeNames] = useState<Record<number, string>>({});
+  const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +127,24 @@ export function EventsView({ events, status, errorMessage, onRetry, onCreateEven
     );
   }
 
+  function eventTypeNameFor(event: Event): string | undefined {
+    return event.event_type != null ? eventTypeNames[event.event_type] : undefined;
+  }
+
+  const expandedEvent = expandedEventId != null ? (events.find((event) => event.eid === expandedEventId) ?? null) : null;
+
+  if (expandedEvent) {
+    return (
+      <EventDetailView
+        event={expandedEvent}
+        eventTypeName={eventTypeNameFor(expandedEvent)}
+        onBack={() => setExpandedEventId(null)}
+        onEdit={() => onEditEvent(expandedEvent)}
+        onDelete={() => onDeleteEvent(expandedEvent)}
+      />
+    );
+  }
+
   if (events.length === 0) {
     // Corrección del profesor (clínica de Sprint 1): sin eventos, ocultar
     // todo y dejar solo el mensaje + un único botón de crear.
@@ -156,14 +184,14 @@ export function EventsView({ events, status, errorMessage, onRetry, onCreateEven
           <EventCard
             key={event.eid}
             event={event}
-            eventTypeName={event.event_type != null ? eventTypeNames[event.event_type] : undefined}
+            eventTypeName={eventTypeNameFor(event)}
             completed={progress?.completed ?? 0}
             total={progress?.total ?? 0}
             todayCount={progress?.today ?? 0}
             previewSubtasks={progress?.preview ?? []}
             previewMoreCount={progress?.previewMoreCount ?? 0}
             loading={!progress}
-            onOpen={() => onOpenEvent(event)}
+            onOpen={() => setExpandedEventId(event.eid)}
           />
         );
       })}

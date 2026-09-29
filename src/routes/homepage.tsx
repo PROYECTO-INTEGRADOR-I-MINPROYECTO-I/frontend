@@ -217,23 +217,6 @@ export function HomePage() {
     );
   }
 
-  // HU-13: abrir un evento desde la card de Eventos selecciona ese evento Y
-  // cambia a "Hoy", en un solo setSearchParams. Encadenar handleSelectEvent +
-  // handleSelectView (dos llamadas separadas) pierde una de las dos
-  // actualizaciones: cada una parte de un `prev` capturado en un momento
-  // distinto, así que la segunda puede pisar el cambio de la primera.
-  function handleOpenEventFromEventos(event: Event) {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.set("evento", String(event.eid));
-        next.delete("vista"); // "hoy" es la vista por defecto
-        return next;
-      },
-      { replace: true }
-    );
-  }
-
   function openCreateForm() {
     setEditingEvent(null);
     setFormKey((key) => key + 1);
@@ -692,9 +675,9 @@ export function HomePage() {
         )}
       </div>
 
-      {/* HU-13/PIM1-111: primer corte, solo el listado de cards. El detalle
-          expandido (tablas Para hoy/Vencidas/Próximas/Completadas) queda para
-          una siguiente rama; ver el comentario de EventsView. */}
+      {/* HU-13/PIM1-111: listado de cards + vista expandida del evento (paso
+          1: solo información). Las tablas de gestiones son el paso
+          siguiente; ver el comentario de EventsView. */}
       <div role="tabpanel" id="eventos-panel" aria-labelledby="eventos-tab" hidden={currentView !== "eventos"}>
         {currentView === "eventos" && (
           <EventsView
@@ -703,7 +686,8 @@ export function HomePage() {
             errorMessage={eventsError}
             onRetry={loadEvents}
             onCreateEvent={openCreateForm}
-            onOpenEvent={handleOpenEventFromEventos}
+            onEditEvent={openEditEventForm}
+            onDeleteEvent={requestDeleteEvent}
           />
         )}
       </div>
