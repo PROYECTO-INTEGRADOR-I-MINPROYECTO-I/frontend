@@ -672,6 +672,31 @@ describe("HomePage", () => {
     expect(await screen.findByRole("alertdialog", { name: "Eliminar evento" })).toBeInTheDocument();
   });
 
+  test("clickear una gestión en las tablas de Eventos abre su detalle, y Editar funciona sin depender del filtro de Hoy", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    // Sin ?evento=: selectedEvent (el filtro de la pestaña Hoy) es null. Antes
+    // del fix, esto hacía que "Editar" no abriera nada (SubtaskFormModal
+    // dependía de selectedEvent en vez de resolver el evento por el eid de
+    // la propia gestión).
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+
+    const row = await screen.findByRole("row", { name: "Vencida A" });
+    await user.click(row);
+
+    const detailDialog = await screen.findByRole("dialog", { name: "Vencida A" });
+    await user.click(within(detailDialog).getByRole("button", { name: "Editar" }));
+    expect(await screen.findByRole("dialog", { name: "Editar gestión" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Nombre")).toHaveValue("Vencida A");
+  });
+
   test("sin eventos, la pestaña Eventos solo muestra el mensaje y el botón de crear", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (String(url).includes("/eventos/")) {

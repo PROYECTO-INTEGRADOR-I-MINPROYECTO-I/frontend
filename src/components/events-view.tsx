@@ -2,14 +2,10 @@
 // card por evento (más la card especial "Crear nuevo evento" siempre
 // presente, primera en la fila). Clickear una card muestra la vista
 // expandida del evento (EventDetailView) en el lugar del roulette, con info
-// del evento y sus gestiones en 4 tablas (Para hoy/Vencidas/Próximas/
-// Completadas); "Volver a Eventos" regresa.
-//
-// Paso siguiente (no en este commit): clickear una fila de gestión para
-// abrir su detalle — reutilizar el SubtaskDetailModal/SubtaskFormModal que ya
-// existen en homepage.tsx implica resolver primero que SubtaskFormModal (modo
-// editar) depende hoy de `selectedEvent` (el filtro de la pestaña Hoy), que
-// puede no ser el evento que se está viendo acá.
+// del evento, sus gestiones en 4 tablas (Para hoy/Vencidas/Próximas/
+// Completadas), y cada fila abre el mismo SubtaskDetailModal/SubtaskFormModal
+// globales que ya usa la vista Hoy (onOpenSubtask, ver homepage.tsx). "Volver
+// a Eventos" regresa.
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
@@ -40,6 +36,15 @@ interface EventsViewProps {
   onCreateEvent: () => void;
   onEditEvent: (event: Event) => void;
   onDeleteEvent: (event: Event) => void;
+  /** Abre el detalle de una gestión (mismo SubtaskDetailModal global que ya usa la vista Hoy). */
+  onOpenSubtask: (subtask: Subtask) => void;
+  /**
+   * Se incrementa desde homepage.tsx cada vez que una gestión se crea, edita,
+   * borra o completa/despausa (desde cualquier pestaña). progressByEvent es un
+   * fetch propio de esta vista, así que sin esto las 4 tablas de la vista
+   * expandida quedaban desactualizadas hasta recargar la página.
+   */
+  refreshToken: number;
 }
 
 export function EventsView({
@@ -50,6 +55,8 @@ export function EventsView({
   onCreateEvent,
   onEditEvent,
   onDeleteEvent,
+  onOpenSubtask,
+  refreshToken,
 }: EventsViewProps) {
   const [progressByEvent, setProgressByEvent] = useState<Record<number, EventProgress>>({});
   const [eventTypeNames, setEventTypeNames] = useState<Record<number, string>>({});
@@ -121,7 +128,7 @@ export function EventsView({
     return () => {
       cancelled = true;
     };
-  }, [status, events]);
+  }, [status, events, refreshToken]);
 
   if (status === "loading") {
     return <p className="subtasks-status">Cargando eventos…</p>;
@@ -155,6 +162,7 @@ export function EventsView({
         onBack={() => setExpandedEventId(null)}
         onEdit={() => onEditEvent(expandedEvent)}
         onDelete={() => onDeleteEvent(expandedEvent)}
+        onOpenSubtask={onOpenSubtask}
       />
     );
   }

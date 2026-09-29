@@ -81,6 +81,13 @@ export function HomePage() {
   const [subtasksStatus, setSubtasksStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [subtasksError, setSubtasksError] = useState("");
 
+  // EventsView mantiene su propio fetch por evento (progressByEvent), separado
+  // de `subtasks` (que solo cubre el evento filtrado en Hoy). Sin esto, crear/
+  // editar/borrar/completar una gestión no se reflejaba en las 4 tablas de la
+  // vista expandida de Eventos hasta recargar la página: se le pasa como prop
+  // y cada bump fuerza su refetch.
+  const [subtasksVersion, setSubtasksVersion] = useState(0);
+
   const [deleteEventTarget, setDeleteEventTarget] = useState<Event | null>(null);
   const [deleteEventBusy, setDeleteEventBusy] = useState(false);
   const [deleteEventError, setDeleteEventError] = useState<string | null>(null);
@@ -126,6 +133,14 @@ export function HomePage() {
   const eventoParam = searchParams.get("evento");
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
+  // HU-13: el formulario de gestión (crear/editar) necesita el evento dueño.
+  // Al crear (editingSubtask null) sigue siendo selectedEvent (el filtro de
+  // la pestaña Hoy, que es desde donde se crea). Al editar, resolver por el
+  // `eid` de la propia gestión: si se abrió desde la tabla de un evento en
+  // la pestaña Eventos, selectedEvent puede ser otro evento (o ninguno).
+  const subtaskFormEvent = editingSubtask
+    ? (events.find((event) => event.eid === editingSubtask.eid) ?? null)
+    : selectedEvent;
 
   // ?vista=eventos|hoy, igual que ?evento=; "hoy" es el valor por defecto
   // (cualquier otro valor que no sea "eventos" cae en "hoy") — PIM1-11: esta
@@ -288,6 +303,7 @@ export function HomePage() {
     setIsSubtaskFormOpen(false);
     setEditingSubtask(null);
     setSubtasks((prev) => prev.map((item) => (item.subtask_id === subtask.subtask_id ? subtask : item)));
+    setSubtasksVersion((version) => version + 1);
     showSuccess("Cambios guardados");
   }
 
@@ -296,6 +312,7 @@ export function HomePage() {
   function applySubtaskUpdate(updated: Subtask) {
     setSubtasks((prev) => prev.map((item) => (item.subtask_id === updated.subtask_id ? updated : item)));
     setDetailSubtask((prev) => (prev && prev.subtask_id === updated.subtask_id ? updated : prev));
+    setSubtasksVersion((version) => version + 1);
   }
 
   // Cambia SOLO el campo `status` de la gestión, aplicado sobre el item tal
@@ -368,6 +385,7 @@ export function HomePage() {
     try {
       await apiFetch<void>(`/subtareas/${deleteSubtaskTarget.subtask_id}/`, { method: "DELETE" });
       setSubtasks((prev) => prev.filter((subtask) => subtask.subtask_id !== deleteSubtaskTarget.subtask_id));
+      setSubtasksVersion((version) => version + 1);
       setDeleteSubtaskTarget(null);
       setFocusAfterSubtaskDelete(true);
       showSuccess("Gestión eliminada");
@@ -414,6 +432,7 @@ export function HomePage() {
     } else if (selectedEventId != null) {
       loadSubtasks(selectedEventId);
     }
+    setSubtasksVersion((version) => version + 1);
   }
 
   const todayDate = todayLocalDateString();
@@ -688,6 +707,8 @@ export function HomePage() {
             onCreateEvent={openCreateForm}
             onEditEvent={openEditEventForm}
             onDeleteEvent={requestDeleteEvent}
+            onOpenSubtask={setDetailSubtask}
+            refreshToken={subtasksVersion}
           />
         )}
       </div>
@@ -709,12 +730,12 @@ export function HomePage() {
         />
       )}
 
-      {isSubtaskFormOpen && selectedEvent && (
+      {isSubtaskFormOpen && subtaskFormEvent && (
         <SubtaskFormModal
           key={subtaskFormKey}
-          eventId={selectedEvent.eid}
-          eventName={selectedEvent.name}
-          eventDueDate={selectedEvent.due_date}
+          eventId={subtaskFormEvent.eid}
+          eventName={subtaskFormEvent.name}
+          eventDueDate={subtaskFormEvent.due_date}
           initialValues={editingSubtask ?? undefined}
           onClose={() => {
             setIsSubtaskFormOpen(false);

@@ -48,6 +48,8 @@ describe("EventsView", () => {
         onCreateEvent={vi.fn()}
         onEditEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
       />
     );
     expect(screen.getByText("Cargando eventos…")).toBeInTheDocument();
@@ -65,6 +67,8 @@ describe("EventsView", () => {
         onCreateEvent={vi.fn()}
         onEditEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
       />
     );
 
@@ -85,6 +89,8 @@ describe("EventsView", () => {
         onCreateEvent={onCreateEvent}
         onEditEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
       />
     );
 
@@ -105,6 +111,8 @@ describe("EventsView", () => {
         onCreateEvent={vi.fn()}
         onEditEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
       />
     );
 
@@ -138,12 +146,60 @@ describe("EventsView", () => {
         onCreateEvent={vi.fn()}
         onEditEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
       />
     );
 
     await waitFor(() => expect(screen.getByText("1 de 2 gestiones completadas")).toBeInTheDocument());
     expect(screen.getByText("Boda")).toBeInTheDocument();
     expect(screen.getByText("Confirmar catering")).toBeInTheDocument();
+  });
+
+  test("al cambiar refreshToken, vuelve a pedir las gestiones (refleja ediciones/borrados hechos fuera de esta vista)", async () => {
+    const before = [subtask({ subtask_id: 1, title: "Reservar salón", status: "pending" })];
+    const after = [subtask({ subtask_id: 1, title: "Reservar salón", status: "done" })];
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const href = String(url);
+      if (href.includes("/tipos-evento/")) return Promise.resolve(jsonResponse([]));
+      if (href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(jsonResponse(fetchMock.mock.calls.length <= 2 ? before : after));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = render(
+      <EventsView
+        events={[event]}
+        status="ready"
+        errorMessage=""
+        onRetry={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText("0 de 1 gestiones completadas")).toBeInTheDocument());
+
+    rerender(
+      <EventsView
+        events={[event]}
+        status="ready"
+        errorMessage=""
+        onRetry={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={1}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText("1 de 1 gestiones completadas")).toBeInTheDocument());
   });
 
   test("si /tipos-evento/ falla (404), la card se muestra igual sin el chip de tipo", async () => {
@@ -164,6 +220,8 @@ describe("EventsView", () => {
         onCreateEvent={vi.fn()}
         onEditEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
       />
     );
 
@@ -184,6 +242,8 @@ describe("EventsView", () => {
         onCreateEvent={vi.fn()}
         onEditEvent={vi.fn()}
         onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
       />
     );
 
@@ -216,6 +276,8 @@ describe("EventsView", () => {
         onCreateEvent={vi.fn()}
         onEditEvent={onEditEvent}
         onDeleteEvent={onDeleteEvent}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
       />
     );
 

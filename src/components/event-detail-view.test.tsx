@@ -56,6 +56,7 @@ describe("EventDetailView", () => {
         onBack={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
       />
     );
 
@@ -76,6 +77,7 @@ describe("EventDetailView", () => {
         onBack={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
       />
     );
 
@@ -101,6 +103,7 @@ describe("EventDetailView", () => {
         onBack={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
       />
     );
 
@@ -129,11 +132,37 @@ describe("EventDetailView", () => {
         onBack={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
       />
     );
 
     expect(within(groupPanel("Vencidas")).getByText("- 2 GESTIONES")).toBeInTheDocument();
     expect(within(groupPanel("Para hoy")).getByText("- 0 GESTIONES")).toBeInTheDocument();
+  });
+
+  test("clickear el nombre de un grupo colapsa su tabla y gira la flecha de expandido/colapsado", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventDetailView
+        event={event}
+        subtasks={[subtask({ subtask_id: 1, scheduled_date: "2026-09-18" })]}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
+      />
+    );
+
+    const vencidas = groupPanel("Vencidas");
+    const arrow = vencidas.querySelector("svg") as SVGElement;
+    expect(vencidas).toHaveAttribute("open");
+    expect(arrow.getAttribute("class")).not.toContain("rotate-180");
+
+    await user.click(screen.getByText("Vencidas"));
+
+    expect(vencidas).not.toHaveAttribute("open");
+    expect(arrow.getAttribute("class")).toContain("rotate-180");
   });
 
   test("un grupo vacío muestra su mensaje en vez de una tabla", () => {
@@ -145,11 +174,107 @@ describe("EventDetailView", () => {
         onBack={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
       />
     );
 
     expect(within(groupPanel("Vencidas")).getByText("Sin gestiones vencidas.")).toBeInTheDocument();
     expect(within(groupPanel("Vencidas")).queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  test("el filtro por tipo se muestra aunque el grupo solo tenga una categoría (para que sea descubrible)", () => {
+    render(
+      <EventDetailView
+        event={event}
+        subtasks={[subtask({ subtask_id: 1, scheduled_date: "2026-09-18", category: "Lugar" })]}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
+      />
+    );
+
+    const select = within(groupPanel("Vencidas")).getByLabelText("Tipo");
+    expect(select).toBeInTheDocument();
+    expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual(["Todos", "Lugar"]);
+  });
+
+  test("el filtro por tipo de cada tabla solo muestra las gestiones de la categoría elegida", async () => {
+    const user = userEvent.setup();
+    const subtasks = [
+      subtask({ subtask_id: 1, title: "Reservar salón", scheduled_date: "2026-09-18", category: "Lugar" }),
+      subtask({ subtask_id: 2, title: "Confirmar catering", scheduled_date: "2026-09-17", category: "Catering" }),
+    ];
+
+    render(
+      <EventDetailView
+        event={event}
+        subtasks={subtasks}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
+      />
+    );
+
+    const vencidasPanel = within(groupPanel("Vencidas"));
+    expect(vencidasPanel.getByText("- 2 GESTIONES")).toBeInTheDocument();
+    expect(vencidasPanel.getByText("Reservar salón")).toBeInTheDocument();
+    expect(vencidasPanel.getByText("Confirmar catering")).toBeInTheDocument();
+
+    await user.selectOptions(vencidasPanel.getByLabelText("Tipo"), "Catering");
+
+    expect(vencidasPanel.getByText("- 1 GESTIONES")).toBeInTheDocument();
+    expect(vencidasPanel.getByText("Confirmar catering")).toBeInTheDocument();
+    expect(vencidasPanel.queryByText("Reservar salón")).not.toBeInTheDocument();
+
+    // Otro grupo (Próximas, vacío) no se ve afectado por el filtro de Vencidas.
+    expect(within(groupPanel("Próximas")).getByText("Sin gestiones próximas.")).toBeInTheDocument();
+  });
+
+  test("si la categoría elegida ya no tiene gestiones tras refrescar, el filtro vuelve solo a 'Todos' en vez de dejar la tabla vacía sin salida", async () => {
+    const user = userEvent.setup();
+    const withCatering = [
+      subtask({ subtask_id: 1, title: "Reservar salón", scheduled_date: "2026-09-18", category: "Lugar" }),
+      subtask({ subtask_id: 2, title: "Confirmar catering", scheduled_date: "2026-09-17", category: "Catering" }),
+    ];
+
+    const { rerender } = render(
+      <EventDetailView
+        event={event}
+        subtasks={withCatering}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
+      />
+    );
+
+    await user.selectOptions(within(groupPanel("Vencidas")).getByLabelText("Tipo"), "Catering");
+
+    // La gestión de catering se completa (o se elimina) en otra pestaña: el
+    // refetch por refreshToken trae un `subtasks` donde Vencidas ya no tiene
+    // ninguna de categoría "Catering", pero el filtro sigue eligiéndola.
+    rerender(
+      <EventDetailView
+        event={event}
+        subtasks={[subtask({ subtask_id: 1, title: "Reservar salón", scheduled_date: "2026-09-18", category: "Lugar" })]}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
+      />
+    );
+
+    const vencidasPanel = within(groupPanel("Vencidas"));
+    // No quedó "atascada" filtrada por una categoría que ya no existe: el
+    // select vuelve a "Todos" y la fila restante se ve de nuevo.
+    expect(vencidasPanel.getByLabelText("Tipo")).toHaveValue("all");
+    expect(vencidasPanel.getByText("Reservar salón")).toBeInTheDocument();
   });
 
   test("dentro de Vencidas, la fecha más antigua aparece primero", () => {
@@ -166,6 +291,7 @@ describe("EventDetailView", () => {
         onBack={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
       />
     );
 
@@ -189,6 +315,7 @@ describe("EventDetailView", () => {
         onBack={onBack}
         onEdit={onEdit}
         onDelete={onDelete}
+        onOpenSubtask={vi.fn()}
       />
     );
 
@@ -199,5 +326,51 @@ describe("EventDetailView", () => {
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(onEdit).toHaveBeenCalledTimes(1);
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  test("clickear una fila de gestión llama a onOpenSubtask con esa gestión", async () => {
+    const user = userEvent.setup();
+    const onOpenSubtask = vi.fn();
+    const targetSubtask = subtask({ subtask_id: 7, title: "Confirmar catering", scheduled_date: "2026-09-18" });
+
+    render(
+      <EventDetailView
+        event={event}
+        subtasks={[targetSubtask]}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={onOpenSubtask}
+      />
+    );
+
+    await user.click(screen.getByRole("row", { name: "Confirmar catering" }));
+    expect(onOpenSubtask).toHaveBeenCalledWith(targetSubtask);
+  });
+
+  test("Enter y Espacio sobre una fila enfocada también llaman a onOpenSubtask", async () => {
+    const user = userEvent.setup();
+    const onOpenSubtask = vi.fn();
+    const targetSubtask = subtask({ subtask_id: 7, title: "Confirmar catering", scheduled_date: "2026-09-18" });
+
+    render(
+      <EventDetailView
+        event={event}
+        subtasks={[targetSubtask]}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={onOpenSubtask}
+      />
+    );
+
+    const row = screen.getByRole("row", { name: "Confirmar catering" });
+    row.focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+
+    expect(onOpenSubtask).toHaveBeenCalledTimes(2);
   });
 });
