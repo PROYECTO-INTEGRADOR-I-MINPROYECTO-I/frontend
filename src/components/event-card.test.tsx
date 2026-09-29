@@ -45,6 +45,7 @@ describe("EventCard", () => {
         total={5}
         todayCount={0}
         onOpen={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
         {...baseProps}
       />
     );
@@ -61,7 +62,9 @@ describe("EventCard", () => {
   test("Enter y Espacio sobre la card enfocada también llaman a onOpen", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();
-    render(<EventCard event={event} completed={0} total={0} todayCount={0} onOpen={onOpen} {...baseProps} />);
+    render(
+      <EventCard event={event} completed={0} total={0} todayCount={0} onOpen={onOpen} onEventCoverUpdated={vi.fn()} {...baseProps} />
+    );
 
     screen.getByRole("button", { name: /Boda Luisa & Carlos/ }).focus();
     await user.keyboard("{Enter}");
@@ -71,7 +74,9 @@ describe("EventCard", () => {
   });
 
   test("sin gestiones (total 0) no muestra la barra de progreso", () => {
-    render(<EventCard event={event} completed={0} total={0} todayCount={0} onOpen={vi.fn()} {...baseProps} />);
+    render(
+      <EventCard event={event} completed={0} total={0} todayCount={0} onOpen={vi.fn()} onEventCoverUpdated={vi.fn()} {...baseProps} />
+    );
 
     expect(screen.getByText("Sin gestiones todavía.")).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
@@ -79,7 +84,16 @@ describe("EventCard", () => {
 
   test("mientras carga el progreso no muestra 0% engañoso", () => {
     render(
-      <EventCard event={event} completed={0} total={0} todayCount={0} loading onOpen={vi.fn()} {...baseProps} />
+      <EventCard
+        event={event}
+        completed={0}
+        total={0}
+        todayCount={0}
+        loading
+        onOpen={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
+        {...baseProps}
+      />
     );
 
     expect(screen.getByText("Cargando progreso…")).toBeInTheDocument();
@@ -87,7 +101,9 @@ describe("EventCard", () => {
   });
 
   test("con gestiones para hoy, muestra el contador; en singular si es una sola", () => {
-    render(<EventCard event={event} completed={0} total={2} todayCount={1} onOpen={vi.fn()} {...baseProps} />);
+    render(
+      <EventCard event={event} completed={0} total={2} todayCount={1} onOpen={vi.fn()} onEventCoverUpdated={vi.fn()} {...baseProps} />
+    );
     expect(screen.getByText("1 gestión para hoy")).toBeInTheDocument();
   });
 
@@ -99,6 +115,7 @@ describe("EventCard", () => {
         total={5}
         todayCount={0}
         onOpen={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
         previewSubtasks={[subtask({ subtask_id: 1, title: "Reservar salón" }), subtask({ subtask_id: 2, title: "Confirmar catering" })]}
         previewMoreCount={2}
       />
@@ -117,6 +134,7 @@ describe("EventCard", () => {
         total={0}
         todayCount={0}
         onOpen={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
         {...baseProps}
       />
     );
@@ -126,7 +144,9 @@ describe("EventCard", () => {
   test("clickear la card llama a onOpen", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();
-    render(<EventCard event={event} completed={0} total={0} todayCount={0} onOpen={onOpen} {...baseProps} />);
+    render(
+      <EventCard event={event} completed={0} total={0} todayCount={0} onOpen={onOpen} onEventCoverUpdated={vi.fn()} {...baseProps} />
+    );
 
     await user.click(screen.getByRole("button", { name: /Boda Luisa & Carlos/ }));
     expect(onOpen).toHaveBeenCalledTimes(1);

@@ -45,6 +45,8 @@ interface EventsViewProps {
    * expandida quedaban desactualizadas hasta recargar la página.
    */
   refreshToken: number;
+  /** Ver EventCover: el PATCH de portada devuelve el evento completo para que homepage.tsx actualice su lista. */
+  onEventCoverUpdated: (event: Event) => void;
 }
 
 export function EventsView({
@@ -57,6 +59,7 @@ export function EventsView({
   onDeleteEvent,
   onOpenSubtask,
   refreshToken,
+  onEventCoverUpdated,
 }: EventsViewProps) {
   const [progressByEvent, setProgressByEvent] = useState<Record<number, EventProgress>>({});
   const [eventTypeNames, setEventTypeNames] = useState<Record<number, string>>({});
@@ -163,6 +166,7 @@ export function EventsView({
         onEdit={() => onEditEvent(expandedEvent)}
         onDelete={() => onDeleteEvent(expandedEvent)}
         onOpenSubtask={onOpenSubtask}
+        onEventCoverUpdated={onEventCoverUpdated}
       />
     );
   }
@@ -221,6 +225,7 @@ export function EventsView({
             previewMoreCount={progress?.previewMoreCount ?? 0}
             loading={!progress}
             onOpen={() => setExpandedEventId(event.eid)}
+            onEventCoverUpdated={onEventCoverUpdated}
           />
         );
       })}

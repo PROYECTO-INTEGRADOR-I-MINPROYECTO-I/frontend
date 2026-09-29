@@ -31,6 +31,8 @@ interface EventCardProps {
   /** Progreso todavía no cargado (fetch en curso): oculta barra y resumen para no mostrar datos a medias. */
   loading?: boolean;
   onOpen: () => void;
+  /** Ver EventCover: el PATCH de portada devuelve el evento completo para que el padre actualice su lista. */
+  onEventCoverUpdated: (event: Event) => void;
 }
 
 export function EventCard({
@@ -43,6 +45,7 @@ export function EventCard({
   previewMoreCount,
   loading = false,
   onOpen,
+  onEventCoverUpdated,
 }: EventCardProps) {
   const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
   const dateLabel = formatShortDateEs(isoDateTimeToLocalDateString(event.due_date));
@@ -60,7 +63,7 @@ export function EventCard({
       }}
       className="flex w-60 shrink-0 cursor-pointer flex-col overflow-hidden rounded-lg border border-[#f3f4f6] bg-white text-left transition-shadow hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
     >
-      <EventCover event={event} className="aspect-video w-full" />
+      <EventCover event={event} onEventCoverUpdated={onEventCoverUpdated} className="aspect-video w-full" />
 
       <div className="flex flex-1 flex-col gap-2 p-4">
         <p className="font-jost text-[16px] leading-[20px] text-[#101828]">{event.name}</p>

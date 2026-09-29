@@ -26,6 +26,9 @@ export interface Event {
   event_type?: number | null;
   place?: string | null;
   client_contact?: string | null;
+  /** Portada personalizada (PIM1-120): "color" (hex en cover_value) o "image" (URL). null/undefined = sin personalizar, usar eventCoverColor. */
+  cover_kind?: "color" | "image" | null;
+  cover_value?: string | null;
 }
 
 /** Payload para crear un evento (POST /eventos/). */

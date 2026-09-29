@@ -271,6 +271,14 @@ export function HomePage() {
     showSuccess("Cambios guardados");
   }
 
+  // PIM1-120: EventCover ya hizo el PATCH y trae el evento actualizado; acá
+  // solo se sincroniza el estado, sin los efectos de handleEventUpdated
+  // (cerrar EventFormModal, limpiar editingEvent) que no aplican para este
+  // flujo.
+  function handleEventCoverUpdated(event: Event) {
+    setEvents((prev) => prev.map((item) => (item.eid === event.eid ? event : item)));
+  }
+
   function requestDeleteEvent(event: Event) {
     setDeleteEventError(null);
     setDeleteEventTarget(event);
@@ -725,6 +733,7 @@ export function HomePage() {
             onDeleteEvent={requestDeleteEvent}
             onOpenSubtask={setDetailSubtask}
             refreshToken={subtasksVersion}
+            onEventCoverUpdated={handleEventCoverUpdated}
           />
         )}
       </div>

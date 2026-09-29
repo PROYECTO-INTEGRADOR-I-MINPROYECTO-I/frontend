@@ -57,6 +57,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -80,6 +81,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -106,6 +108,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -135,6 +138,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -153,6 +157,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -177,6 +182,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -194,6 +200,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -218,6 +225,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -252,6 +260,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -269,6 +278,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -294,6 +304,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -318,6 +329,7 @@ describe("EventDetailView", () => {
         onEdit={onEdit}
         onDelete={onDelete}
         onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -344,6 +356,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={onOpenSubtask}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -365,6 +378,7 @@ describe("EventDetailView", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onOpenSubtask={onOpenSubtask}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 

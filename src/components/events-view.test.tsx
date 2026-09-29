@@ -50,6 +50,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
     expect(screen.getByText("Cargando eventos…")).toBeInTheDocument();
@@ -69,6 +70,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -91,6 +93,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -113,6 +116,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -148,6 +152,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -180,6 +185,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -196,6 +202,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={1}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -222,6 +229,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -244,6 +252,7 @@ describe("EventsView", () => {
         onDeleteEvent={vi.fn()}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 
@@ -278,6 +287,7 @@ describe("EventsView", () => {
         onDeleteEvent={onDeleteEvent}
         onOpenSubtask={vi.fn()}
         refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
       />
     );
 

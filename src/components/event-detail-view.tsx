@@ -27,6 +27,8 @@ interface EventDetailViewProps {
   onEdit: () => void;
   onDelete: () => void;
   onOpenSubtask: (subtask: Subtask) => void;
+  /** Ver EventCover: el PATCH de portada devuelve el evento completo para que el padre actualice su lista. */
+  onEventCoverUpdated: (event: Event) => void;
 }
 
 export function EventDetailView({
@@ -38,6 +40,7 @@ export function EventDetailView({
   onEdit,
   onDelete,
   onOpenSubtask,
+  onEventCoverUpdated,
 }: EventDetailViewProps) {
   const dateLabel = formatShortDateEs(isoDateTimeToLocalDateString(event.due_date));
   const today = todayLocalDateString();
@@ -68,7 +71,7 @@ export function EventDetailView({
         </button>
 
         <div className="overflow-hidden rounded-lg border border-[#f3f4f6] bg-white">
-          <EventCover event={event} className="aspect-video w-full" />
+          <EventCover event={event} onEventCoverUpdated={onEventCoverUpdated} className="aspect-video w-full" />
 
           <div className="flex flex-col gap-4 p-6">
             <div className="flex flex-col gap-2">
