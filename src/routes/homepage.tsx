@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Calendar, CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
 import { EventMenu } from "../components/event-menu";
+import { EventsView } from "../components/events-view";
 import { EventFormModal } from "../components/event-form-modal";
 import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
@@ -53,14 +54,6 @@ function eventDeleteDescription(event: Event, subtaskCount: number | null): stri
 
 function subtaskDeleteDescription(subtask: Subtask): string {
   return `¿Eliminar la gestión «${subtask.title}»? Esta acción no se puede deshacer.`;
-}
-
-function EventosPlaceholderIcon() {
-  return (
-    <span aria-hidden="true" className="sun-icon">
-      <Calendar size={28} />
-    </span>
-  );
 }
 
 export function HomePage() {
@@ -218,6 +211,23 @@ export function HomePage() {
         const next = new URLSearchParams(prev);
         if (view === "hoy") next.delete("vista");
         else next.set("vista", view);
+        return next;
+      },
+      { replace: true }
+    );
+  }
+
+  // HU-13: abrir un evento desde la card de Eventos selecciona ese evento Y
+  // cambia a "Hoy", en un solo setSearchParams. Encadenar handleSelectEvent +
+  // handleSelectView (dos llamadas separadas) pierde una de las dos
+  // actualizaciones: cada una parte de un `prev` capturado en un momento
+  // distinto, así que la segunda puede pisar el cambio de la primera.
+  function handleOpenEventFromEventos(event: Event) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("evento", String(event.eid));
+        next.delete("vista"); // "hoy" es la vista por defecto
         return next;
       },
       { replace: true }
@@ -682,19 +692,19 @@ export function HomePage() {
         )}
       </div>
 
-      {/* TODO(HU-13/PIM1-111): implementar la vista real de Eventos (cards +
-          detalle expandido, ver Correcciones de UI...txt); por ahora solo un
-          estado vacío. */}
+      {/* HU-13/PIM1-111: primer corte, solo el listado de cards. El detalle
+          expandido (tablas Para hoy/Vencidas/Próximas/Completadas) queda para
+          una siguiente rama; ver el comentario de EventsView. */}
       <div role="tabpanel" id="eventos-panel" aria-labelledby="eventos-tab" hidden={currentView !== "eventos"}>
         {currentView === "eventos" && (
-          <div className="hoy-placeholder">
-            <EventosPlaceholderIcon />
-            <h1>Eventos</h1>
-            <p>
-              La vista Eventos estará disponible pronto: aquí verás tus eventos organizados en tarjetas, con
-              acceso al detalle de cada uno.
-            </p>
-          </div>
+          <EventsView
+            events={events}
+            status={eventsStatus}
+            errorMessage={eventsError}
+            onRetry={loadEvents}
+            onCreateEvent={openCreateForm}
+            onOpenEvent={handleOpenEventFromEventos}
+          />
         )}
       </div>
 

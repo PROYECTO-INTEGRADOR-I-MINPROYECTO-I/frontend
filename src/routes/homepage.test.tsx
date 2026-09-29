@@ -555,7 +555,7 @@ describe("HomePage", () => {
     expect(screen.getByRole("heading", { name: "Vencidas" })).toBeInTheDocument();
   });
 
-  test("la pestaña Eventos muestra el estado 'Próximamente' y oculta las columnas", async () => {
+  test("la pestaña Eventos muestra las cards de eventos y oculta las columnas de Hoy", async () => {
     stubHomepageFetch();
     const user = userEvent.setup();
 
@@ -568,11 +568,8 @@ describe("HomePage", () => {
 
     await user.click(screen.getByRole("tab", { name: "Eventos" }));
 
-    expect(
-      await screen.findByText(
-        "La vista Eventos estará disponible pronto: aquí verás tus eventos organizados en tarjetas, con acceso al detalle de cada uno."
-      )
-    ).toBeInTheDocument();
+    // La card del evento (botón con su nombre) reemplaza al placeholder viejo.
+    expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
     expect(document.getElementById("hoy-panel")).toHaveAttribute("hidden");
   });
@@ -595,9 +592,7 @@ describe("HomePage", () => {
     await screen.findByText("Vencida A");
 
     await user.click(screen.getByRole("tab", { name: "Eventos" }));
-    await screen.findByText(
-      "La vista Eventos estará disponible pronto: aquí verás tus eventos organizados en tarjetas, con acceso al detalle de cada uno."
-    );
+    await screen.findByRole("button", { name: /Boda Luisa & Carlos/ });
     // Cambiar de vista no pisa ?evento= en la URL.
     expect(currentParams().get("evento")).toBe("1");
     expect(currentParams().get("vista")).toBe("eventos");
@@ -633,12 +628,46 @@ describe("HomePage", () => {
     );
 
     expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
-    expect(
-      await screen.findByText(
-        "La vista Eventos estará disponible pronto: aquí verás tus eventos organizados en tarjetas, con acceso al detalle de cada uno."
-      )
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+  });
+
+  test("clickear una card en Eventos selecciona ese evento y cambia a la pestaña Hoy", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    const card = await screen.findByRole("button", { name: /Boda Luisa & Carlos/ });
+    await user.click(card);
+
+    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("Vencida A")).toBeInTheDocument();
+  });
+
+  test("sin eventos, la pestaña Eventos solo muestra el mensaje y el botón de crear", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    // El texto está partido por un <br/> (dos líneas en el mismo <p>): exact:false
+    // hace match por substring contra el texto combinado del elemento.
+    expect(await screen.findByText("Aún no tienes eventos", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear nuevo evento" })).toBeInTheDocument();
   });
 
   test("PIM1-11: el selector de vistas vive en el header y el label de fecha vieja ya no existe", async () => {
