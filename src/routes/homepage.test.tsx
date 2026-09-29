@@ -537,7 +537,7 @@ describe("HomePage", () => {
     ).toBeInTheDocument();
   });
 
-  test("por defecto se ve la vista 'Plan inicial' con las columnas", async () => {
+  test("por defecto se ve la vista 'Hoy' con las columnas", async () => {
     stubHomepageFetch();
 
     render(
@@ -549,13 +549,13 @@ describe("HomePage", () => {
     await screen.findByText("Vencida A");
 
     expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Vencidas" })).toBeInTheDocument();
   });
 
-  test("la pestaña Hoy muestra el estado 'Próximamente' y oculta las columnas", async () => {
+  test("la pestaña Eventos muestra las cards de eventos y oculta las columnas de Hoy", async () => {
     stubHomepageFetch();
     const user = userEvent.setup();
 
@@ -566,18 +566,15 @@ describe("HomePage", () => {
     );
     await screen.findByText("Vencida A");
 
-    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+    await user.click(screen.getByRole("tab", { name: "Eventos" }));
 
-    expect(
-      await screen.findByText(
-        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
-      )
-    ).toBeInTheDocument();
+    // La card del evento (botón con su nombre) reemplaza al placeholder viejo.
+    expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
-    expect(document.getElementById("plan-inicial-panel")).toHaveAttribute("hidden");
+    expect(document.getElementById("hoy-panel")).toHaveAttribute("hidden");
   });
 
-  test("volver a 'Plan inicial' desde Hoy conserva el evento seleccionado", async () => {
+  test("volver a 'Hoy' desde Eventos conserva el evento seleccionado", async () => {
     stubHomepageFetch();
     const user = userEvent.setup();
     // Muestra la query string actual para poder leerla desde el test.
@@ -594,21 +591,21 @@ describe("HomePage", () => {
     );
     await screen.findByText("Vencida A");
 
-    await user.click(screen.getByRole("tab", { name: "Hoy" }));
-    await screen.findByText(
-      "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
-    );
+    await user.click(screen.getByRole("tab", { name: "Eventos" }));
+    await screen.findByRole("button", { name: /Boda Luisa & Carlos/ });
     // Cambiar de vista no pisa ?evento= en la URL.
     expect(currentParams().get("evento")).toBe("1");
-    expect(currentParams().get("vista")).toBe("hoy");
+    expect(currentParams().get("vista")).toBe("eventos");
 
-    await user.click(screen.getByRole("tab", { name: "Plan inicial" }));
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
 
     expect(await screen.findByText("Vencida A")).toBeInTheDocument();
     expect(currentParams().get("evento")).toBe("1");
+    // "Hoy" es la vista por defecto: al volver a ella, ?vista= se limpia de la URL.
+    expect(currentParams().get("vista")).toBeNull();
   });
 
-  test("un ?vista= inválido cae en Plan inicial", async () => {
+  test("un ?vista= inválido cae en Hoy", async () => {
     stubHomepageFetch();
 
     render(
@@ -617,26 +614,108 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByText("Vencida A")).toBeInTheDocument();
   });
 
-  test("?vista=hoy en la URL abre directamente la pestaña Hoy", async () => {
+  test("?vista=eventos en la URL abre directamente la pestaña Eventos", async () => {
     stubHomepageFetch();
 
     render(
-      <MemoryRouter initialEntries={["/?evento=1&vista=hoy"]}>
+      <MemoryRouter initialEntries={["/?evento=1&vista=eventos"]}>
         <HomePage />
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
-    expect(
-      await screen.findByText(
-        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
-      )
-    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+  });
+
+  test("clickear una card en Eventos muestra la vista expandida del evento", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    const card = await screen.findByRole("button", { name: /Boda Luisa & Carlos/ });
+    await user.click(card);
+
+    // Sigue en la pestaña Eventos: ya no salta a Hoy (eso era el puente temporal).
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Borrar" })).toBeInTheDocument();
+  });
+
+  test("desde la vista expandida de Eventos, Editar abre el formulario y Borrar el diálogo de confirmación", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(await screen.findByRole("dialog", { name: "Editar evento" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await user.click(screen.getByRole("button", { name: "Borrar" }));
+    expect(await screen.findByRole("alertdialog", { name: "Eliminar evento" })).toBeInTheDocument();
+  });
+
+  test("clickear una gestión en las tablas de Eventos abre su detalle, y Editar funciona sin depender del filtro de Hoy", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    // Sin ?evento=: selectedEvent (el filtro de la pestaña Hoy) es null. Antes
+    // del fix, esto hacía que "Editar" no abriera nada (SubtaskFormModal
+    // dependía de selectedEvent en vez de resolver el evento por el eid de
+    // la propia gestión).
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+
+    const row = await screen.findByRole("row", { name: "Vencida A" });
+    await user.click(row);
+
+    const detailDialog = await screen.findByRole("dialog", { name: "Vencida A" });
+    await user.click(within(detailDialog).getByRole("button", { name: "Editar" }));
+    expect(await screen.findByRole("dialog", { name: "Editar gestión" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Nombre")).toHaveValue("Vencida A");
+  });
+
+  test("sin eventos, la pestaña Eventos solo muestra el mensaje y el botón de crear", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    // El texto está partido por un <br/> (dos líneas en el mismo <p>): exact:false
+    // hace match por substring contra el texto combinado del elemento.
+    expect(await screen.findByText("Aún no tienes eventos", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear nuevo evento" })).toBeInTheDocument();
   });
 
   test("PIM1-11: el selector de vistas vive en el header y el label de fecha vieja ya no existe", async () => {

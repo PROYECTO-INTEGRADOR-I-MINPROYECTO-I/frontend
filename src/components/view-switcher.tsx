@@ -1,15 +1,20 @@
-// Selector de vistas "Plan inicial" / "Hoy" (PIM1-96), debajo del header.
-// Sigue el patrón WAI-ARIA de pestañas con activación automática:
+// Selector de vistas "Eventos" / "Hoy" (PIM1-96), en la barra superior
+// (PIM1-11). Sigue el patrón WAI-ARIA de pestañas con activación automática:
 // role="tablist"/"tab", navegación con flechas ← → (con wrap-around),
 // Inicio/Fin para ir a la primera/última pestaña, y
 // `aria-selected` reflejando la pestaña activa. Se expone como componente
-// controlado (`value`/`onChange`) para reutilizarlo cuando exista la vista
-// Hoy real.
+// controlado (`value`/`onChange`).
+//
+// PIM1-11/HU-13: lo que antes era la pestaña "Plan inicial" con las columnas
+// Vencidas/Para hoy/Próximas en realidad siempre fue la vista "Hoy" (el
+// profesor lo señaló en la clínica de Sprint 1). Ese contenido se reasignó a
+// la pestaña "Hoy" (ahora la vista por defecto), y "Plan inicial" se
+// renombró a "Eventos": la vista nueva que pide HU-13 (PIM1-111).
 
 import { useRef } from "react";
 import { cn } from "../lib/utils";
 
-export type ViewSwitcherValue = "plan" | "hoy";
+export type ViewSwitcherValue = "eventos" | "hoy";
 
 interface ViewSwitcherOption {
   value: ViewSwitcherValue;
@@ -18,7 +23,7 @@ interface ViewSwitcherOption {
 }
 
 const OPTIONS: ViewSwitcherOption[] = [
-  { value: "plan", label: "Plan inicial", panelId: "plan-inicial-panel" },
+  { value: "eventos", label: "Eventos", panelId: "eventos-panel" },
   { value: "hoy", label: "Hoy", panelId: "hoy-panel" },
 ];
 

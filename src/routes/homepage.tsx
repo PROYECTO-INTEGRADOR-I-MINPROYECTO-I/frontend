@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, Plus, Sun } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
 import { EventMenu } from "../components/event-menu";
+import { EventsView } from "../components/events-view";
 import { EventFormModal } from "../components/event-form-modal";
 import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
@@ -55,16 +56,6 @@ function subtaskDeleteDescription(subtask: Subtask): string {
   return `¿Eliminar la gestión «${subtask.title}»? Esta acción no se puede deshacer.`;
 }
 
-function SunIcon() {
-  // El glifo ☼ no existe en Source Sans 3 (fuente cargada tras PIM1-89):
-  // se reemplaza por el icono equivalente de lucide-react.
-  return (
-    <span aria-hidden="true" className="sun-icon">
-      <Sun size={28} />
-    </span>
-  );
-}
-
 export function HomePage() {
   const [activeFilter, setActiveFilter] = useState("Todos");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -89,6 +80,13 @@ export function HomePage() {
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [subtasksStatus, setSubtasksStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [subtasksError, setSubtasksError] = useState("");
+
+  // EventsView mantiene su propio fetch por evento (progressByEvent), separado
+  // de `subtasks` (que solo cubre el evento filtrado en Hoy). Sin esto, crear/
+  // editar/borrar/completar una gestión no se reflejaba en las 4 tablas de la
+  // vista expandida de Eventos hasta recargar la página: se le pasa como prop
+  // y cada bump fuerza su refetch.
+  const [subtasksVersion, setSubtasksVersion] = useState(0);
 
   const [deleteEventTarget, setDeleteEventTarget] = useState<Event | null>(null);
   const [deleteEventBusy, setDeleteEventBusy] = useState(false);
@@ -135,11 +133,20 @@ export function HomePage() {
   const eventoParam = searchParams.get("evento");
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
+  // HU-13: el formulario de gestión (crear/editar) necesita el evento dueño.
+  // Al crear (editingSubtask null) sigue siendo selectedEvent (el filtro de
+  // la pestaña Hoy, que es desde donde se crea). Al editar, resolver por el
+  // `eid` de la propia gestión: si se abrió desde la tabla de un evento en
+  // la pestaña Eventos, selectedEvent puede ser otro evento (o ninguno).
+  const subtaskFormEvent = editingSubtask
+    ? (events.find((event) => event.eid === editingSubtask.eid) ?? null)
+    : selectedEvent;
 
-  // ?vista=plan|hoy, igual que ?evento=; "plan" es el valor por defecto
-  // (cualquier otro valor que no sea "hoy" cae en "plan").
+  // ?vista=eventos|hoy, igual que ?evento=; "hoy" es el valor por defecto
+  // (cualquier otro valor que no sea "eventos" cae en "hoy") — PIM1-11: esta
+  // vista siempre fue la de "Hoy", así que es la que debe verse sin tocar nada.
   const vistaParam = searchParams.get("vista");
-  const currentView: ViewSwitcherValue = vistaParam === "hoy" ? "hoy" : "plan";
+  const currentView: ViewSwitcherValue = vistaParam === "eventos" ? "eventos" : "hoy";
 
   useEffect(() => {
     return () => {
@@ -211,13 +218,13 @@ export function HomePage() {
     );
   }
 
-  // Conserva ?evento= al cambiar de vista, así volver a "Plan inicial"
-  // mantiene el mismo evento seleccionado.
+  // Conserva ?evento= al cambiar de vista, así volver a "Hoy" mantiene el
+  // mismo evento seleccionado.
   function handleSelectView(view: ViewSwitcherValue) {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        if (view === "plan") next.delete("vista");
+        if (view === "hoy") next.delete("vista");
         else next.set("vista", view);
         return next;
       },
@@ -264,6 +271,14 @@ export function HomePage() {
     showSuccess("Cambios guardados");
   }
 
+  // PIM1-120: EventCover ya hizo el PATCH y trae el evento actualizado; acá
+  // solo se sincroniza el estado, sin los efectos de handleEventUpdated
+  // (cerrar EventFormModal, limpiar editingEvent) que no aplican para este
+  // flujo.
+  function handleEventCoverUpdated(event: Event) {
+    setEvents((prev) => prev.map((item) => (item.eid === event.eid ? event : item)));
+  }
+
   function requestDeleteEvent(event: Event) {
     setDeleteEventError(null);
     setDeleteEventTarget(event);
@@ -296,6 +311,7 @@ export function HomePage() {
     setIsSubtaskFormOpen(false);
     setEditingSubtask(null);
     setSubtasks((prev) => prev.map((item) => (item.subtask_id === subtask.subtask_id ? subtask : item)));
+    setSubtasksVersion((version) => version + 1);
     showSuccess("Cambios guardados");
   }
 
@@ -304,6 +320,7 @@ export function HomePage() {
   function applySubtaskUpdate(updated: Subtask) {
     setSubtasks((prev) => prev.map((item) => (item.subtask_id === updated.subtask_id ? updated : item)));
     setDetailSubtask((prev) => (prev && prev.subtask_id === updated.subtask_id ? updated : prev));
+    setSubtasksVersion((version) => version + 1);
   }
 
   // Cambia SOLO el campo `status` de la gestión, aplicado sobre el item tal
@@ -376,6 +393,7 @@ export function HomePage() {
     try {
       await apiFetch<void>(`/subtareas/${deleteSubtaskTarget.subtask_id}/`, { method: "DELETE" });
       setSubtasks((prev) => prev.filter((subtask) => subtask.subtask_id !== deleteSubtaskTarget.subtask_id));
+      setSubtasksVersion((version) => version + 1);
       setDeleteSubtaskTarget(null);
       setFocusAfterSubtaskDelete(true);
       showSuccess("Gestión eliminada");
@@ -422,6 +440,7 @@ export function HomePage() {
     } else if (selectedEventId != null) {
       loadSubtasks(selectedEventId);
     }
+    setSubtasksVersion((version) => version + 1);
   }
 
   const todayDate = todayLocalDateString();
@@ -499,17 +518,17 @@ export function HomePage() {
 
       <div
         role="tabpanel"
-        id="plan-inicial-panel"
-        aria-labelledby="plan-tab"
-        hidden={currentView !== "plan"}
+        id="hoy-panel"
+        aria-labelledby="hoy-tab"
+        hidden={currentView !== "hoy"}
       >
-        <section className="planner-intro" aria-labelledby="plan-inicial-heading">
+        <section className="planner-intro" aria-labelledby="hoy-heading">
           <div className="intro-row">
             {/* PIM1-12: este heading reemplaza al antiguo "Plan inicial <icono>"
                 (el profesor lo señaló como redundante: la pestaña ya indica en
                 qué vista se está). Texto fijo: el selector de abajo ("Todos
                 los eventos" o el nombre del evento) ya completa la oración. */}
-            <h1 id="plan-inicial-heading">Viendo gestiones de:</h1>
+            <h1 id="hoy-heading">Viendo gestiones de:</h1>
             <div className="intro-actions">
               {selectedEventId != null && subtasksStatus === "ready" && subtasks.length > 0 && (
                 <button
@@ -683,17 +702,39 @@ export function HomePage() {
         )}
       </div>
 
-      {/* TODO(US-Hoy): implementar la vista real (gestiones de hoy de todos
-          los eventos, con fetch propio); por ahora solo un estado vacío. */}
-      <div role="tabpanel" id="hoy-panel" aria-labelledby="hoy-tab" hidden={currentView !== "hoy"}>
-        {currentView === "hoy" && (
-          <div className="hoy-placeholder">
-            <SunIcon />
-            <h1>Hoy</h1>
-            <p>
-              La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos.
-            </p>
-          </div>
+      {/* HU-13/PIM1-111: listado de cards + vista expandida del evento (paso
+          1: solo información). Las tablas de gestiones son el paso
+          siguiente; ver el comentario de EventsView.
+          flex flex-col flex-1 (junto con planner-shell ahora siendo
+          flex-column, ver homepage.css): sin esto el panel solo medía lo que
+          ocupaba su contenido y el roulette quedaba pegado arriba de la
+          página en vez de centrado en el alto disponible de la pantalla.
+          flex-col (no solo flex-1) es necesario porque el roulette usa
+          `flex-1` para llenar este panel — un `height: 100%` ahí no
+          funciona: la altura de este panel viene de flex-grow, no de un
+          valor de `height` explícito, así que no cuenta como "definida"
+          para que un hijo resuelva un porcentaje (confirmado con Claude in
+          Chrome: `h-full` medía 420px en vez de estirarse). */}
+      <div
+        role="tabpanel"
+        id="eventos-panel"
+        aria-labelledby="eventos-tab"
+        hidden={currentView !== "eventos"}
+        className="flex flex-1 flex-col"
+      >
+        {currentView === "eventos" && (
+          <EventsView
+            events={events}
+            status={eventsStatus}
+            errorMessage={eventsError}
+            onRetry={loadEvents}
+            onCreateEvent={openCreateForm}
+            onEditEvent={openEditEventForm}
+            onDeleteEvent={requestDeleteEvent}
+            onOpenSubtask={setDetailSubtask}
+            refreshToken={subtasksVersion}
+            onEventCoverUpdated={handleEventCoverUpdated}
+          />
         )}
       </div>
 
@@ -714,12 +755,12 @@ export function HomePage() {
         />
       )}
 
-      {isSubtaskFormOpen && selectedEvent && (
+      {isSubtaskFormOpen && subtaskFormEvent && (
         <SubtaskFormModal
           key={subtaskFormKey}
-          eventId={selectedEvent.eid}
-          eventName={selectedEvent.name}
-          eventDueDate={selectedEvent.due_date}
+          eventId={subtaskFormEvent.eid}
+          eventName={subtaskFormEvent.name}
+          eventDueDate={subtaskFormEvent.due_date}
           initialValues={editingSubtask ?? undefined}
           onClose={() => {
             setIsSubtaskFormOpen(false);
