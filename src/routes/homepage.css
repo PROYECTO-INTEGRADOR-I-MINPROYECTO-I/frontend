@@ -6,7 +6,10 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--surface);
+  /* Fondo decorativo (doodles de baja intensidad para no competir con el
+     contenido): color de respaldo primero por si la imagen no carga,
+     cover+center+fixed para que no se repita ni se mueva con el scroll. */
+  background: var(--surface) url("../assets/background.png") center / cover fixed no-repeat;
   color: var(--ink);
   font-family: "Source Sans 3", "Century Gothic", "Trebuchet MS", sans-serif;
 }
