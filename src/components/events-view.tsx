@@ -142,7 +142,13 @@ export function EventsView({ events, status, errorMessage, onRetry, onCreateEven
     // clase de Tailwind: `justify-[safe_center]` no compila a nada en
     // Tailwind v4 (verificado contra el CSS servido) y el div se queda sin
     // centrar en absoluto.
-    <div className="flex gap-4 overflow-x-auto px-8 pb-8" style={{ justifyContent: "safe center" }}>
+    // min-h + items-center: sin altura mínima el contenedor solo mide lo que
+    // ocupan las cards y quedan pegadas arriba (mismo criterio que el
+    // min-h-[420px] del estado vacío, para que no salte al cambiar de estado).
+    <div
+      className="flex min-h-[420px] items-center gap-4 overflow-x-auto px-8 pb-8"
+      style={{ justifyContent: "safe center" }}
+    >
       <CreateEventCard onClick={onCreateEvent} />
       {events.map((event) => {
         const progress = progressByEvent[event.eid];
