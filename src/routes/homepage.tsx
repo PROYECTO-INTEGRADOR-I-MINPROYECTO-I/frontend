@@ -696,8 +696,19 @@ export function HomePage() {
 
       {/* HU-13/PIM1-111: listado de cards + vista expandida del evento (paso
           1: solo información). Las tablas de gestiones son el paso
-          siguiente; ver el comentario de EventsView. */}
-      <div role="tabpanel" id="eventos-panel" aria-labelledby="eventos-tab" hidden={currentView !== "eventos"}>
+          siguiente; ver el comentario de EventsView.
+          flex-1 (junto con planner-shell ahora siendo flex-column, ver
+          homepage.css): sin esto el panel solo medía lo que ocupaba su
+          contenido y el roulette quedaba centrado dentro de su propia caja
+          de 420px, pero esa caja se veía pegada arriba de la página en vez
+          de centrada en el alto disponible de la pantalla. */}
+      <div
+        role="tabpanel"
+        id="eventos-panel"
+        aria-labelledby="eventos-tab"
+        hidden={currentView !== "eventos"}
+        className="flex-1"
+      >
         {currentView === "eventos" && (
           <EventsView
             events={events}
