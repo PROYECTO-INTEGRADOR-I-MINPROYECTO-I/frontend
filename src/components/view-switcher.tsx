@@ -56,8 +56,12 @@ export function ViewSwitcher({ value, onChange }: ViewSwitcherProps) {
     }
   }
 
+  // Sin borde/fondo propios: el contenedor quedaba como una caja extra
+  // flotando en la barra superior ahora que el selector vive ahí (antes,
+  // en su propia fila debajo del header, sí se justificaba). Las pestañas
+  // ya tienen su propio borde cuando no están seleccionadas.
   return (
-    <div role="tablist" aria-label="Vistas" className="flex w-fit gap-1 rounded-full border border-[#d4d5d7] p-1">
+    <div role="tablist" aria-label="Vistas" className="flex w-fit gap-1">
       {OPTIONS.map((option, index) => {
         const selected = option.value === value;
         return (
