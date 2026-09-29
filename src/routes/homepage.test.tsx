@@ -4,7 +4,9 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { HomePage } from "./homepage";
 import { AuthProvider } from "../lib/auth";
-import type { Event, Subtask } from "../lib/types";
+import type { Event, Subtask, TodaySummary } from "../lib/types";
+
+const TODAY = "2026-09-20";
 
 const event: Event = {
   eid: 1,
@@ -45,18 +47,60 @@ const subtasks: Subtask[] = [
   subtask({ subtask_id: 8, title: "Próxima B", scheduled_date: "2026-09-22", estimated_hours: "10" }),
 ];
 
+function jsonResponse(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+// Deriva la respuesta de GET /api/hoy/ a partir de una lista plana de
+// gestiones, con el mismo criterio de agrupación que planning/services.py:
+// vencidas = pending antes de hoy, para_hoy separa pending/done de HOY,
+// proximas = pending después de hoy. Una completada de otra fecha (vencida o
+// próxima) no aparece en ningún grupo — la misma limitación conocida de
+// PIM1-55 (ver el comentario en homepage.tsx).
+function buildTodaySummary(items: Subtask[], eventId: number | null = null): TodaySummary {
+  const withEventName = items.map((item) => ({ ...item, event_name: event.name }));
+  const vencidas = withEventName.filter((item) => item.status === "pending" && item.scheduled_date < TODAY);
+  const pendientes = withEventName.filter((item) => item.status === "pending" && item.scheduled_date === TODAY);
+  const completadas = withEventName.filter((item) => item.status === "done" && item.scheduled_date === TODAY);
+  const proximas = withEventName.filter((item) => item.status === "pending" && item.scheduled_date > TODAY);
+  const horasCompletadas = completadas.reduce((sum, item) => sum + Number(item.estimated_hours), 0);
+  const horasTotales = horasCompletadas + pendientes.reduce((sum, item) => sum + Number(item.estimated_hours), 0);
+
+  return {
+    fecha: TODAY,
+    metrica: "gestiones",
+    vencidas,
+    para_hoy: { pendientes, completadas },
+    proximas,
+    progreso_dia: {
+      completadas: completadas.length,
+      total: pendientes.length + completadas.length,
+      horas_completadas: horasCompletadas.toFixed(2),
+      horas_totales: horasTotales.toFixed(2),
+    },
+    filtros: { event_id: eventId, status: null },
+  };
+}
+
+function eventIdFromHoyUrl(href: string): number | null {
+  const match = href.match(/event_id=(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+// EventsView (pestaña Eventos) sigue usando /eventos/<eid>/subtareas/ para su
+// propio resumen por card — no lo toca PIM1-55, así que el stub atiende
+// ambos endpoints: ese de siempre, y el nuevo /hoy/ para la pestaña Hoy.
 function stubHomepageFetch() {
   const fetchMock = vi.fn().mockImplementation((url: string) => {
     const href = String(url);
+    if (href.includes("/hoy/")) {
+      return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, eventIdFromHoyUrl(href)), 200));
+    }
     if (href.includes("/eventos/1/subtareas/")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(subtasks), { status: 200, headers: { "Content-Type": "application/json" } })
-      );
+      return Promise.resolve(jsonResponse(subtasks, 200));
     }
     if (href.includes("/eventos/")) {
-      return Promise.resolve(
-        new Response(JSON.stringify([event]), { status: 200, headers: { "Content-Type": "application/json" } })
-      );
+      return Promise.resolve(jsonResponse([event], 200));
     }
     return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
   });
@@ -66,35 +110,41 @@ function stubHomepageFetch() {
 
 // Igual que stubHomepageFetch, pero además atiende el PATCH /subtareas/<id>/
 // (marcar/desmarcar completada) con la respuesta que decida `patchHandler`.
+// Tras un PATCH exitoso, homepage.tsx vuelve a pedir /api/hoy/ (ya no hace un
+// parche optimista in-place): este stub recuerda esa respuesta para que el
+// refetch la refleje, igual que haría el backend real.
 function stubHomepageFetchWithPatch(
   patchHandler: (subtaskId: number, body: Record<string, unknown>) => Promise<Response>
 ) {
+  let currentSubtasks = subtasks;
   const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
     const href = String(url);
     const method = options?.method ?? "GET";
     const patchMatch = method === "PATCH" && href.match(/\/subtareas\/(\d+)\/$/);
     if (patchMatch) {
+      const subtaskId = Number(patchMatch[1]);
       const body = JSON.parse(String(options?.body ?? "{}"));
-      return patchHandler(Number(patchMatch[1]), body);
+      return patchHandler(subtaskId, body).then(async (response) => {
+        if (response.ok) {
+          const updated = await response.clone().json();
+          currentSubtasks = currentSubtasks.map((item) => (item.subtask_id === subtaskId ? updated : item));
+        }
+        return response;
+      });
+    }
+    if (href.includes("/hoy/")) {
+      return Promise.resolve(jsonResponse(buildTodaySummary(currentSubtasks, eventIdFromHoyUrl(href)), 200));
     }
     if (href.includes("/eventos/1/subtareas/")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(subtasks), { status: 200, headers: { "Content-Type": "application/json" } })
-      );
+      return Promise.resolve(jsonResponse(currentSubtasks, 200));
     }
     if (href.includes("/eventos/")) {
-      return Promise.resolve(
-        new Response(JSON.stringify([event]), { status: 200, headers: { "Content-Type": "application/json" } })
-      );
+      return Promise.resolve(jsonResponse([event], 200));
     }
     return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
-}
-
-function jsonResponse(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 
 function columnCardTitles(headingName: string): string[] {
@@ -143,6 +193,27 @@ describe("HomePage", () => {
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
+  });
+
+  test("la barra de progreso del día usa progreso_dia de /api/hoy/, y el toggle cambia a horas sin volver a pedir datos", async () => {
+    const fetchMock = stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    // Hoy (2026-09-20): Hoy A (2h, pendiente) + Hoy B (4h, pendiente) + Hoy Hecha (1h, completada).
+    expect(screen.getByText("1/3 gestiones para hoy completadas")).toBeInTheDocument();
+
+    const callsBeforeToggle = fetchMock.mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "Horas" }));
+
+    expect(screen.getByText("1 h/7 h horas para hoy completadas")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.length).toBe(callsBeforeToggle);
   });
 
   test("marcar una gestión pendiente la mueve a Completadas y envía el PATCH {status: 'done'}", async () => {
@@ -201,7 +272,7 @@ describe("HomePage", () => {
     );
   });
 
-  test("si el PATCH falla, revierte el cambio y 'Reintentar' vuelve a intentar con éxito", async () => {
+  test("si el PATCH falla, muestra el error y 'Reintentar' vuelve a intentar con éxito", async () => {
     let callCount = 0;
     stubHomepageFetchWithPatch((subtaskId, body) => {
       callCount += 1;
@@ -224,7 +295,8 @@ describe("HomePage", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Sin conexión. No se guardó el cambio.");
 
-    // Se revirtió: "Hoy B" sigue en Pendientes, no en Completadas.
+    // Sin flip optimista (PIM1-55): al fallar el PATCH nunca se movió de
+    // Pendientes en primer lugar, así que no hay nada que revertir.
     const pendingSection = screen.getByText("Pendientes").closest(".today-panel") as HTMLElement;
     expect(
       within(pendingSection)
@@ -247,7 +319,13 @@ describe("HomePage", () => {
     );
   });
 
-  test("Completadas muestra gestiones de cualquier fecha, y desmarcar las devuelve a Vencidas/Próximas", async () => {
+  // PIM1-55, limitación conocida (ver el comentario en homepage.tsx):
+  // /api/hoy/ solo trae en "para_hoy.completadas" lo completado HOY; una
+  // vencida o próxima marcada como completada no aparece en ningún grupo de
+  // la respuesta, así que desaparece de Hoy en vez de pasar a Completadas
+  // como pasaba antes. Backend tiene en desarrollo un parámetro para
+  // recuperar el comportamiento original.
+  test("marcar como completada una vencida o próxima la saca de Hoy (no aparece en Completadas)", async () => {
     stubHomepageFetchWithPatch((subtaskId, body) =>
       Promise.resolve(jsonResponse({ ...subtasks.find((item) => item.subtask_id === subtaskId), ...body }, 200))
     );
@@ -259,16 +337,6 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
     await screen.findByText("Vencida A");
-    const todayCount = () =>
-      (screen.getByRole("heading", { name: "Para Hoy" }).closest("article") as HTMLElement).querySelector(
-        ".task-count"
-      )?.textContent;
-    const todayCountBefore = todayCount();
-
-    // Completar una vencida (id 1) y una próxima (id 7): ambas deben
-    // aparecer en Completadas, sin importar que su fecha no sea hoy.
-    await user.click(screen.getByRole("checkbox", { name: "Marcar Vencida A como completada" }));
-    await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
 
     const completedTitles = () =>
       within(screen.getByText("Completadas").closest(".today-panel") as HTMLElement)
@@ -276,21 +344,13 @@ describe("HomePage", () => {
         .map((button) => button.getAttribute("aria-label"))
         .filter((label): label is string => label !== null);
 
-    await waitFor(() => expect(completedTitles()).toEqual(expect.arrayContaining(["Vencida A", "Próxima A"])));
-
-    // Y ya no siguen en su columna original.
-    expect(columnCardTitles("Vencidas")).not.toContain("Vencida A");
-    expect(columnCardTitles("Próximas")).not.toContain("Próxima A");
-    // El contador de "Para Hoy" no cuenta completadas de otras fechas.
-    expect(todayCount()).toBe(todayCountBefore);
-
-    // Desmarcarlas las devuelve a su columna según la fecha.
     await user.click(screen.getByRole("checkbox", { name: "Marcar Vencida A como completada" }));
-    await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
+    await waitFor(() => expect(columnCardTitles("Vencidas")).not.toContain("Vencida A"));
+    expect(completedTitles()).not.toContain("Vencida A");
 
-    await waitFor(() => expect(columnCardTitles("Vencidas")).toContain("Vencida A"));
-    await waitFor(() => expect(columnCardTitles("Próximas")).toContain("Próxima A"));
-    expect(completedTitles()).not.toEqual(expect.arrayContaining(["Vencida A", "Próxima A"]));
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
+    await waitFor(() => expect(columnCardTitles("Próximas")).not.toContain("Próxima A"));
+    expect(completedTitles()).not.toContain("Próxima A");
   });
 
   test("togglear una gestión no bloquea otra, y un segundo clic sobre una gestión pendiente no reenvía el PATCH", async () => {
@@ -304,6 +364,9 @@ describe("HomePage", () => {
         return new Promise<Response>((resolve) => {
           resolvers[subtaskId] = resolve;
         });
+      }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, eventIdFromHoyUrl(href)), 200));
       }
       if (href.includes("/eventos/1/subtareas/")) {
         return Promise.resolve(jsonResponse(subtasks, 200));
@@ -356,69 +419,10 @@ describe("HomePage", () => {
     expect(patchCallsFor(4)).toHaveLength(1);
   });
 
-  test("si el PATCH de completar falla, la reversión no pisa cambios hechos mientras tanto (ej. la descripción)", async () => {
-    let rejectToggle: (() => void) | null = null;
-    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
-      const href = String(url);
-      const method = options?.method ?? "GET";
-      const patchMatch = method === "PATCH" && href.match(/\/subtareas\/(\d+)\/$/);
-      if (patchMatch) {
-        const subtaskId = Number(patchMatch[1]);
-        const body = JSON.parse(String(options?.body ?? "{}"));
-        if ("status" in body) {
-          // El PATCH de completar se queda pendiente hasta que el test lo resuelva/rechace.
-          return new Promise<Response>((_resolve, reject) => {
-            rejectToggle = () => reject(new TypeError("Failed to fetch"));
-          });
-        }
-        // Cualquier otra edición (ej. la descripción) se guarda de inmediato,
-        // simulando que el servidor ya procesó el "completar" (status: "done")
-        // antes de que la respuesta de esa petición se perdiera para el cliente.
-        const base = subtasks.find((item) => item.subtask_id === subtaskId);
-        return Promise.resolve(jsonResponse({ ...base, status: "done", ...body }, 200));
-      }
-      if (href.includes("/eventos/1/subtareas/")) {
-        return Promise.resolve(jsonResponse(subtasks, 200));
-      }
-      if (href.includes("/eventos/")) {
-        return Promise.resolve(jsonResponse([event], 200));
-      }
-      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter initialEntries={["/?evento=1"]}>
-        <AuthProvider><HomePage /></AuthProvider>
-      </MemoryRouter>
-    );
-    await screen.findByText("Hoy B");
-
-    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy B como completada" }));
-
-    // Mientras el PATCH de completar sigue pendiente, se edita la descripción.
-    await user.click(screen.getByRole("button", { name: "Hoy B" }));
-    await user.click(screen.getByRole("button", { name: "Editar" }));
-    const descriptionField = await screen.findByLabelText("Descripción");
-    await user.clear(descriptionField);
-    await user.type(descriptionField, "Descripción editada mientras se completaba");
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar gestión" })).not.toBeInTheDocument());
-
-    // Ahora falla el PATCH de completar: la reversión debe tocar solo el status.
-    expect(rejectToggle).not.toBeNull();
-    rejectToggle!();
-
-    await screen.findByRole("alert");
-
-    // Se reabre el detalle para comprobar que la descripción editada sigue ahí
-    // y que el estado volvió a pendiente (no se perdió el cambio concurrente).
-    await user.click(screen.getByRole("button", { name: "Hoy B" }));
-    expect(await screen.findByText("Descripción editada mientras se completaba")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Marcar como completada" })).toBeInTheDocument();
-  });
+  // (Antes había un test acá sobre que la reversión de un PATCH de completar
+  // fallido no debía pisar una edición concurrente de otro campo. Ya no
+  // aplica: PIM1-55 quitó el flip optimista, así que no hay ningún campo que
+  // revertir ni forma de que esa clase de bug ocurra.)
 
   test("crear un evento muestra el aviso con el nombre del evento creado", async () => {
     const user = userEvent.setup();
@@ -442,6 +446,9 @@ describe("HomePage", () => {
         return Promise.resolve(
           new Response(JSON.stringify(createdEvent), { status: 201, headers: { "Content-Type": "application/json" } })
         );
+      }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary([], eventIdFromHoyUrl(href)), 200));
       }
       if (href.includes("/eventos/2/subtareas/")) {
         return Promise.resolve(
@@ -499,6 +506,9 @@ describe("HomePage", () => {
         return Promise.resolve(
           new Response(JSON.stringify(createdSubtask), { status: 201, headers: { "Content-Type": "application/json" } })
         );
+      }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, eventIdFromHoyUrl(href)), 200));
       }
       if (href.includes("/eventos/1/subtareas/")) {
         return Promise.resolve(
