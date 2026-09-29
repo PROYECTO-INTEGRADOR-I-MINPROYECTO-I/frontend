@@ -135,11 +135,14 @@ export function EventsView({ events, status, errorMessage, onRetry, onCreateEven
   }
 
   return (
-    // justify-[safe_center]: centra las cards cuando entran todas en pantalla,
-    // pero si desbordan se comporta como justify-start (sin el "safe" un
-    // desborde con justify-center puede dejar el principio de la fila
-    // inaccesible al hacer scroll, incluida la card de "Crear nuevo evento").
-    <div className="flex justify-[safe_center] gap-4 overflow-x-auto px-8 pb-8">
+    // "safe center": centra las cards cuando entran todas en pantalla, pero si
+    // desbordan se comporta como flex-start (sin "safe" un desborde con center
+    // puede dejar el principio de la fila inaccesible al hacer scroll,
+    // incluida la card de "Crear nuevo evento"). Va como `style` y no como
+    // clase de Tailwind: `justify-[safe_center]` no compila a nada en
+    // Tailwind v4 (verificado contra el CSS servido) y el div se queda sin
+    // centrar en absoluto.
+    <div className="flex gap-4 overflow-x-auto px-8 pb-8" style={{ justifyContent: "safe center" }}>
       <CreateEventCard onClick={onCreateEvent} />
       {events.map((event) => {
         const progress = progressByEvent[event.eid];
