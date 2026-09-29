@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { HomePage } from "./homepage";
+import { AuthProvider } from "../lib/auth";
 import type { Event, Subtask } from "../lib/types";
 
 const event: Event = {
@@ -122,7 +123,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -152,7 +153,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy A");
@@ -185,7 +186,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy Hecha");
@@ -213,7 +214,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy B");
@@ -254,7 +255,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Vencida A");
@@ -317,7 +318,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy A");
@@ -389,7 +390,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy B");
@@ -458,7 +459,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -515,7 +516,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Vencida A");
@@ -542,7 +543,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -561,7 +562,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Vencida A");
@@ -585,7 +586,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
         <LocationProbe />
       </MemoryRouter>
     );
@@ -610,7 +611,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1&vista=xyz"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -623,7 +624,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1&vista=eventos"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -638,7 +639,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?vista=eventos"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -658,7 +659,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?vista=eventos"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -682,7 +683,7 @@ describe("HomePage", () => {
     // la propia gestión).
     render(
       <MemoryRouter initialEntries={["/?vista=eventos"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -708,7 +709,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?vista=eventos"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -723,7 +724,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -741,7 +742,7 @@ describe("HomePage", () => {
 
     const { container } = render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -766,7 +767,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
@@ -790,7 +791,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
