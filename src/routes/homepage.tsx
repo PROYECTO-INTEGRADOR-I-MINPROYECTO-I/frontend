@@ -4,6 +4,7 @@ import { CheckCircle2, Plus } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
 import { AccountMenu } from "../components/account-menu";
+import { DayProgressBar } from "../components/day-progress-bar";
 import { EventMenu } from "../components/event-menu";
 import { EventsView } from "../components/events-view";
 import { EventFormModal } from "../components/event-form-modal";
@@ -13,11 +14,10 @@ import { SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { ViewSwitcher, type ViewSwitcherValue } from "../components/view-switcher";
 import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
-import { todayLocalDateString } from "../lib/dates";
 import { creationMessage } from "../lib/success-messages";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { describeSaveError } from "../lib/subtask-errors";
-import type { Event, Subtask, SubtaskStatus } from "../lib/types";
+import type { Event, Subtask, SubtaskStatus, TodaySummary } from "../lib/types";
 import "./homepage.css";
 
 const filters = ["Todos", "Reuniones", "Entregas", "Llamadas", "Personal"];
@@ -25,8 +25,16 @@ const filters = ["Todos", "Reuniones", "Entregas", "Llamadas", "Personal"];
 // Solo un entero positivo es un eid válido; cualquier otro valor de
 // ?evento= (vacío, texto, decimales) se trata como "sin selección".
 const EVENT_ID_PATTERN = /^\d+$/;
-const SCHEDULED_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const KNOWN_SUBTASK_STATUSES: SubtaskStatus[] = ["pending", "done", "postponed"];
+
+function findSubtaskInToday(summary: TodaySummary | null, subtaskId: number): Subtask | undefined {
+  if (!summary) return undefined;
+  return (
+    summary.vencidas.find((item) => item.subtask_id === subtaskId) ??
+    summary.para_hoy.pendientes.find((item) => item.subtask_id === subtaskId) ??
+    summary.para_hoy.completadas.find((item) => item.subtask_id === subtaskId) ??
+    summary.proximas.find((item) => item.subtask_id === subtaskId)
+  );
+}
 
 // PIM1-11 (corrección del profesor): Vencidas debe ser el ícono más
 // prominente de los tres, no el más apagado. Antes `urgent` se llamaba
@@ -37,20 +45,12 @@ function ClockIcon({ urgent = false }: { urgent?: boolean }) {
   return <span aria-hidden="true" className={`clock-icon${urgent ? " clock-icon--urgent" : ""}`} />;
 }
 
-// subtaskCount es null cuando las gestiones del evento a borrar no están
-// (todavía) cargadas y confiables (subtasksStatus !== "ready"): en vez de
-// arriesgar un número desfasado, se usa un texto genérico.
-function eventDeleteDescription(event: Event, subtaskCount: number | null): string {
-  const base = `¿Eliminar el evento «${event.name}»?`;
-  if (subtaskCount === null) {
-    return `${base} Se eliminarán también todas sus gestiones. Esta acción no se puede deshacer.`;
-  }
-  if (subtaskCount === 0) return `${base} Esta acción no se puede deshacer.`;
-  const consequence =
-    subtaskCount === 1
-      ? "Se eliminará también su gestión."
-      : `Se eliminarán también sus ${subtaskCount} gestiones.`;
-  return `${base} ${consequence} Esta acción no se puede deshacer.`;
+// Antes mostraba el número real de gestiones del evento; desde PIM1-55 ya no
+// hay de dónde sacarlo de forma confiable (/api/hoy/ solo trae vencidas/hoy/
+// próximas, una ventana de fecha, no el total real del evento), así que
+// queda el texto genérico.
+function eventDeleteDescription(event: Event): string {
+  return `¿Eliminar el evento «${event.name}»? Se eliminarán también todas sus gestiones. Esta acción no se puede deshacer.`;
 }
 
 function subtaskDeleteDescription(subtask: Subtask): string {
@@ -78,15 +78,21 @@ export function HomePage() {
   const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
   const [detailSubtask, setDetailSubtask] = useState<Subtask | null>(null);
 
-  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
-  const [subtasksStatus, setSubtasksStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [subtasksError, setSubtasksError] = useState("");
+  // PIM1-55: GET /api/hoy/ ya trae vencidas/para_hoy/proximas agrupadas y
+  // ordenadas por evento (o agregadas entre todos si no hay `event_id`), más
+  // progreso_dia — reemplaza el fetch por evento + agrupar en el cliente que
+  // había antes. `metric` es el toggle Gestiones/Horas de la barra de
+  // progreso: puramente local, progreso_dia ya trae ambas métricas siempre.
+  const [today, setToday] = useState<TodaySummary | null>(null);
+  const [todayStatus, setTodayStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [todayError, setTodayError] = useState("");
+  const [metric, setMetric] = useState<"gestiones" | "horas">("gestiones");
 
   // EventsView mantiene su propio fetch por evento (progressByEvent), separado
-  // de `subtasks` (que solo cubre el evento filtrado en Hoy). Sin esto, crear/
-  // editar/borrar/completar una gestión no se reflejaba en las 4 tablas de la
-  // vista expandida de Eventos hasta recargar la página: se le pasa como prop
-  // y cada bump fuerza su refetch.
+  // de `today` (que solo cubre la ventana vencidas/hoy/próximas de Hoy). Sin
+  // esto, crear/editar/borrar/completar una gestión no se reflejaba en las 4
+  // tablas de la vista expandida de Eventos hasta recargar la página: se le
+  // pasa como prop y cada bump fuerza su refetch.
   const [subtasksVersion, setSubtasksVersion] = useState(0);
 
   const [deleteEventTarget, setDeleteEventTarget] = useState<Event | null>(null);
@@ -118,18 +124,18 @@ export function HomePage() {
   const [toggleError, setToggleError] = useState<{ subtaskId: number; message: string; retry: () => void } | null>(
     null
   );
-  // Espejo mutable de `subtasks` (no dispara renders), para que el cierre de
+  // Espejo mutable de `today` (no dispara renders), para que el cierre de
   // "Reintentar" -creado en el momento del fallo- lea el estado más reciente
   // de la gestión al reintentar, en vez de la foto vieja que tenía cuando se
   // creó el cierre.
-  const subtasksRef = useRef<Subtask[]>(subtasks);
-  subtasksRef.current = subtasks;
+  const todayRef = useRef<TodaySummary | null>(today);
+  todayRef.current = today;
 
   // Se incrementa en cada carga (cambio de evento o "Reintentar"). Si la
   // respuesta llega y ya no coincide con el contador actual, es una carga
   // vieja (por ejemplo A->B con la respuesta de A llegando tarde) y se
   // descarta en vez de pisar los datos del evento que sigue seleccionado.
-  const subtasksRequestIdRef = useRef(0);
+  const todayRequestIdRef = useRef(0);
 
   const eventoParam = searchParams.get("evento");
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
@@ -173,30 +179,28 @@ export function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadSubtasks(eid: number) {
-    const requestId = (subtasksRequestIdRef.current += 1);
-    setSubtasksStatus("loading");
-    setSubtasksError("");
+  // event_id es opcional en /api/hoy/: sin él, agrega entre todos los
+  // eventos del organizador (antes "Todos los eventos" en Hoy no traía datos
+  // reales — este es justo el fetch que faltaba).
+  async function loadToday(eventId: number | null) {
+    const requestId = (todayRequestIdRef.current += 1);
+    setTodayStatus("loading");
+    setTodayError("");
     try {
-      const data = await apiFetch<Subtask[]>(`/eventos/${eid}/subtareas/`);
-      if (subtasksRequestIdRef.current !== requestId) return; // respuesta de una carga anterior: se descarta
-      setSubtasks(data);
-      setSubtasksStatus("ready");
+      const query = eventId != null ? `?event_id=${eventId}` : "";
+      const data = await apiFetch<TodaySummary>(`/hoy/${query}`);
+      if (todayRequestIdRef.current !== requestId) return; // respuesta de una carga anterior: se descarta
+      setToday(data);
+      setTodayStatus("ready");
     } catch (err) {
-      if (subtasksRequestIdRef.current !== requestId) return;
-      setSubtasksError(err instanceof ApiError ? err.message : "No pudimos cargar las gestiones.");
-      setSubtasksStatus("error");
+      if (todayRequestIdRef.current !== requestId) return;
+      setTodayError(err instanceof ApiError ? err.message : "No pudimos cargar las gestiones de hoy.");
+      setTodayStatus("error");
     }
   }
 
   useEffect(() => {
-    if (selectedEventId == null) {
-      subtasksRequestIdRef.current += 1; // invalida cualquier carga en curso de un evento anterior
-      setSubtasks([]);
-      setSubtasksStatus("idle");
-      return;
-    }
-    loadSubtasks(selectedEventId);
+    loadToday(selectedEventId);
     // Solo cuando cambia el evento seleccionado: la recarga manual usa "Reintentar".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId]);
@@ -308,30 +312,12 @@ export function HomePage() {
     setDeleteEventError(null);
   }
 
-  function handleSubtaskUpdated(subtask: Subtask) {
+  function handleSubtaskUpdated() {
     setIsSubtaskFormOpen(false);
     setEditingSubtask(null);
-    setSubtasks((prev) => prev.map((item) => (item.subtask_id === subtask.subtask_id ? subtask : item)));
+    loadToday(selectedEventId);
     setSubtasksVersion((version) => version + 1);
     showSuccess("Cambios guardados");
-  }
-
-  // Reemplaza la gestión completa (ej. con la respuesta del servidor tras un
-  // PATCH exitoso, que es la fuente de verdad de todos sus campos).
-  function applySubtaskUpdate(updated: Subtask) {
-    setSubtasks((prev) => prev.map((item) => (item.subtask_id === updated.subtask_id ? updated : item)));
-    setDetailSubtask((prev) => (prev && prev.subtask_id === updated.subtask_id ? updated : prev));
-    setSubtasksVersion((version) => version + 1);
-  }
-
-  // Cambia SOLO el campo `status` de la gestión, aplicado sobre el item tal
-  // como está en el estado en ese instante (setState funcional): así, si
-  // otro flujo editó título/descripción/etc. mientras el PATCH de completar
-  // estaba en curso, ni el cambio optimista ni su reversión pisan esos
-  // campos con una foto vieja.
-  function patchSubtaskStatus(subtaskId: number, status: SubtaskStatus) {
-    setSubtasks((prev) => prev.map((item) => (item.subtask_id === subtaskId ? { ...item, status } : item)));
-    setDetailSubtask((prev) => (prev && prev.subtask_id === subtaskId ? { ...prev, status } : prev));
   }
 
   function addPendingToggle(subtaskId: number) {
@@ -351,6 +337,15 @@ export function HomePage() {
     });
   }
 
+  // Sin flip optimista: el estado de una gestión ahora vive repartido en 4
+  // arreglos separados (vencidas/para_hoy.pendientes/completadas/proximas),
+  // y completarla puede sacarla de un grupo sin que quede en ningún otro
+  // (ej. una vencida marcada como hecha ya no es "de hoy", así que
+  // desaparece de esta vista — se sigue viendo en la tabla del evento en
+  // Eventos). Mover la tarjeta a ciegas antes de saber el resultado real
+  // sería más complicado y menos confiable que solo deshabilitar el
+  // checkbox (pendingToggleIds) mientras se resuelve el PATCH y recargar
+  // /api/hoy/ al terminar.
   async function handleToggleComplete(subtask: Subtask) {
     const subtaskId = subtask.subtask_id;
     if (pendingToggleIds.has(subtaskId)) return; // ya hay un cambio en curso para esta gestión: evita dobles clics
@@ -358,19 +353,19 @@ export function HomePage() {
     // Se lee del espejo mutable (no del `subtask` recibido, que puede ser una
     // foto vieja si esta llamada viene de un cierre de "Reintentar" creado
     // antes de otros cambios) para partir siempre del estado real vigente.
-    const current = subtasksRef.current.find((item) => item.subtask_id === subtaskId) ?? subtask;
+    const current = findSubtaskInToday(todayRef.current, subtaskId) ?? subtask;
     const previousStatus = current.status;
     const nextStatus: SubtaskStatus = previousStatus === "done" ? "pending" : "done";
 
     setToggleError((prev) => (prev && prev.subtaskId === subtaskId ? null : prev));
     addPendingToggle(subtaskId);
-    patchSubtaskStatus(subtaskId, nextStatus); // optimista
 
     try {
       const updated = await setSubtaskStatus(subtaskId, nextStatus);
-      applySubtaskUpdate(updated);
+      setDetailSubtask((prev) => (prev && prev.subtask_id === subtaskId ? updated : prev));
+      await loadToday(selectedEventId);
+      setSubtasksVersion((version) => version + 1);
     } catch (err) {
-      patchSubtaskStatus(subtaskId, previousStatus); // revierte solo el status, sobre el item actual
       setToggleError({
         subtaskId,
         message: describeSaveError(err),
@@ -393,7 +388,7 @@ export function HomePage() {
     setDeleteSubtaskError(null);
     try {
       await apiFetch<void>(`/subtareas/${deleteSubtaskTarget.subtask_id}/`, { method: "DELETE" });
-      setSubtasks((prev) => prev.filter((subtask) => subtask.subtask_id !== deleteSubtaskTarget.subtask_id));
+      await loadToday(selectedEventId);
       setSubtasksVersion((version) => version + 1);
       setDeleteSubtaskTarget(null);
       setFocusAfterSubtaskDelete(true);
@@ -425,56 +420,27 @@ export function HomePage() {
     setIsSubtaskFormOpen(false);
     const extra = warnings && warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
     showSuccess(`${creationMessage("subtask", subtask.title)}${extra}`);
-
-    // Se asume que el 201 de POST /eventos/<eid>/subtareas/ siempre trae
-    // scheduled_date ("YYYY-MM-DD") y status válidos, que es lo que usa el
-    // reparto en columnas. Si el backend responde algo que no calza con esa
-    // suposición, no insertamos a ciegas (quedaría una tarjeta huérfana en
-    // ninguna columna): se recarga la lista completa del evento.
-    const hasExpectedShape =
-      typeof subtask.scheduled_date === "string" &&
-      SCHEDULED_DATE_PATTERN.test(subtask.scheduled_date) &&
-      KNOWN_SUBTASK_STATUSES.includes(subtask.status);
-
-    if (hasExpectedShape) {
-      setSubtasks((prev) => [...prev, subtask]);
-    } else if (selectedEventId != null) {
-      loadSubtasks(selectedEventId);
-    }
+    loadToday(selectedEventId);
     setSubtasksVersion((version) => version + 1);
   }
 
-  const todayDate = todayLocalDateString();
-  const upcoming: Subtask[] = [];
-  const todayPending: Subtask[] = [];
-  const done: Subtask[] = [];
-  const overdue: Subtask[] = [];
-
-  for (const subtask of subtasks) {
-    // "done" tiene prioridad sobre la fecha: la lista de Completadas junta
-    // TODAS las gestiones completadas (vencidas, de hoy o próximas), no solo
-    // las de hoy, para que marcar como completada una gestión vencida o
-    // próxima (US-09) la saque de su columna y la lleve ahí. Al desmarcarla,
-    // vuelve a caer en Vencidas/Para hoy/Próximas según su fecha, como
-    // cualquier gestión pendiente.
-    if (subtask.status === "done") {
-      done.push(subtask);
-    } else if (subtask.scheduled_date > todayDate) {
-      upcoming.push(subtask);
-    } else if (subtask.scheduled_date === todayDate) {
-      todayPending.push(subtask);
-    } else {
-      overdue.push(subtask);
-    }
-  }
-
-  const sortedUpcoming = sortSubtasksByDateThenHours(upcoming);
-  const sortedTodayPending = sortSubtasksByDateThenHours(todayPending);
-  const sortedDone = sortCompletedSubtasksByDateDesc(done);
-  const sortedOverdue = sortSubtasksByDateThenHours(overdue);
-  // El contador de "Para Hoy" solo cuenta las gestiones de hoy: `done` junta
-  // completadas de cualquier fecha para la lista de Completadas.
-  const todayDoneCount = done.filter((subtask) => subtask.scheduled_date === todayDate).length;
+  // /api/hoy/ ya viene agrupado (vencidas/para_hoy/proximas) y filtrado por
+  // organizador (y por evento, si hay uno seleccionado) — el reparto por
+  // fecha que antes se hacía a mano acá ya no hace falta. Sí se reaplica el
+  // orden fecha+horas del frontend (ver sortSubtasksByDateThenHours): el
+  // backend ordena por scheduled_date/estimated_hours/subtask_id ascendente,
+  // pero el desempate de horas de este producto es descendente (más esfuerzo
+  // primero) — reordenar acá evita depender de que el backend replique
+  // exactamente ese criterio.
+  const sortedOverdue = today ? sortSubtasksByDateThenHours(today.vencidas) : [];
+  const sortedTodayPending = today ? sortSubtasksByDateThenHours(today.para_hoy.pendientes) : [];
+  // Nota de alcance (ver comentario en PIM1-55): a diferencia del
+  // comportamiento anterior, esto solo trae completadas de HOY, no de
+  // cualquier fecha — backend tiene en desarrollo un parámetro para
+  // recuperar el comportamiento original.
+  const sortedDone = today ? sortCompletedSubtasksByDateDesc(today.para_hoy.completadas) : [];
+  const sortedUpcoming = today ? sortSubtasksByDateThenHours(today.proximas) : [];
+  const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedUpcoming.length;
 
   return (
     <main className="planner-shell">
@@ -531,7 +497,7 @@ export function HomePage() {
                 los eventos" o el nombre del evento) ya completa la oración. */}
             <h1 id="hoy-heading">Viendo gestiones de:</h1>
             <div className="intro-actions">
-              {selectedEventId != null && subtasksStatus === "ready" && subtasks.length > 0 && (
+              {selectedEventId != null && todayStatus === "ready" && totalCount > 0 && (
                 <button
                   ref={createTaskButtonRef}
                   type="button"
@@ -579,25 +545,31 @@ export function HomePage() {
           </div>
         </section>
 
-        {selectedEventId != null && subtasksStatus === "loading" && (
+        {todayStatus === "loading" && (
           <p role="status" className="subtasks-status">
             Cargando gestiones…
           </p>
         )}
 
-        {selectedEventId != null && subtasksStatus === "error" && (
+        {todayStatus === "error" && (
           <div role="alert" className="subtasks-status subtasks-status--error">
-            <p>{subtasksError}</p>
-            <button type="button" onClick={() => loadSubtasks(selectedEventId)}>
+            <p>{todayError}</p>
+            <button type="button" onClick={() => loadToday(selectedEventId)}>
               Reintentar
             </button>
           </div>
         )}
 
-        {(selectedEventId == null || subtasksStatus === "ready") && (
+        {todayStatus === "ready" && today && (
+          <div className="mx-8 mb-4">
+            <DayProgressBar progress={today.progreso_dia} metric={metric} onMetricChange={setMetric} />
+          </div>
+        )}
+
+        {todayStatus === "ready" && (
           <section className="task-columns" aria-label="Gestiones del día">
             <TaskColumn title="Próximas" countClass="count--blue" count={String(sortedUpcoming.length)} showClock>
-              {selectedEventId != null && sortedUpcoming.length > 0 && (
+              {sortedUpcoming.length > 0 && (
                 <div className="column-list">
                   {sortedUpcoming.map((subtask) => (
                     <SubtaskCard
@@ -606,12 +578,12 @@ export function HomePage() {
                       onOpen={setDetailSubtask}
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
-                      eventName={selectedEvent?.name}
+                      eventName={subtask.event_name}
                     />
                   ))}
                 </div>
               )}
-              {selectedEventId != null && subtasks.length > 0 && sortedUpcoming.length === 0 && (
+              {totalCount > 0 && sortedUpcoming.length === 0 && (
                 <p className="column-empty-hint">Sin gestiones próximas.</p>
               )}
             </TaskColumn>
@@ -619,35 +591,37 @@ export function HomePage() {
             <TaskColumn
               title="Para Hoy"
               countClass="count--red"
-              count={String(sortedTodayPending.length + todayDoneCount)}
+              count={String(sortedTodayPending.length + sortedDone.length)}
               headingRef={todayColumnHeadingRef}
             >
-              {selectedEventId == null ? (
-                <div className="column-empty-wrap">
-                  <div className="empty-state">
-                    <p>
-                      Aún no tienes gestiones
-                      <br />
-                      ¡Crea una nueva!
-                    </p>
-                    <button className="create-task-button" type="button" onClick={openCreateForm}>
-                      Crear gestión <Plus aria-hidden="true" size={22} />
-                    </button>
+              {totalCount === 0 ? (
+                selectedEventId == null ? (
+                  <div className="column-empty-wrap">
+                    <div className="empty-state">
+                      <p>
+                        Aún no tienes gestiones
+                        <br />
+                        ¡Crea una nueva!
+                      </p>
+                      <button className="create-task-button" type="button" onClick={openCreateForm}>
+                        Crear gestión <Plus aria-hidden="true" size={22} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : subtasks.length === 0 ? (
-                <div className="column-empty-wrap">
-                  <div className="empty-state">
-                    <p>
-                      Aún no has agregado
-                      <br />
-                      gestiones a este evento
-                    </p>
-                    <button className="create-task-button" type="button" onClick={openSubtaskForm}>
-                      Crear gestión <Plus aria-hidden="true" size={22} />
-                    </button>
+                ) : (
+                  <div className="column-empty-wrap">
+                    <div className="empty-state">
+                      <p>
+                        Aún no has agregado
+                        <br />
+                        gestiones a este evento
+                      </p>
+                      <button className="create-task-button" type="button" onClick={openSubtaskForm}>
+                        Crear gestión <Plus aria-hidden="true" size={22} />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )
               ) : (
                 <div className="today-panels">
                   <TodayPanel
@@ -660,7 +634,6 @@ export function HomePage() {
                     onOpen={setDetailSubtask}
                     onToggleComplete={handleToggleComplete}
                     pendingToggleIds={pendingToggleIds}
-                    eventName={selectedEvent?.name}
                   />
                   <TodayPanel
                     label="Completadas"
@@ -673,14 +646,13 @@ export function HomePage() {
                     onToggleComplete={handleToggleComplete}
                     pendingToggleIds={pendingToggleIds}
                     completed
-                    eventName={selectedEvent?.name}
                   />
                 </div>
               )}
             </TaskColumn>
 
             <TaskColumn title="Vencidas" countClass="count--red" count={String(sortedOverdue.length)} showClock>
-              {selectedEventId != null && sortedOverdue.length > 0 && (
+              {sortedOverdue.length > 0 && (
                 <div className="column-list">
                   {sortedOverdue.map((subtask) => (
                     <SubtaskCard
@@ -690,12 +662,12 @@ export function HomePage() {
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
                       overdue
-                      eventName={selectedEvent?.name}
+                      eventName={subtask.event_name}
                     />
                   ))}
                 </div>
               )}
-              {selectedEventId != null && subtasks.length > 0 && sortedOverdue.length === 0 && (
+              {totalCount > 0 && sortedOverdue.length === 0 && (
                 <p className="column-empty-hint">Sin gestiones vencidas.</p>
               )}
             </TaskColumn>
@@ -793,7 +765,7 @@ export function HomePage() {
         title="Eliminar evento"
         description={
           deleteEventTarget
-            ? eventDeleteDescription(deleteEventTarget, subtasksStatus === "ready" ? subtasks.length : null)
+            ? eventDeleteDescription(deleteEventTarget)
             : ""
         }
         busy={deleteEventBusy}
@@ -858,7 +830,6 @@ function TodayPanel({
   onToggleComplete,
   pendingToggleIds,
   completed = false,
-  eventName,
 }: {
   label: string;
   dotColor: string;
@@ -870,7 +841,6 @@ function TodayPanel({
   onToggleComplete: (subtask: Subtask) => void;
   pendingToggleIds: Set<number>;
   completed?: boolean;
-  eventName?: string;
 }) {
   return (
     <div className="today-panel">
@@ -895,7 +865,7 @@ function TodayPanel({
               onToggleComplete={onToggleComplete}
               pending={pendingToggleIds.has(subtask.subtask_id)}
               completed={completed}
-              eventName={eventName}
+              eventName={subtask.event_name}
             />
           ))
         )}
