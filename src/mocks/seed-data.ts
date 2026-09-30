@@ -14,6 +14,8 @@ export interface MockDb {
   nextEventId: number;
   nextSubtaskId: number;
   nextEventTypeId: number;
+  /** Modo mock: hay "sesión" (equivale a la cookie de refresh). Opcional para bases guardadas antes de JWT. */
+  loggedIn?: boolean;
 }
 
 function addDays(base: Date, days: number): Date {

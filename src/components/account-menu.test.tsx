@@ -30,14 +30,14 @@ function renderMenu() {
 
 describe("AccountMenu", () => {
   test("muestra las iniciales del usuario real, no un valor fijo", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(meUser)));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: meUser, access: "access-1" })));
     renderMenu();
 
     expect(await screen.findByRole("button", { name: "Cuenta de Ana López" })).toHaveTextContent("AL");
   });
 
   test("clickear el botón abre el menú con 'Cerrar sesión'", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(meUser)));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: meUser, access: "access-1" })));
     const user = userEvent.setup();
     renderMenu();
 
@@ -52,7 +52,7 @@ describe("AccountMenu", () => {
   test("'Cerrar sesión' hace POST /auth/logout/ y redirige a /login", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       const href = String(url);
-      if (href.includes("/auth/me/")) return Promise.resolve(jsonResponse(meUser));
+      if (href.includes("/auth/refresh/")) return Promise.resolve(jsonResponse({ user: meUser, access: "access-1" }));
       if (href.includes("/auth/logout/")) return Promise.resolve(new Response(null, { status: 204 }));
       return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
     });
@@ -69,7 +69,7 @@ describe("AccountMenu", () => {
   });
 
   test("clickear afuera cierra el menú sin cerrar sesión", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(meUser)));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: meUser, access: "access-1" })));
     const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={["/"]}>

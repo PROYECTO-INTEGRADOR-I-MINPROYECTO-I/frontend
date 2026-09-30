@@ -17,12 +17,12 @@ function backendError(type: string, details: unknown, status: number): Response 
   return jsonResponse({ success: false, error: { type, details } }, status);
 }
 
-// AuthProvider hace GET /auth/me/ al montar; se responde 401 (anónimo) salvo
+// AuthProvider hace POST /auth/refresh/ al montar; se responde 401 (anónimo) salvo
 // que un test necesite lo contrario.
 function stubAuth(loginHandler?: (body: Record<string, unknown>) => Response) {
   const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
     const href = String(url);
-    if (href.includes("/auth/me/")) {
+    if (href.includes("/auth/refresh/")) {
       return Promise.resolve(new Response(null, { status: 401 }));
     }
     if (href.includes("/auth/login/")) {

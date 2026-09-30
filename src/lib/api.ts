@@ -1,6 +1,7 @@
 // Cliente HTTP único para hablar con el backend.
 // Centraliza la URL base, las cabeceras por defecto y el manejo de errores.
 
+import type { AuthUser } from "./auth";
 import type { CreateSubtaskPayload, Subtask, SubtaskStatus } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -22,12 +23,33 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
   unauthorizedHandler = handler;
 }
 
+// Access token JWT: vive solo en memoria de este módulo (nunca en
+// localStorage/sessionStorage). Se pierde al recargar la pestaña y se
+// recupera con POST /auth/refresh/ (cookie httpOnly de refresh).
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+
+// Avisa a AuthProvider cuando un refresh silencioso (ante un 401) trae un
+// usuario nuevo, para mantener `user` sincronizado.
+type SessionRefreshedListener = (user: AuthUser) => void;
+let sessionRefreshedListener: SessionRefreshedListener | null = null;
+
+export function setSessionRefreshedListener(listener: SessionRefreshedListener | null): void {
+  sessionRefreshedListener = listener;
+}
+
 // Un 401 en estas rutas nunca es "sesión que expiró a mitad de uso": en login
-// y register es "credenciales inválidas"/"correo ya existe", y en /auth/me/
-// es simplemente "todavía no hay sesión" (el chequeo normal al montar para
-// un visitante anónimo). Ninguno de los tres debe disparar el manejador
-// global ni redirigir — PIM1-42 ya maneja /auth/me/ con su propio catch.
-const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/me/"];
+// y register es "credenciales inválidas"/"correo ya existe", en /auth/me/,
+// /auth/refresh/ y /auth/logout/ es simplemente "no hay sesión (válida)".
+// Ninguno debe disparar el refresh silencioso ni el manejador global.
+const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/me/", "/auth/refresh/", "/auth/logout/"];
+
+function isAuthEndpoint(path: string): boolean {
+  return AUTH_ENDPOINTS.some((p) => path.startsWith(p));
+}
 
 // Error estructurado para que las vistas puedan pintar mensajes por campo
 // sin tener que parsear el cuerpo de la respuesta cada una por su cuenta.
@@ -216,23 +238,74 @@ async function performFetch(path: string, options: RequestInit): Promise<Respons
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...options.headers,
     },
   });
 }
 
+export interface AuthSession {
+  user: AuthUser;
+  access: string;
+}
+
+// Una sola renovación en vuelo: los 401 simultáneos (y el doble montaje de
+// StrictMode en el bootstrap) comparten esta promesa, porque el refresh
+// rota la cookie y un segundo intento usaría un token ya rotado.
+let refreshInFlight: Promise<AuthSession> | null = null;
+
+// Época de sesión: sube en login, register, logout y cuando la sesión se da
+// por muerta. Un refresh que arrancó en una época anterior y resuelve tarde
+// (p. ej. después de un logout) se descarta para no resucitar la sesión.
+let sessionEpoch = 0;
+
+export function bumpSessionEpoch(): void {
+  sessionEpoch += 1;
+  // Un refresh posterior (p. ej. tras un nuevo login) no debe unirse al viejo.
+  refreshInFlight = null;
+}
+
+/** El refresh terminó, pero la sesión cambió mientras tanto: su resultado se ignora. */
+export class StaleSessionError extends Error {
+  constructor() {
+    super("El refresh quedó obsoleto: la sesión cambió mientras se resolvía.");
+    this.name = "StaleSessionError";
+  }
+}
+
 /**
- * Hace una petición al backend y devuelve el cuerpo ya parseado como JSON.
- * Fusiona los headers recibidos con los headers por defecto y envía
- * credenciales (cookies) en cada request.
+ * POST /auth/refresh/ (la cookie httpOnly viaja por `credentials: "include"`).
+ * Si tiene éxito guarda el nuevo access token en memoria. Comparte la
+ * promesa entre llamadas concurrentes. Si la sesión cambió mientras estaba
+ * en vuelo (login/logout), rechaza con StaleSessionError sin tocar el token.
  */
-export async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  let response: Response;
+export function refreshSession(): Promise<AuthSession> {
+  if (!refreshInFlight) {
+    const epoch = sessionEpoch;
+    const promise: Promise<AuthSession> = (async () => {
+      let session: AuthSession;
+      try {
+        const response = await fetchOrThrowNetworkError("/auth/refresh/", { method: "POST" });
+        if (!response.ok) throw await buildApiError(response);
+        session = JSON.parse(await response.text()) as AuthSession;
+      } catch (err) {
+        if (epoch !== sessionEpoch) throw new StaleSessionError();
+        throw err;
+      }
+      if (epoch !== sessionEpoch) throw new StaleSessionError();
+      accessToken = session.access;
+      return session;
+    })().finally(() => {
+      if (refreshInFlight === promise) refreshInFlight = null;
+    });
+    refreshInFlight = promise;
+  }
+  return refreshInFlight;
+}
+
+async function fetchOrThrowNetworkError(path: string, options: RequestInit): Promise<Response> {
   try {
-    response = await performFetch(path, options);
+    return await performFetch(path, options);
   } catch (err) {
     // Un abort (por ejemplo un AbortController del caller) no es una falla de
     // red: se re-lanza tal cual para que quien canceló lo maneje a su modo.
@@ -246,11 +319,51 @@ export async function apiFetch<T>(
       "NETWORK_ERROR"
     );
   }
+}
+
+/**
+ * Hace una petición al backend y devuelve el cuerpo ya parseado como JSON.
+ * Fusiona los headers recibidos con los headers por defecto, agrega el
+ * Bearer si hay access token y envía credenciales (cookies) en cada request.
+ */
+export async function apiFetch<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  let response = await fetchOrThrowNetworkError(path, options);
+
+  if (response.status === 401 && !isAuthEndpoint(path)) {
+    // Access vencido/revocado: un único refresh silencioso y un único
+    // reintento (sin bucles: el reintento no vuelve a pasar por acá).
+    let refreshed = false;
+    let sessionDead = false;
+    try {
+      const session = await refreshSession();
+      sessionRefreshedListener?.(session.user);
+      refreshed = true;
+    } catch (err) {
+      // Solo un 401/403 del refresh (cookie ausente/revocada u Origin
+      // rechazado) da la sesión por muerta. Red caída o 5xx son transitorios:
+      // se conserva el token, no se desloguea y se propaga ese error.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        sessionDead = true;
+      } else if (!(err instanceof StaleSessionError)) {
+        throw err;
+      }
+      // StaleSessionError: la sesión cambió (login/logout); se cae al 401 original sin tocar nada.
+    }
+    if (refreshed) {
+      // El reintento reenvía `options` tal cual: el body debe poder reusarse (strings sí; streams y FormData no).
+      response = await fetchOrThrowNetworkError(path, options);
+    }
+    if (sessionDead || (refreshed && response.status === 401)) {
+      accessToken = null;
+      bumpSessionEpoch();
+      unauthorizedHandler?.();
+    }
+  }
 
   if (!response.ok) {
-    if (response.status === 401 && unauthorizedHandler && !AUTH_ENDPOINTS.some((p) => path.startsWith(p))) {
-      unauthorizedHandler();
-    }
     throw await buildApiError(response);
   }
 

@@ -1,14 +1,24 @@
-// PIM1-42: sesión del organizador. Al montar, pregunta GET /auth/me/ para
-// saber si ya hay una sesión válida (cookie httpOnly de Django, nunca se
-// guarda nada de esto en localStorage); expone login/logout, que golpean
-// POST /auth/login/ y /auth/logout/ y actualizan `user` con la respuesta.
-// Si cualquier request 401 a mitad de uso (sesión expirada), api.ts avisa
-// acá vía setUnauthorizedHandler y se limpia el usuario + se redirige a
-// /login (ver el useEffect de abajo).
+// PIM1-42: sesión del organizador con JWT. El access token vive solo en
+// memoria (api.ts, nunca en localStorage) y dura poco; la renovación usa una
+// cookie httpOnly `refresh_token` que JS no puede leer. Al montar se llama
+// POST /auth/refresh/ (comparte promesa en vuelo, ver refreshSession) para
+// recuperar `{user, access}` tras una recarga; login/register reciben la
+// misma forma y logout (POST /auth/logout/) limpia token y usuario.
+// Si un request 401 no se puede recuperar con refresh, api.ts avisa acá vía
+// setUnauthorizedHandler y se limpia el usuario + se redirige a /login.
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, setUnauthorizedHandler } from "./api";
+import {
+  apiFetch,
+  bumpSessionEpoch,
+  StaleSessionError,
+  refreshSession,
+  setAccessToken,
+  setSessionRefreshedListener,
+  setUnauthorizedHandler,
+  type AuthSession,
+} from "./api";
 
 export interface AuthUser {
   user_id: number;
@@ -19,7 +29,7 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
-  /** true mientras se resuelve el GET /auth/me/ inicial. */
+  /** true mientras se resuelve el POST /auth/refresh/ inicial. */
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   /** PIM1-121: POST /auth/register/ crea la cuenta y devuelve el usuario ya logueado (misma sesión que login). */
@@ -36,13 +46,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch<AuthUser>("/auth/me/")
-      .then((data) => {
-        if (!cancelled) setUser(data);
+    refreshSession()
+      .then((session) => {
+        if (!cancelled) setUser(session.user);
       })
-      .catch(() => {
-        // Sin sesión (401) o backend caído: se trata igual, como anónimo.
-        if (!cancelled) setUser(null);
+      .catch((err) => {
+        // Sin sesión (401), backend caído o 5xx: se trata como anónimo (el
+        // token no se toca, así que una petición posterior puede recuperarse
+        // con su propio refresh). Un resultado obsoleto (login/logout
+        // ocurrió mientras tanto) se ignora para no pisar al usuario actual.
+        if (!cancelled && !(err instanceof StaleSessionError)) setUser(null);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -54,34 +67,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      bumpSessionEpoch();
+      setAccessToken(null);
       setUser(null);
       navigate("/login");
     });
-    return () => setUnauthorizedHandler(null);
+    setSessionRefreshedListener(setUser);
+    return () => {
+      setUnauthorizedHandler(null);
+      setSessionRefreshedListener(null);
+    };
   }, [navigate]);
 
   async function login(email: string, password: string) {
-    const data = await apiFetch<AuthUser>("/auth/login/", {
+    const data = await apiFetch<AuthSession>("/auth/login/", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    setUser(data);
+    bumpSessionEpoch();
+    setAccessToken(data.access);
+    setUser(data.user);
   }
 
   async function register(name: string, email: string, password: string) {
-    const data = await apiFetch<AuthUser>("/auth/register/", {
+    const data = await apiFetch<AuthSession>("/auth/register/", {
       method: "POST",
       body: JSON.stringify({ name, email, password }),
     });
-    setUser(data);
+    bumpSessionEpoch();
+    setAccessToken(data.access);
+    setUser(data.user);
   }
 
   async function logout() {
+    // Descarta cualquier refresh en vuelo: no debe resucitar la sesión.
+    bumpSessionEpoch();
     try {
       await apiFetch<void>("/auth/logout/", { method: "POST" });
     } finally {
       // Pase lo que pase con la llamada (idempotente en backend), el
       // usuario deja de verse autenticado en esta pestaña.
+      bumpSessionEpoch();
+      setAccessToken(null);
       setUser(null);
     }
   }
