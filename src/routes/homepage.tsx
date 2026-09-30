@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, Plus } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
+import { AccountMenu } from "../components/account-menu";
 import { EventMenu } from "../components/event-menu";
 import { EventsView } from "../components/events-view";
 import { EventFormModal } from "../components/event-form-modal";
@@ -491,7 +492,7 @@ export function HomePage() {
             barra superior para cuando se agregue el switcher Hoy/Eventos. */}
         <ViewSwitcher value={currentView} onChange={handleSelectView} />
 
-        <div className="avatar" aria-label="Perfil de AL">AL</div>
+        <AccountMenu />
       </header>
 
       <div aria-live="polite" role="status" className="success-toast" data-visible={Boolean(successMessage)}>

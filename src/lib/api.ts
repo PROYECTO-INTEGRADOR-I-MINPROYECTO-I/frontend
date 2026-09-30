@@ -22,9 +22,12 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
   unauthorizedHandler = handler;
 }
 
-// Un 401 en estas rutas es "credenciales inválidas" (login) o similar, no una
-// sesión que expiró: no debe disparar el manejador global ni redirigir.
-const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/"];
+// Un 401 en estas rutas nunca es "sesión que expiró a mitad de uso": en login
+// y register es "credenciales inválidas"/"correo ya existe", y en /auth/me/
+// es simplemente "todavía no hay sesión" (el chequeo normal al montar para
+// un visitante anónimo). Ninguno de los tres debe disparar el manejador
+// global ni redirigir — PIM1-42 ya maneja /auth/me/ con su propio catch.
+const AUTH_ENDPOINTS = ["/auth/login/", "/auth/register/", "/auth/me/"];
 
 // Error estructurado para que las vistas puedan pintar mensajes por campo
 // sin tener que parsear el cuerpo de la respuesta cada una por su cuenta.

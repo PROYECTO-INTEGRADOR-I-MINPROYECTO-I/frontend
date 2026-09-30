@@ -130,6 +130,17 @@ describe("apiFetch", () => {
     expect(handler).not.toHaveBeenCalled();
     setUnauthorizedHandler(null);
   });
+
+  test("un 401 de /auth/me/ NO llama al manejador global (es el chequeo normal de sesión al montar, no una que expiró)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+
+    await expect(apiFetch("/auth/me/")).rejects.toBeInstanceOf(ApiError);
+
+    expect(handler).not.toHaveBeenCalled();
+    setUnauthorizedHandler(null);
+  });
 });
 
 describe("createSubtask", () => {

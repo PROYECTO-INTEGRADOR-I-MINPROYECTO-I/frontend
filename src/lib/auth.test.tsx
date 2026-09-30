@@ -85,6 +85,49 @@ describe("AuthProvider", () => {
     expect(await screen.findByText("Página de login")).toBeInTheDocument();
   });
 
+  test("register hace POST /auth/register/ y deja al usuario ya logueado", async () => {
+    const newUser = { user_id: 2, name: "Nueva Organizadora", email: "nueva@planificapp.com", max_daily_hours: "6.00" };
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const href = String(url);
+      if (href.includes("/auth/me/")) return Promise.resolve(new Response(null, { status: 401 }));
+      if (href.includes("/auth/register/")) return Promise.resolve(jsonResponse(newUser, 201));
+      return Promise.reject(new Error(`fetch no manejado: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    function RegisterProbe() {
+      const { user, register } = useAuth();
+      return (
+        <button
+          type="button"
+          onClick={() => register("Nueva Organizadora", "nueva@planificapp.com", "clave12345")}
+        >
+          {user ? `Sesión: ${user.email}` : "Anónimo"}
+        </button>
+      );
+    }
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <RegisterProbe />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    const button = await screen.findByText("Anónimo");
+    button.click();
+
+    expect(await screen.findByText("Sesión: nueva@planificapp.com")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/register/"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "Nueva Organizadora", email: "nueva@planificapp.com", password: "clave12345" }),
+      })
+    );
+  });
+
   test("logout hace POST /auth/logout/ y limpia el usuario", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       const href = String(url);
