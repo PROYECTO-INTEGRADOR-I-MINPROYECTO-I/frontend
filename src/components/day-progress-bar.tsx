@@ -16,8 +16,11 @@ interface DayProgressBarProps {
 
 export function DayProgressBar({ progress, metric, onMetricChange }: DayProgressBarProps) {
   // Nunca dividir por cero: sin gestiones agendadas hoy no hay nada que medir.
+  // El aviso de "sin tareas para hoy" ahora vive centrado y grande dentro de
+  // la propia columna "Para Hoy" (ver homepage.tsx), no acá: quedaba chico y
+  // en un lugar que no era ese grupo.
   if (progress.total === 0) {
-    return <p className="font-source text-[13px] text-[#99a1af]">No hay tareas asignadas para hoy.</p>;
+    return null;
   }
 
   const isHoras = metric === "horas";

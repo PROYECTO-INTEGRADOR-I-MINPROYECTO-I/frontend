@@ -15,10 +15,12 @@ function progress(overrides: Partial<DayProgress>): DayProgress {
 }
 
 describe("DayProgressBar", () => {
-  test("con total 0, muestra el mensaje en vez de la barra (nunca divide por cero)", () => {
-    render(<DayProgressBar progress={progress({ completadas: 0, total: 0 })} metric="gestiones" onMetricChange={vi.fn()} />);
+  test("con total 0, no pinta nada (nunca divide por cero; homepage.tsx muestra el aviso en la columna 'Para Hoy')", () => {
+    const { container } = render(
+      <DayProgressBar progress={progress({ completadas: 0, total: 0 })} metric="gestiones" onMetricChange={vi.fn()} />
+    );
 
-    expect(screen.getByText("No hay tareas asignadas para hoy.")).toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 

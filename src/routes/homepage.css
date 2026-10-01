@@ -49,7 +49,6 @@
 
 .brand-lockup,
 .intro-row,
-.filter-row,
 .column-title {
   display: flex;
   align-items: center;
@@ -120,7 +119,6 @@
 }
 
 .event-button span { margin-left: 5px; font-size: 16px; }
-.filter-row { gap: 8px; padding-top: 20px; flex-wrap: wrap; }
 .filter-label { padding-right: 4px; color: var(--muted); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
 .filter-button { padding: 6px 12px; border-color: #e5e7eb; border-radius: 999px; background: #fff; color: #6a7282; font-size: 12px; }
 .filter-button--active { border-color: var(--wine); background: var(--wine); color: #fff; }
