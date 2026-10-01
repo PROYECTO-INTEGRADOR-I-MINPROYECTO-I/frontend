@@ -4,6 +4,8 @@
 // (parseo de errores, ApiError, 204, etc.).
 
 import { getDb, saveDb } from "./store";
+import { DEMO_CREDENTIALS } from "../lib/demo-auth";
+import type { AuthUser } from "../lib/auth";
 import type { MockDb } from "./seed-data";
 import type { Category, Event, EventType, Subtask, SubtaskStatus } from "../lib/types";
 
@@ -19,6 +21,14 @@ const SUBTAREAS_RE = /^\/eventos\/(\d+)\/subtareas\/$/;
 const SUBTAREA_RE = /^\/subtareas\/(\d+)\/$/;
 const TIPOS_EVENTO_RE = /^\/tipos-evento\/$/;
 const CATEGORIAS_RE = /^\/categorias\/$/;
+
+const MOCK_ACCESS_TOKEN = "mock-access-token";
+const MOCK_USER: AuthUser = {
+  user_id: 1,
+  name: "Demo",
+  email: DEMO_CREDENTIALS.email,
+  max_daily_hours: "6.00",
+};
 
 // Respeta un AbortSignal durante la espera simulada, igual que haría un
 // fetch real: si se cancela, rechaza con el mismo DOMException que dispara
@@ -71,6 +81,8 @@ export async function handleMockRequest(
 }
 
 function route(db: MockDb, path: string, method: string, body: Record<string, unknown>): Response {
+  if (path.startsWith("/auth/")) return routeAuth(db, path, method, body);
+
   if (EVENTOS_RE.test(path)) {
     if (method === "GET") return jsonResponse(sortByCreatedAtDesc(db.events), 200);
     if (method === "POST") return createEvent(db, body);
@@ -105,6 +117,47 @@ function route(db: MockDb, path: string, method: string, body: Record<string, un
   if (CATEGORIAS_RE.test(path)) {
     if (method === "GET") return jsonResponse(db.categories, 200);
     if (method === "POST") return createCategory(db, body);
+  }
+
+  return notFoundError();
+}
+
+// Rutas de auth del modo mock. `db.loggedIn` hace las veces de la cookie de
+// refresh: login/register la activan, logout la borra, y refresh/me fallan
+// con 401 si no está.
+function routeAuth(db: MockDb, path: string, method: string, body: Record<string, unknown>): Response {
+  if (path === "/auth/login/" && method === "POST") {
+    const email = typeof body.email === "string" ? normalize(body.email) : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    if (email !== normalize(DEMO_CREDENTIALS.email) || password !== DEMO_CREDENTIALS.password) {
+      return errorResponse(401, "AuthenticationFailed", "Credenciales inválidas.");
+    }
+    db.loggedIn = true;
+    return jsonResponse({ user: MOCK_USER, access: MOCK_ACCESS_TOKEN }, 200);
+  }
+
+  if (path === "/auth/register/" && method === "POST") {
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim() : "";
+    if (!name) return validationError({ name: "Escribe tu nombre." });
+    if (!email) return validationError({ email: "Escribe tu correo." });
+    db.loggedIn = true;
+    return jsonResponse({ user: { ...MOCK_USER, name, email }, access: MOCK_ACCESS_TOKEN }, 201);
+  }
+
+  if (path === "/auth/refresh/" && method === "POST") {
+    if (!db.loggedIn) return errorResponse(401, "NotAuthenticated", "No hay sesión.");
+    return jsonResponse({ user: MOCK_USER, access: MOCK_ACCESS_TOKEN }, 200);
+  }
+
+  if (path === "/auth/logout/" && method === "POST") {
+    db.loggedIn = false;
+    return new Response(null, { status: 204 });
+  }
+
+  if (path === "/auth/me/" && method === "GET") {
+    if (!db.loggedIn) return errorResponse(401, "NotAuthenticated", "No hay sesión.");
+    return jsonResponse(MOCK_USER, 200);
   }
 
   return notFoundError();

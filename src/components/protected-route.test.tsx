@@ -35,18 +35,23 @@ function renderProtected() {
 }
 
 describe("ProtectedRoute", () => {
-  test("mientras se resuelve /auth/me/, muestra un placeholder y no el contenido ni el login", () => {
-    // Promesa que nunca resuelve: loading se queda en true todo el test.
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Promise(() => {})));
+  test("mientras se resuelve /auth/refresh/, muestra un placeholder y no el contenido ni el login", async () => {
+    // Promesa pendiente: loading se queda en true durante el test. Se resuelve
+    // al final para no dejar el refresh single-flight colgado en los demás tests.
+    let release: (response: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Promise<Response>((resolve) => (release = resolve))));
 
     renderProtected();
 
     expect(screen.getByText("Cargando…")).toBeInTheDocument();
     expect(screen.queryByText("Contenido privado")).not.toBeInTheDocument();
     expect(screen.queryByText("Página de login")).not.toBeInTheDocument();
+
+    release(new Response(null, { status: 401 }));
+    await screen.findByText("Página de login");
   });
 
-  test("sin sesión (401 en /auth/me/), redirige a /login sin mostrar el contenido", async () => {
+  test("sin sesión (401 en /auth/refresh/), redirige a /login sin mostrar el contenido", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
 
     renderProtected();
@@ -56,7 +61,7 @@ describe("ProtectedRoute", () => {
   });
 
   test("con sesión activa, muestra el contenido protegido", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(meUser)));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: meUser, access: "access-1" })));
 
     renderProtected();
 

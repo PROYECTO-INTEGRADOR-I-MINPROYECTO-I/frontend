@@ -19,13 +19,13 @@ function backendError(type: string, details: unknown, status: number): Response 
 function stubAuth(registerHandler?: (body: Record<string, unknown>) => Response) {
   const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
     const href = String(url);
-    if (href.includes("/auth/me/")) {
+    if (href.includes("/auth/refresh/")) {
       return Promise.resolve(new Response(null, { status: 401 }));
     }
     if (href.includes("/auth/register/")) {
       const body = JSON.parse(String(options?.body ?? "{}"));
       return Promise.resolve(
-        (registerHandler ?? (() => jsonResponse({ user_id: 1, name: body.name, email: body.email, max_daily_hours: "6.00" }, 201)))(
+        (registerHandler ?? (() => jsonResponse({ user: { user_id: 1, name: body.name, email: body.email, max_daily_hours: "6.00" }, access: "access-1" }, 201)))(
           body
         )
       );
