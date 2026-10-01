@@ -14,6 +14,7 @@
 import { useState } from "react";
 import { ArrowLeft, ChevronDown, Pencil, Trash2 } from "lucide-react";
 import { EventCover } from "./event-cover";
+import { GestionTable } from "./gestion-table";
 import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours, subtaskTimeStatus } from "../lib/subtask-display";
 import type { Event, Subtask } from "../lib/types";
@@ -209,52 +210,7 @@ function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupPr
                 ))}
               </select>
             </div>
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-[#f3f4f6] font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">
-                  <th className="py-2 pr-2 font-normal">Nombre</th>
-                  <th className="py-2 pr-2 font-normal">Tipo</th>
-                  <th className="py-2 pr-2 font-normal">Fecha</th>
-                  <th className="hidden py-2 pr-2 font-normal sm:table-cell">Descripción</th>
-                  <th className="py-2 font-normal">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleItems.map((subtask) => (
-                  <tr
-                    key={subtask.subtask_id}
-                    // Sin role="button": eso pisa el role="row" nativo del <tr> y
-                    // rompe la navegación por tabla de un lector de pantalla.
-                    // tabIndex + onKeyDown alcanzan para que sea operable por
-                    // teclado sin perder la semántica de fila.
-                    tabIndex={0}
-                    aria-label={subtask.title}
-                    onClick={() => onOpenSubtask(subtask)}
-                    onKeyDown={(keyEvent) => {
-                      if (keyEvent.key === "Enter" || keyEvent.key === " ") {
-                        keyEvent.preventDefault();
-                        onOpenSubtask(subtask);
-                      }
-                    }}
-                    className="cursor-pointer border-b border-[#f3f4f6] last:border-0 hover:bg-[#f7f5f2] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#8b1a1a]"
-                  >
-                    <td className="max-w-[160px] truncate py-2 pr-2 font-source text-[13px] text-[#1e2939]">
-                      {subtask.title}
-                    </td>
-                    <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">{subtask.category}</td>
-                    <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">
-                      {formatShortDateEs(subtask.scheduled_date)}
-                    </td>
-                    <td className="hidden max-w-[220px] truncate py-2 pr-2 font-source text-[13px] text-[#99a1af] sm:table-cell">
-                      {subtask.description || "—"}
-                    </td>
-                    <td className="py-2 font-source text-[13px] text-[#4a5565]">
-                      {subtask.status === "done" ? "Completada" : "Pendiente"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <GestionTable items={visibleItems} onOpenSubtask={onOpenSubtask} />
           </>
         )}
       </div>

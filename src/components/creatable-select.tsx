@@ -105,7 +105,7 @@ export function CreatableSelect({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={selectId} className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+      <label htmlFor={selectId} className="font-jost text-[12px] tracking-[1px] text-[#4a5565] uppercase">
         {label}
       </label>
 
