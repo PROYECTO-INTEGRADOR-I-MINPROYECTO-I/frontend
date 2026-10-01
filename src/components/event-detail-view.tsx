@@ -192,7 +192,7 @@ function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupPr
         ) : (
           <>
             <div className="mb-3 flex items-center gap-2">
-              <label htmlFor={filterId} className="font-jost text-[10px] tracking-[0.5px] text-[#99a1af] uppercase">
+              <label htmlFor={filterId} className="font-jost text-[12px] tracking-[0.5px] text-[#4a5565] uppercase">
                 Tipo
               </label>
               <select

@@ -104,17 +104,17 @@ export function SubtaskDetailModal({
 
         <div className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2">
           <div className="flex flex-col gap-1">
-            <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Fecha</span>
+            <span className="font-jost text-[12px] tracking-[1px] text-[#4a5565] uppercase">Fecha</span>
             <span className="font-source text-[14px] text-[#1e2939]">{formatShortDateEs(subtask.scheduled_date)}</span>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Horas estimadas</span>
+            <span className="font-jost text-[12px] tracking-[1px] text-[#4a5565] uppercase">Horas estimadas</span>
             <span className="font-source text-[14px] text-[#1e2939]">{hoursLabel}</span>
           </div>
         </div>
 
         <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
-          <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Descripción</span>
+          <span className="font-jost text-[12px] tracking-[1px] text-[#4a5565] uppercase">Descripción</span>
           <p className="font-source text-[14px] leading-[22.75px] text-[#1e2939]">
             {subtask.description || "Sin descripción."}
           </p>

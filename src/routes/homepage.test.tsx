@@ -729,6 +729,96 @@ describe("HomePage", () => {
     expect(screen.getByRole("button", { name: "Crear nuevo evento" })).toBeInTheDocument();
   });
 
+  test("PIM1-59: cambiar de evento rápido aborta con AbortController la carga anterior de /hoy/", async () => {
+    const user = userEvent.setup();
+    const event2: Event = { ...event, eid: 2, name: "Cumpleaños de Ana" };
+
+    const hoyCalls: { eventId: number | null; signal?: AbortSignal; resolve: (response: Response) => void }[] = [];
+
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      if (href.includes("/hoy/")) {
+        return new Promise<Response>((resolve, reject) => {
+          const signal = options?.signal as AbortSignal | undefined;
+          hoyCalls.push({ eventId: eventIdFromHoyUrl(href), signal, resolve });
+          signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+        });
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event, event2], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(hoyCalls).toHaveLength(1));
+    const firstCall = hoyCalls[0];
+    expect(firstCall.eventId).toBe(1);
+    expect(firstCall.signal?.aborted).toBe(false);
+
+    // Cambia de evento antes de que la primera carga de /hoy/ resuelva.
+    await user.click(await screen.findByRole("button", { name: "Boda Luisa & Carlos" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Cumpleaños de Ana" }));
+
+    await waitFor(() => expect(hoyCalls).toHaveLength(2));
+    expect(firstCall.signal?.aborted).toBe(true);
+    const secondCall = hoyCalls[1];
+    expect(secondCall.eventId).toBe(2);
+
+    // La primera (ya abortada) resuelve tarde con datos del evento 1: no debe pintarse.
+    firstCall.resolve(jsonResponse(buildTodaySummary(subtasks, 1), 200));
+    secondCall.resolve(jsonResponse(buildTodaySummary([], 2), 200));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Aún no has agregado/)).toBeInTheDocument()
+    );
+    expect(screen.queryByText("Hoy A")).not.toBeInTheDocument();
+    // El abort no debe pintarse como un error de carga.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("sin eventos, la pestaña Hoy también oculta selector/filtros y solo muestra 'Crear Evento'", async () => {
+    const emptyToday: TodaySummary = {
+      fecha: TODAY,
+      metrica: "gestiones",
+      vencidas: [],
+      para_hoy: { pendientes: [], completadas: [] },
+      proximas: [],
+      progreso_dia: { completadas: 0, total: 0, horas_completadas: "0", horas_totales: "0" },
+      filtros: { event_id: null, status: null },
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      if (String(url).includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(emptyToday, 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Aún no tienes eventos", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear Evento" })).toBeInTheDocument();
+    // Antes de la corrección, el botón decía "Crear gestión" y en realidad
+    // creaba un evento primero (justo la confusión que señaló el profesor).
+    expect(screen.queryByRole("button", { name: /Crear gestión/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Filtros de gestiones")).not.toBeInTheDocument();
+    expect(screen.queryByText("Viendo gestiones de:")).not.toBeInTheDocument();
+  });
+
   test("PIM1-11: el selector de vistas vive en el header y el label de fecha vieja ya no existe", async () => {
     stubHomepageFetch();
 
