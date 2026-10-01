@@ -871,6 +871,84 @@ describe("HomePage", () => {
     expect(screen.getByLabelText("Nombre")).toHaveValue("Vencida A");
   });
 
+  test("'Crear gestión' en la vista expandida de un evento abre el wizard para ESE evento, no el seleccionado en Hoy", async () => {
+    const event2: Event = { ...event, eid: 2, name: "Cumpleaños de Ana" };
+    const createdSubtask = {
+      subtask_id: 60,
+      eid: 2,
+      title: "Reservar salón",
+      description: "",
+      category: "Lugar",
+      estimated_hours: "2.00",
+      scheduled_date: "2026-10-01",
+      status: "pending",
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      if (href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (method === "POST" && href.includes("/eventos/2/subtareas/")) {
+        return Promise.resolve(jsonResponse(createdSubtask, 201));
+      }
+      if (href.includes("/eventos/1/subtareas/") || href.includes("/eventos/2/subtareas/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, eventIdFromHoyUrl(href)), 200));
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event, event2], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    // Hoy tiene seleccionado el evento 1; vamos a crear una gestión para el
+    // evento 2 desde su vista expandida en Eventos.
+    render(
+      <MemoryRouter initialEntries={["/?evento=1&vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Cumpleaños de Ana/ }));
+    await screen.findByRole("heading", { level: 1, name: "Cumpleaños de Ana" });
+
+    await user.click(screen.getByRole("button", { name: /Crear gestión/ }));
+
+    const wizardDialog = await screen.findByRole("dialog", { name: "Nueva gestión" });
+    // El chip del evento dueño confirma que es el 2, no el 1 seleccionado en Hoy.
+    expect(within(wizardDialog).getByText("Cumpleaños de Ana")).toBeInTheDocument();
+
+    await user.click(within(wizardDialog).getByRole("button", { name: "Comenzar" }));
+    const categorySelect = await screen.findByLabelText("Categoría");
+    await waitFor(() => expect(categorySelect).not.toBeDisabled());
+    await user.type(screen.getByLabelText("Nombre"), "Reservar salón");
+    await user.selectOptions(categorySelect, "Lugar");
+    await user.click(within(wizardDialog).getByRole("button", { name: "Siguiente" }));
+
+    fireEvent.change(await screen.findByLabelText("Fecha objetivo"), { target: { value: "2026-10-01" } });
+    await user.click(screen.getByRole("button", { name: "2 h" }));
+    await user.click(within(wizardDialog).getByRole("button", { name: "Siguiente" }));
+    await user.click(within(wizardDialog).getByRole("button", { name: "Crear gestión" }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, options]) => String(url).includes("/eventos/2/subtareas/") && options?.method === "POST"
+        )
+      ).toBe(true)
+    );
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, options]) => String(url).includes("/eventos/1/subtareas/") && options?.method === "POST"
+      )
+    ).toBe(false);
+  });
+
   test("sin eventos, la pestaña Eventos solo muestra el mensaje y el botón de crear", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (String(url).includes("/eventos/")) {
