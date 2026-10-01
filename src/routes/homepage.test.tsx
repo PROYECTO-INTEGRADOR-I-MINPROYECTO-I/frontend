@@ -930,10 +930,12 @@ describe("HomePage", () => {
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
 
-    // Hoy tiene seleccionado el evento 1; vamos a crear una gestión para el
-    // evento 2 desde su vista expandida en Eventos.
+    // Sin evento seleccionado en Hoy: con uno seleccionado, PR #26
+    // (initialExpandedEventId) aterriza directo en SU detalle al entrar a
+    // Eventos, sin mostrar el roulette — acá sí lo necesitamos, para poder
+    // elegir el evento 2 (no el que tendría seleccionado Hoy) a propósito.
     render(
-      <MemoryRouter initialEntries={["/?evento=1&vista=eventos"]}>
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
         <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
