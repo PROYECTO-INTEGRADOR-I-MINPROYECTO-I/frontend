@@ -49,6 +49,16 @@ interface EventsViewProps {
   onEventCoverUpdated: (event: Event) => void;
   /** Abre el wizard de creación de gestión (ver SubtaskWizard) para el evento expandido. */
   onCreateSubtask: (event: Event) => void;
+  /**
+   * Evento a mostrar ya expandido al montar (el `?evento=` seleccionado en
+   * Hoy): así, venir desde Hoy — por la pestaña o por el link "Revisa
+   * Eventos" del aviso de "sin gestiones en la ventana" — aterriza
+   * directo en el detalle de ese evento en vez del roulette. Solo se lee al
+   * montar (EventsView remonta en cada entrada a la pestaña, ver
+   * homepage.tsx): cambiarlo mientras la pestaña ya está abierta no debe
+   * forzar la expansión de otro evento.
+   */
+  initialExpandedEventId: number | null;
 }
 
 export function EventsView({
@@ -63,10 +73,11 @@ export function EventsView({
   refreshToken,
   onEventCoverUpdated,
   onCreateSubtask,
+  initialExpandedEventId,
 }: EventsViewProps) {
   const [progressByEvent, setProgressByEvent] = useState<Record<number, EventProgress>>({});
   const [eventTypeNames, setEventTypeNames] = useState<Record<number, string>>({});
-  const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
+  const [expandedEventId, setExpandedEventId] = useState<number | null>(initialExpandedEventId);
 
   useEffect(() => {
     let cancelled = false;

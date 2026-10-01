@@ -52,6 +52,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
     expect(screen.getByText("Cargando eventos…")).toBeInTheDocument();
@@ -73,6 +74,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -97,6 +99,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -121,6 +124,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -158,6 +162,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -192,6 +197,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -210,6 +216,7 @@ describe("EventsView", () => {
         refreshToken={1}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -238,6 +245,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -262,6 +270,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -298,6 +307,7 @@ describe("EventsView", () => {
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 

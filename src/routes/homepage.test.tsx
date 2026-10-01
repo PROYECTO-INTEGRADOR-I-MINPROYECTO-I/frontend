@@ -733,8 +733,11 @@ describe("HomePage", () => {
     stubHomepageFetch();
     const user = userEvent.setup();
 
+    // Sin evento seleccionado en Hoy: sin esto, EventsView aterriza directo
+    // en el detalle del evento seleccionado (ver el siguiente test) en vez
+    // del roulette de cards que este test quiere comprobar.
     render(
-      <MemoryRouter initialEntries={["/?evento=1"]}>
+      <MemoryRouter initialEntries={["/"]}>
         <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
@@ -746,6 +749,25 @@ describe("HomePage", () => {
     expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Próximos 7 días" })).not.toBeInTheDocument();
     expect(document.getElementById("hoy-panel")).toHaveAttribute("hidden");
+  });
+
+  test("la pestaña Eventos aterriza directo en el detalle del evento seleccionado en Hoy", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("tab", { name: "Eventos" }));
+
+    // Vista expandida directa, no el roulette de cards.
+    expect(await screen.findByRole("heading", { level: 1, name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Volver a Eventos" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear nuevo evento" })).not.toBeInTheDocument();
   });
 
   test("volver a 'Hoy' desde Eventos conserva el evento seleccionado", async () => {
@@ -766,7 +788,7 @@ describe("HomePage", () => {
     await screen.findByText("Vencida A");
 
     await user.click(screen.getByRole("tab", { name: "Eventos" }));
-    await screen.findByRole("button", { name: /Boda Luisa & Carlos/ });
+    await screen.findByRole("heading", { level: 1, name: "Boda Luisa & Carlos" });
     // Cambiar de vista no pisa ?evento= en la URL.
     expect(currentParams().get("evento")).toBe("1");
     expect(currentParams().get("vista")).toBe("eventos");
@@ -795,8 +817,10 @@ describe("HomePage", () => {
   test("?vista=eventos en la URL abre directamente la pestaña Eventos", async () => {
     stubHomepageFetch();
 
+    // Sin ?evento=: este test cubre el parámetro ?vista= en sí, no la
+    // interacción con un evento ya seleccionado (ver el test de arriba).
     render(
-      <MemoryRouter initialEntries={["/?evento=1&vista=eventos"]}>
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
         <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
@@ -1017,7 +1041,7 @@ describe("HomePage", () => {
     secondCall.resolve(jsonResponse(buildTodaySummary([], 2), 200));
 
     await waitFor(() =>
-      expect(screen.getByText(/Aún no has agregado/)).toBeInTheDocument()
+      expect(screen.getByText(/Este evento no tiene gestiones/)).toBeInTheDocument()
     );
     expect(screen.queryByText("Hoy A")).not.toBeInTheDocument();
     // El abort no debe pintarse como un error de carga.
