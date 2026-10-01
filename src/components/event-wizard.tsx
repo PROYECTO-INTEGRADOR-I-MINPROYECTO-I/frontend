@@ -22,13 +22,14 @@
 
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Check, ChevronLeft, PartyPopper, XCircle } from "lucide-react";
+import { Check, ChevronLeft, PartyPopper } from "lucide-react";
 import { apiFetch, ApiError } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
 import { GestionTable } from "./gestion-table";
 import { Modal } from "./modal";
 import { SubtaskFormModal } from "./subtask-form-modal";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
+import { WizardStageIndicator } from "./wizard-stage-indicator";
 import { sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { cn } from "../lib/utils";
 import type { CreateEventPayload, Event, EventType, Subtask } from "../lib/types";
@@ -249,7 +250,7 @@ export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: Event
       className="max-w-[560px]"
     >
       <div className="flex flex-col gap-6">
-        <StageIndicator
+        <WizardStageIndicator
           total={TOTAL_STAGES}
           current={stage}
           furthest={furthest}
@@ -510,62 +511,5 @@ export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: Event
         />
       )}
     </Modal>
-  );
-}
-
-interface StageIndicatorProps {
-  total: number;
-  current: number;
-  furthest: number;
-  disabled: boolean;
-  errorFor: (index: number) => string | undefined;
-  onNavigate: (index: number) => void;
-}
-
-// Círculos numerados del wizard (corrección del profesor: "Stages enumeradas
-// en círculos, a las cuales el usuario puede devolverse o avanzar"). Una X
-// roja sobre el círculo + tooltip (title nativo, suficiente para esta
-// primera versión) marca una stage con error de validación pendiente.
-function StageIndicator({ total, current, furthest, disabled, errorFor, onNavigate }: StageIndicatorProps) {
-  return (
-    <div role="tablist" aria-label="Pasos del formulario" className="flex items-center justify-center gap-2">
-      {Array.from({ length: total }, (_, index) => {
-        const reached = index <= furthest && !disabled;
-        const isCurrent = index === current;
-        const error = errorFor(index);
-        return (
-          <div key={index} className="relative">
-            {error && (
-              <span
-                aria-hidden="true"
-                title={error}
-                className="absolute -top-1.5 -right-1.5 z-10 grid h-4 w-4 place-items-center rounded-full bg-white"
-              >
-                <XCircle size={14} className="text-red-600" />
-              </span>
-            )}
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isCurrent}
-              aria-label={`Paso ${index + 1}`}
-              title={error}
-              disabled={!reached}
-              onClick={() => onNavigate(index)}
-              className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full border font-jost text-[13px] disabled:cursor-not-allowed",
-                isCurrent
-                  ? "border-[#8b1a1a] bg-[#8b1a1a] text-white"
-                  : reached
-                    ? "border-[#8b1a1a] text-[#8b1a1a]"
-                    : "border-[#e5e7eb] text-[#99a1af]"
-              )}
-            >
-              {index + 1}
-            </button>
-          </div>
-        );
-      })}
-    </div>
   );
 }

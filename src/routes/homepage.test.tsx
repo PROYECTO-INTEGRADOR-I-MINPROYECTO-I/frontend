@@ -686,15 +686,25 @@ describe("HomePage", () => {
 
     await user.click(screen.getByRole("button", { name: /Crear gestión/ }));
 
+    // PIM1-117: "Crear gestión" ahora abre el wizard (intro + stages), no el
+    // modal directo. El botón que lo disparó sigue en el fondo, así que las
+    // queries dentro del wizard se acotan a su diálogo ("Nueva gestión") para
+    // no chocar con botones del mismo nombre fuera de él.
+    const wizardDialog = await screen.findByRole("dialog", { name: "Nueva gestión" });
+    await user.click(within(wizardDialog).getByRole("button", { name: "Comenzar" }));
+
     const categorySelect = await screen.findByLabelText("Categoría");
     await waitFor(() => expect(categorySelect).not.toBeDisabled());
-
     await user.type(screen.getByLabelText("Nombre"), "Confirmar catering");
     await user.selectOptions(categorySelect, "Catering");
-    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-20" } });
-    await user.click(screen.getByRole("button", { name: "15 min" }));
+    await user.click(within(wizardDialog).getByRole("button", { name: "Siguiente" }));
 
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    fireEvent.change(await screen.findByLabelText("Fecha objetivo"), { target: { value: "2026-09-20" } });
+    await user.click(screen.getByRole("button", { name: "15 min" }));
+    await user.click(within(wizardDialog).getByRole("button", { name: "Siguiente" }));
+
+    // Última stage ("¿Algo más que agregar?"): acá se crea la gestión de verdad.
+    await user.click(within(wizardDialog).getByRole("button", { name: "Crear gestión" }));
 
     expect(
       await screen.findByText("Se ha creado exitosamente la gestión «Confirmar catering».")
