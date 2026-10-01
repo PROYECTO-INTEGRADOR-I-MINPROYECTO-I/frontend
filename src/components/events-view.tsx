@@ -47,6 +47,8 @@ interface EventsViewProps {
   refreshToken: number;
   /** Ver EventCover: el PATCH de portada devuelve el evento completo para que homepage.tsx actualice su lista. */
   onEventCoverUpdated: (event: Event) => void;
+  /** Abre el wizard de creación de gestión (ver SubtaskWizard) para el evento expandido. */
+  onCreateSubtask: (event: Event) => void;
   /**
    * Evento a mostrar ya expandido al montar (el `?evento=` seleccionado en
    * Hoy): así, venir desde Hoy — por la pestaña o por el link "Revisa
@@ -70,6 +72,7 @@ export function EventsView({
   onOpenSubtask,
   refreshToken,
   onEventCoverUpdated,
+  onCreateSubtask,
   initialExpandedEventId,
 }: EventsViewProps) {
   const [progressByEvent, setProgressByEvent] = useState<Record<number, EventProgress>>({});
@@ -178,6 +181,7 @@ export function EventsView({
         onDelete={() => onDeleteEvent(expandedEvent)}
         onOpenSubtask={onOpenSubtask}
         onEventCoverUpdated={onEventCoverUpdated}
+        onCreateSubtask={() => onCreateSubtask(expandedEvent)}
       />
     );
   }

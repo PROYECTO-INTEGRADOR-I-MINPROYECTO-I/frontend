@@ -12,7 +12,7 @@
 // vista Hoy (onOpenSubtask, ver homepage.tsx/events-view.tsx).
 
 import { useState } from "react";
-import { ArrowLeft, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { EventCover } from "./event-cover";
 import { GestionTable } from "./gestion-table";
 import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
@@ -30,6 +30,8 @@ interface EventDetailViewProps {
   onOpenSubtask: (subtask: Subtask) => void;
   /** Ver EventCover: el PATCH de portada devuelve el evento completo para que el padre actualice su lista. */
   onEventCoverUpdated: (event: Event) => void;
+  /** Abre el wizard de creación de gestión (ver SubtaskWizard) para este evento. */
+  onCreateSubtask: () => void;
 }
 
 export function EventDetailView({
@@ -42,6 +44,7 @@ export function EventDetailView({
   onDelete,
   onOpenSubtask,
   onEventCoverUpdated,
+  onCreateSubtask,
 }: EventDetailViewProps) {
   const dateLabel = formatShortDateEs(isoDateTimeToLocalDateString(event.due_date));
   const today = todayLocalDateString();
@@ -126,7 +129,17 @@ export function EventDetailView({
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col gap-3">
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={onCreateSubtask}
+            className="inline-flex h-[34px] items-center justify-center gap-1.5 rounded-full bg-[#8b1a1a] px-4 font-jost text-[14px] text-white"
+          >
+            Crear gestión <Plus aria-hidden="true" size={16} />
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3">
           {subtasksLoading ? (
             <p className="font-source text-[13px] text-[#99a1af]">Cargando gestiones…</p>
           ) : (

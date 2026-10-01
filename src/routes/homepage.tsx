@@ -10,6 +10,7 @@ import { EventsView } from "../components/events-view";
 import { EventFormModal } from "../components/event-form-modal";
 import { EventWizard } from "../components/event-wizard";
 import { SubtaskFormModal } from "../components/subtask-form-modal";
+import { SubtaskWizard } from "../components/subtask-wizard";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
 import { SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
@@ -76,10 +77,22 @@ export function HomePage() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [wizardKey, setWizardKey] = useState(0);
 
+  // isSubtaskFormOpen/editingSubtask: SubtaskFormModal en modo edición
+  // (PIM1-117 sacó la creación de acá, ver SubtaskWizard más abajo) —
+  // siempre se abre con editingSubtask ya puesto.
   const [isSubtaskFormOpen, setIsSubtaskFormOpen] = useState(false);
   const [subtaskFormKey, setSubtaskFormKey] = useState(0);
   const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
   const [detailSubtask, setDetailSubtask] = useState<Subtask | null>(null);
+
+  const [isSubtaskWizardOpen, setIsSubtaskWizardOpen] = useState(false);
+  const [subtaskWizardKey, setSubtaskWizardKey] = useState(0);
+  // Evento dueño de la gestión que se va a crear: por defecto el seleccionado
+  // en Hoy (donde vive la mayoría de los triggers de "Crear gestión"), pero
+  // "Crear gestión" desde la vista expandida de un evento en la pestaña
+  // Eventos lo pisa con ESE evento — puede ser distinto del seleccionado en
+  // Hoy (o no haber ninguno seleccionado ahí).
+  const [subtaskWizardEvent, setSubtaskWizardEvent] = useState<Event | null>(null);
 
   // PIM1-55: GET /api/hoy/ ya trae vencidas/para_hoy/proximas agrupadas y
   // ordenadas por evento (o agregadas entre todos si no hay `event_id`), más
@@ -143,14 +156,14 @@ export function HomePage() {
   const eventoParam = searchParams.get("evento");
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
-  // HU-13: el formulario de gestión (crear/editar) necesita el evento dueño.
-  // Al crear (editingSubtask null) sigue siendo selectedEvent (el filtro de
-  // la pestaña Hoy, que es desde donde se crea). Al editar, resolver por el
-  // `eid` de la propia gestión: si se abrió desde la tabla de un evento en
-  // la pestaña Eventos, selectedEvent puede ser otro evento (o ninguno).
+  // PIM1-117: SubtaskFormModal (isSubtaskFormOpen) ahora es solo edición (la
+  // creación pasó al SubtaskWizard, ver más abajo) — siempre se abre con
+  // editingSubtask ya puesto. Resuelve por el `eid` de la propia gestión, no
+  // por selectedEvent: si se abrió desde la tabla de un evento en la
+  // pestaña Eventos, selectedEvent puede ser otro evento (o ninguno).
   const subtaskFormEvent = editingSubtask
     ? (events.find((event) => event.eid === editingSubtask.eid) ?? null)
-    : selectedEvent;
+    : null;
 
   // ?vista=eventos|hoy, igual que ?evento=; "hoy" es el valor por defecto
   // (cualquier otro valor que no sea "eventos" cae en "hoy") — PIM1-11: esta
@@ -263,10 +276,19 @@ export function HomePage() {
     setIsFormOpen(true);
   }
 
-  function openSubtaskForm() {
-    setEditingSubtask(null);
-    setSubtaskFormKey((key) => key + 1);
-    setIsSubtaskFormOpen(true);
+  // PIM1-117: "Crear gestión" abre el wizard (ver SubtaskWizard), no
+  // SubtaskFormModal — ese modal sigue siendo el flujo de edición (abajo).
+  // Sin `event` (triggers de Hoy), el evento dueño es el seleccionado ahí;
+  // con `event` (trigger desde la vista expandida de Eventos), ese evento
+  // manda sin importar qué esté seleccionado en Hoy.
+  function openSubtaskForm(event?: Event) {
+    setSubtaskWizardEvent(event ?? selectedEvent);
+    setSubtaskWizardKey((key) => key + 1);
+    setIsSubtaskWizardOpen(true);
+  }
+
+  function closeSubtaskWizard() {
+    setIsSubtaskWizardOpen(false);
   }
 
   function openEditSubtaskForm(subtask: Subtask) {
@@ -457,6 +479,18 @@ export function HomePage() {
     setSubtasksVersion((version) => version + 1);
   }
 
+  // PIM1-117: igual que handleSubtaskCreated, pero sin tocar isSubtaskFormOpen
+  // (el wizard tiene su propio estado, ver isSubtaskWizardOpen) y cerrando el
+  // wizard de una vez: a diferencia del plan inicial de eventos, acá no hay
+  // una stage siguiente a la que pasar.
+  function handleSubtaskWizardCreated(subtask: Subtask, warnings?: string[]) {
+    setIsSubtaskWizardOpen(false);
+    const extra = warnings && warnings.length > 0 ? ` ${warnings.join(" ")}` : "";
+    showSuccess(`${creationMessage("subtask", subtask.title)}${extra}`);
+    loadToday(selectedEventId);
+    setSubtasksVersion((version) => version + 1);
+  }
+
   // /api/hoy/ ya viene agrupado (vencidas/para_hoy/proximas) y filtrado por
   // organizador (y por evento, si hay uno seleccionado) — el reparto por
   // fecha que antes se hacía a mano acá ya no hace falta. Sí se reaplica el
@@ -575,7 +609,7 @@ export function HomePage() {
                   ref={createTaskButtonRef}
                   type="button"
                   className="create-task-button create-task-button--compact"
-                  onClick={openSubtaskForm}
+                  onClick={() => openSubtaskForm()}
                 >
                   Crear gestión <Plus aria-hidden="true" size={16} />
                 </button>
@@ -665,9 +699,6 @@ export function HomePage() {
                         </button>
                         .
                       </p>
-                      <button className="create-task-button" type="button" onClick={openCreateForm}>
-                        Crear gestión <Plus aria-hidden="true" size={22} />
-                      </button>
                     </div>
                   </div>
                 ) : (
@@ -682,7 +713,7 @@ export function HomePage() {
                         </button>
                         .
                       </p>
-                      <button className="create-task-button" type="button" onClick={openSubtaskForm}>
+                      <button className="create-task-button" type="button" onClick={() => openSubtaskForm()}>
                         Crear gestión <Plus aria-hidden="true" size={22} />
                       </button>
                     </div>
@@ -788,6 +819,7 @@ export function HomePage() {
             onOpenSubtask={setDetailSubtask}
             refreshToken={subtasksVersion}
             onEventCoverUpdated={handleEventCoverUpdated}
+            onCreateSubtask={openSubtaskForm}
             initialExpandedEventId={selectedEventId}
           />
         )}
@@ -832,6 +864,17 @@ export function HomePage() {
           }}
           onCreated={handleSubtaskCreated}
           onUpdated={handleSubtaskUpdated}
+        />
+      )}
+
+      {isSubtaskWizardOpen && subtaskWizardEvent && (
+        <SubtaskWizard
+          key={subtaskWizardKey}
+          eventId={subtaskWizardEvent.eid}
+          eventName={subtaskWizardEvent.name}
+          eventDueDate={subtaskWizardEvent.due_date}
+          onClose={closeSubtaskWizard}
+          onCreated={handleSubtaskWizardCreated}
         />
       )}
 

@@ -51,6 +51,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -72,6 +73,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -96,6 +98,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -120,6 +123,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -157,6 +161,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -191,6 +196,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -209,6 +215,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={1}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -237,6 +244,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -261,6 +269,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
@@ -297,6 +306,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
       />
     );
