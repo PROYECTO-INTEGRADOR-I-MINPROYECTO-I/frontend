@@ -21,8 +21,6 @@ import { describeSaveError } from "../lib/subtask-errors";
 import type { Event, Subtask, SubtaskStatus, TodaySummary } from "../lib/types";
 import "./homepage.css";
 
-const filters = ["Todos", "Reuniones", "Entregas", "Llamadas", "Personal"];
-
 // Solo un entero positivo es un eid válido; cualquier otro valor de
 // ?evento= (vacío, texto, decimales) se trata como "sin selección".
 const EVENT_ID_PATTERN = /^\d+$/;
@@ -59,7 +57,6 @@ function subtaskDeleteDescription(subtask: Subtask): string {
 }
 
 export function HomePage() {
-  const [activeFilter, setActiveFilter] = useState("Todos");
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [events, setEvents] = useState<Event[]>([]);
@@ -604,21 +601,6 @@ export function HomePage() {
               onDeleteEvent={requestDeleteEvent}
             />
           </div>
-
-          <div className="filter-row" aria-label="Filtros de gestiones">
-            <span className="filter-label">Filtros</span>
-            {filters.map((filter) => (
-              <button
-                className={`filter-button${activeFilter === filter ? " filter-button--active" : ""}`}
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                type="button"
-                aria-pressed={activeFilter === filter}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
         </section>
 
         {todayStatus === "loading" && (
@@ -636,7 +618,7 @@ export function HomePage() {
           </div>
         )}
 
-        {todayStatus === "ready" && today && (
+        {todayStatus === "ready" && today && today.progreso_dia.total > 0 && (
           <div className="mx-8 mb-4">
             <DayProgressBar progress={today.progreso_dia} metric={metric} onMetricChange={setMetric} />
           </div>
@@ -698,6 +680,19 @@ export function HomePage() {
                     </div>
                   </div>
                 )
+              ) : sortedTodayPending.length === 0 && sortedDone.length === 0 ? (
+                // Hay gestiones (vencidas o próximas), pero ninguna agendada
+                // para hoy puntualmente: antes esto se indicaba con un texto
+                // chico en el lugar de la barra de progreso (DayProgressBar),
+                // separado de esta columna — confuso, porque la columna
+                // igual mostraba sus dos paneles (Pendientes/Completadas)
+                // vacíos por separado. Un solo mensaje grande y centrado acá
+                // reemplaza a los tres.
+                <div className="column-empty-wrap">
+                  <div className="empty-state">
+                    <p>No hay tareas asignadas para hoy.</p>
+                  </div>
+                </div>
               ) : (
                 <div className="today-panels">
                   <TodayPanel

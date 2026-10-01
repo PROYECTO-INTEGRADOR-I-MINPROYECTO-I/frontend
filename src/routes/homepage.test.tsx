@@ -216,6 +216,43 @@ describe("HomePage", () => {
     expect(fetchMock.mock.calls.length).toBe(callsBeforeToggle);
   });
 
+  test("sin gestiones para hoy puntualmente (pero sí vencidas/próximas), muestra un único aviso grande en la columna 'Para Hoy'", async () => {
+    const noTodaySubtasks: Subtask[] = [
+      subtask({ subtask_id: 1, title: "Vencida A", scheduled_date: "2026-09-18", estimated_hours: "1" }),
+      subtask({ subtask_id: 7, title: "Próxima A", scheduled_date: "2026-09-25", estimated_hours: "1" }),
+    ];
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const href = String(url);
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary(noTodaySubtasks, eventIdFromHoyUrl(href)), 200));
+      }
+      if (href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(jsonResponse(noTodaySubtasks, 200));
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    // Sin barra de progreso (progreso_dia.total === 0: nada agendado para hoy).
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mostrar progreso en:")).not.toBeInTheDocument();
+
+    // Un único aviso grande, no los dos paneles vacíos por separado.
+    expect(screen.getByText("No hay tareas asignadas para hoy.")).toBeInTheDocument();
+    expect(screen.queryByText("Sin pendientes para hoy.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sin gestiones completadas.")).not.toBeInTheDocument();
+  });
+
   test("marcar una gestión pendiente la mueve a Completadas y envía el PATCH {status: 'done'}", async () => {
     const fetchMock = stubHomepageFetchWithPatch((subtaskId, body) =>
       Promise.resolve(jsonResponse({ ...subtasks.find((item) => item.subtask_id === subtaskId), ...body }, 200))
