@@ -131,11 +131,11 @@ export function HomePage() {
   const todayRef = useRef<TodaySummary | null>(today);
   todayRef.current = today;
 
-  // Se incrementa en cada carga (cambio de evento o "Reintentar"). Si la
-  // respuesta llega y ya no coincide con el contador actual, es una carga
-  // vieja (por ejemplo A->B con la respuesta de A llegando tarde) y se
-  // descarta en vez de pisar los datos del evento que sigue seleccionado.
-  const todayRequestIdRef = useRef(0);
+  // PIM1-59: controller de la carga de /api/hoy/ en vuelo. Al cambiar de
+  // evento rápido (A->B antes de que A responda), se aborta A en vez de
+  // solo ignorar su respuesta tardía: evita pintar datos viejos Y evita que
+  // una petición ya descartada siga ocupando ancho de banda/backend.
+  const todayAbortRef = useRef<AbortController | null>(null);
 
   const eventoParam = searchParams.get("evento");
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
@@ -183,17 +183,23 @@ export function HomePage() {
   // eventos del organizador (antes "Todos los eventos" en Hoy no traía datos
   // reales — este es justo el fetch que faltaba).
   async function loadToday(eventId: number | null) {
-    const requestId = (todayRequestIdRef.current += 1);
+    todayAbortRef.current?.abort();
+    const controller = new AbortController();
+    todayAbortRef.current = controller;
+
     setTodayStatus("loading");
     setTodayError("");
     try {
       const query = eventId != null ? `?event_id=${eventId}` : "";
-      const data = await apiFetch<TodaySummary>(`/hoy/${query}`);
-      if (todayRequestIdRef.current !== requestId) return; // respuesta de una carga anterior: se descarta
+      const data = await apiFetch<TodaySummary>(`/hoy/${query}`, { signal: controller.signal });
+      if (todayAbortRef.current !== controller) return; // ya se abortó por una carga más nueva
       setToday(data);
       setTodayStatus("ready");
     } catch (err) {
-      if (todayRequestIdRef.current !== requestId) return;
+      if (todayAbortRef.current !== controller) return;
+      // Un abort propio no es un error real: no hay nada que mostrar, la
+      // carga que lo reemplazó ya está resolviendo su propio estado.
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setTodayError(err instanceof ApiError ? err.message : "No pudimos cargar las gestiones de hoy.");
       setTodayStatus("error");
     }
@@ -442,6 +448,18 @@ export function HomePage() {
   const sortedUpcoming = today ? sortSubtasksByDateThenHours(today.proximas) : [];
   const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedUpcoming.length;
 
+  // Corrección del profesor (clínica de Sprint 1): sin eventos, ocultar todo
+  // (selector, filtros, barra de progreso, columnas) y dejar solo un botón de
+  // "Crear Evento" — ya aplicado en EventsView, faltaba acá. Antes, con cero
+  // eventos, esta vista mostraba un botón "Crear gestión" que en realidad
+  // creaba un evento primero: eso fue justo lo que confundió al profesor.
+  // currentView === "hoy": el panel de Hoy se mantiene montado (con `hidden`)
+  // incluso cuando la pestaña activa es "Eventos", así que sin este chequeo
+  // este estado vacío "fantasma" duplicaría el texto/botón del estado vacío
+  // propio de EventsView (mismo problema, visible solo para queries por
+  // texto que no respetan `hidden`, pero evitable de raíz).
+  const hasNoEvents = eventsStatus === "ready" && events.length === 0 && currentView === "hoy";
+
   return (
     <main className="planner-shell">
       <header className="planner-header">
@@ -488,7 +506,30 @@ export function HomePage() {
         id="hoy-panel"
         aria-labelledby="hoy-tab"
         hidden={currentView !== "hoy"}
+        className={hasNoEvents ? "flex flex-1 flex-col" : undefined}
       >
+        {hasNoEvents ? (
+          // .column-empty-wrap centraba con `flex: 1` contra un ancestro flex
+          // (.column-body, dentro de .task-columns) que acá no existe: sin él
+          // quedaba pegado arriba, justo debajo del header. Mismo patrón que
+          // el estado vacío de EventsView (className de arriba + este div):
+          // flex-1 + min-h como piso para que el grid de place-items:center
+          // tenga contra qué centrar, usando el alto real disponible de la
+          // página (planner-shell es flex-column), no un tamaño fijo.
+          <div className="grid flex-1 min-h-[420px] place-items-center px-8">
+            <div className="empty-state">
+              <p>
+                Aún no tienes eventos
+                <br />
+                ¡Crea uno nuevo!
+              </p>
+              <button className="create-task-button" type="button" onClick={openCreateForm}>
+                Crear Evento <Plus aria-hidden="true" size={22} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
         <section className="planner-intro" aria-labelledby="hoy-heading">
           <div className="intro-row">
             {/* PIM1-12: este heading reemplaza al antiguo "Plan inicial <icono>"
@@ -672,6 +713,8 @@ export function HomePage() {
               )}
             </TaskColumn>
           </section>
+        )}
+          </>
         )}
       </div>
 
