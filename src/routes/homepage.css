@@ -159,6 +159,11 @@
 .column-empty-wrap { display: grid; place-items: center; flex: 1; min-height: 420px; }
 .empty-state { display: grid; justify-items: center; gap: 20px; transform: translateY(-5px); }
 .empty-state p { margin: 0; color: var(--muted); font-size: 30px; line-height: 1.16; text-align: center; }
+/* Variante para el aviso de "sin gestiones en la ventana de Hoy" (PIM1-59):
+   es una frase más larga, con un link adentro, no un titular corto — el
+   tamaño de .empty-state p de base (30px) la haría casi ilegible. */
+.empty-state p.empty-state-hint { max-width: 420px; font-size: 16px; line-height: 1.5; }
+.empty-state-link { padding: 0; border: none; background: none; color: var(--wine); font: inherit; text-decoration: underline; cursor: pointer; }
 .create-task-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 208px; height: 46px; border-radius: 999px; background: var(--wine); color: #fff; font-size: 22px; }
 .create-task-button--compact { width: auto; height: 34px; padding: 0 16px; font-size: 14px; gap: 6px; }
 

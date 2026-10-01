@@ -656,10 +656,14 @@ export function HomePage() {
                 selectedEventId == null ? (
                   <div className="column-empty-wrap">
                     <div className="empty-state">
-                      <p>
-                        Aún no tienes gestiones
+                      <p className="empty-state-hint">
+                        Sin gestiones vencidas, para hoy ni en los próximos 7 días.
                         <br />
-                        ¡Crea una nueva!
+                        ¿Buscas algo más lejano?{" "}
+                        <button type="button" className="empty-state-link" onClick={() => handleSelectView("eventos")}>
+                          Revisa Eventos
+                        </button>
+                        .
                       </p>
                       <button className="create-task-button" type="button" onClick={openCreateForm}>
                         Crear gestión <Plus aria-hidden="true" size={22} />
@@ -669,10 +673,14 @@ export function HomePage() {
                 ) : (
                   <div className="column-empty-wrap">
                     <div className="empty-state">
-                      <p>
-                        Aún no has agregado
+                      <p className="empty-state-hint">
+                        Este evento no tiene gestiones vencidas, para hoy ni en los próximos 7 días.
                         <br />
-                        gestiones a este evento
+                        ¿Buscas algo más lejano?{" "}
+                        <button type="button" className="empty-state-link" onClick={() => handleSelectView("eventos")}>
+                          Revisa Eventos
+                        </button>
+                        .
                       </p>
                       <button className="create-task-button" type="button" onClick={openSubtaskForm}>
                         Crear gestión <Plus aria-hidden="true" size={22} />
@@ -780,6 +788,7 @@ export function HomePage() {
             onOpenSubtask={setDetailSubtask}
             refreshToken={subtasksVersion}
             onEventCoverUpdated={handleEventCoverUpdated}
+            initialExpandedEventId={selectedEventId}
           />
         )}
       </div>

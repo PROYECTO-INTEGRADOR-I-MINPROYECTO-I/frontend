@@ -51,6 +51,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
     expect(screen.getByText("Cargando eventos…")).toBeInTheDocument();
@@ -71,6 +72,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -94,6 +96,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -117,6 +120,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -153,6 +157,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -186,6 +191,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -203,6 +209,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={1}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -230,6 +237,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -253,6 +261,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
@@ -288,6 +297,7 @@ describe("EventsView", () => {
         onOpenSubtask={vi.fn()}
         refreshToken={0}
         onEventCoverUpdated={vi.fn()}
+        initialExpandedEventId={null}
       />
     );
 
