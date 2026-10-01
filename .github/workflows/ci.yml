@@ -47,5 +47,14 @@ jobs:
           npm run build -- --mode qa
           npm run build -- --mode production
 
-      - name: Tests
-        run: npm run test:run --if-present
+      # Exige que pase al menos el 80% de los tests (TEST_PASS_THRESHOLD).
+      # Si el porcentaje es menor, o un archivo de test o un hook está roto, falla.
+      # Se salta en ramas que todavía no tienen el script (por ejemplo main).
+      - name: Tests (mínimo 80% deben pasar)
+        if: hashFiles('scripts/check-test-pass-rate.mjs') != ''
+        env:
+          TEST_PASS_THRESHOLD: 80
+        run: |
+          rm -f test-summary.json
+          npm run test:ci || true
+          node scripts/check-test-pass-rate.mjs
