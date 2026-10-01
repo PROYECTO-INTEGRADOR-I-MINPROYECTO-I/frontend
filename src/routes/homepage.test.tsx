@@ -180,7 +180,7 @@ describe("HomePage", () => {
     await screen.findByText("Vencida A");
 
     expect(columnCardTitles("Vencidas")).toEqual(["Vencida C", "Vencida B", "Vencida A"]);
-    expect(columnCardTitles("Próximas")).toEqual(["Próxima B", "Próxima A"]);
+    expect(columnCardTitles("Próximos 7 días")).toEqual(["Próxima B", "Próxima A"]);
 
     // "Para Hoy" separa pendientes de completadas: cada lista se ordena por horas.
     expect(screen.getByText("Pendientes")).toBeInTheDocument();
@@ -349,7 +349,7 @@ describe("HomePage", () => {
     expect(completedTitles()).not.toContain("Vencida A");
 
     await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
-    await waitFor(() => expect(columnCardTitles("Próximas")).not.toContain("Próxima A"));
+    await waitFor(() => expect(columnCardTitles("Próximos 7 días")).not.toContain("Próxima A"));
     expect(completedTitles()).not.toContain("Próxima A");
   });
 
@@ -473,19 +473,135 @@ describe("HomePage", () => {
     await user.click(screen.getByRole("button", { name: "Todos los eventos" }));
     await user.click(screen.getByRole("menuitem", { name: "Nuevo" }));
 
+    // PIM1-117: "Nuevo" ahora abre el wizard (intro + stages), no el modal directo.
+    await user.click(await screen.findByRole("button", { name: "Comenzar" }));
+
     const typeSelect = await screen.findByLabelText("Tipo");
     await waitFor(() => expect(typeSelect).not.toBeDisabled());
-
     await user.type(screen.getByLabelText("Nombre"), "Cumpleaños de Ana");
     await user.selectOptions(typeSelect, "Boda");
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-11-01" } });
-    fireEvent.change(screen.getByLabelText("Hora"), { target: { value: "18:00" } });
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
 
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    fireEvent.change(await screen.findByLabelText("Fecha"), { target: { value: "2026-11-01" } });
+    fireEvent.change(screen.getByLabelText("Hora"), { target: { value: "18:00" } });
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    // Última stage ("¿Para quién?"): acá se crea el evento de verdad.
+    await user.click(await screen.findByRole("button", { name: "Crear evento" }));
 
     expect(
       await screen.findByText("Se ha creado exitosamente el evento «Cumpleaños de Ana».")
     ).toBeInTheDocument();
+    // Tras crear, el wizard pasa a la stage de plan inicial de gestiones.
+    expect(await screen.findByText("Plan inicial de gestiones")).toBeInTheDocument();
+  });
+
+  test("crear un evento y una gestión en el wizard actualiza la vista de Hoy de inmediato", async () => {
+    const user = userEvent.setup();
+    const createdEvent: Event = {
+      eid: 2,
+      user: 1,
+      name: "Cumpleaños de Ana",
+      description: "",
+      due_date: "2026-09-23T18:00:00.000Z",
+      status: "pending",
+      progress_percentage: 0,
+      created_at: "2026-09-20T00:00:00.000Z",
+    };
+    // Fecha dentro de la ventana de "próximas" (dias_proximos, 7 por
+    // defecto en el backend real — ver planning/views.py): a diferencia de
+    // buildTodaySummary (el mock de este test, sin ese recorte), el backend
+    // real NO muestra en /api/hoy/ una gestión agendada más allá de esa
+    // ventana, aunque sí exista (se ve en la vista expandida de Eventos, que
+    // no tiene ese límite). Por eso la fecha de prueba aquí importa: debe
+    // quedar dentro de la ventana para que este test siga siendo
+    // representativo del comportamiento real.
+    const createdSubtask: Subtask = {
+      subtask_id: 50,
+      eid: 2,
+      title: "Reservar salón",
+      description: "",
+      category: "Lugar",
+      estimated_hours: "2",
+      scheduled_date: "2026-09-23",
+      status: "pending",
+    };
+    // Mock CON ESTADO: /hoy/ solo devuelve una gestión si ya se "creó" de
+    // verdad (POST ya resuelto) — a diferencia de un mock estático, esto
+    // prueba que loadToday se vuelve a llamar DESPUÉS de crear la gestión,
+    // no que el primer loadToday (al seleccionar el evento, antes de crear
+    // nada) ya la traía de pura casualidad.
+    let subtasksOfEvent2: Subtask[] = [];
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      if (href.includes("/tipos-evento/") || href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (method === "POST" && href.includes("/eventos/") && !href.includes("subtareas")) {
+        return Promise.resolve(jsonResponse(createdEvent, 201));
+      }
+      if (method === "POST" && href.includes("/eventos/2/subtareas/")) {
+        subtasksOfEvent2 = [...subtasksOfEvent2, createdSubtask];
+        return Promise.resolve(jsonResponse(createdSubtask, 201));
+      }
+      if (href.includes("/eventos/1/subtareas/") || href.includes("/eventos/2/subtareas/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      if (href.includes("/hoy/")) {
+        const eid = eventIdFromHoyUrl(href);
+        const items = eid === 2 ? subtasksOfEvent2 : [];
+        return Promise.resolve(jsonResponse(buildTodaySummary(items, eid), 200));
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Todos los eventos" }));
+    await user.click(screen.getByRole("menuitem", { name: "Nuevo" }));
+    await user.click(await screen.findByRole("button", { name: "Comenzar" }));
+
+    const typeSelect = await screen.findByLabelText("Tipo");
+    await waitFor(() => expect(typeSelect).not.toBeDisabled());
+    await user.type(screen.getByLabelText("Nombre"), "Cumpleaños de Ana");
+    await user.selectOptions(typeSelect, "Boda");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    fireEvent.change(await screen.findByLabelText("Fecha"), { target: { value: "2026-09-23" } });
+    fireEvent.change(screen.getByLabelText("Hora"), { target: { value: "18:00" } });
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(await screen.findByRole("button", { name: "Crear evento" }));
+    await screen.findByText("Plan inicial de gestiones");
+
+    const wizardDialog = screen.getByRole("dialog", { name: "Cumpleaños de Ana" });
+    await user.click(within(wizardDialog).getByRole("button", { name: "Agregar gestión" }));
+    await user.type(await screen.findByLabelText("Nombre"), "Reservar salón");
+    const categorySelect = screen.getByLabelText("Categoría");
+    await waitFor(() => expect(categorySelect).not.toBeDisabled());
+    await user.selectOptions(categorySelect, "Lugar");
+    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-23" } });
+    await user.click(screen.getByRole("button", { name: "2 h" }));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    // De vuelta en la stage de plan inicial del wizard (el modal de la gestión ya cerró).
+    expect(await within(wizardDialog).findByRole("cell", { name: "Reservar salón" })).toBeInTheDocument();
+
+    await user.click(within(wizardDialog).getByRole("button", { name: "Finalizar" }));
+
+    // El wizard ya cerró: el selector de Hoy debería mostrar el evento recién
+    // creado (no "Todos los eventos"), y la gestión agregada en el plan
+    // inicial debería verse en la columna correspondiente.
+    expect(await screen.findByRole("button", { name: "Cumpleaños de Ana" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Reservar salón")).toBeInTheDocument();
   });
 
   test("crear una gestión muestra el aviso con el título de la gestión creada", async () => {
@@ -561,7 +677,7 @@ describe("HomePage", () => {
 
     expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Próximos 7 días" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Vencidas" })).toBeInTheDocument();
   });
@@ -581,7 +697,7 @@ describe("HomePage", () => {
 
     // La card del evento (botón con su nombre) reemplaza al placeholder viejo.
     expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximos 7 días" })).not.toBeInTheDocument();
     expect(document.getElementById("hoy-panel")).toHaveAttribute("hidden");
   });
 
@@ -640,7 +756,7 @@ describe("HomePage", () => {
 
     expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximos 7 días" })).not.toBeInTheDocument();
   });
 
   test("clickear una card en Eventos muestra la vista expandida del evento", async () => {
@@ -763,7 +879,7 @@ describe("HomePage", () => {
       .closest(".column-title")
       ?.querySelector(".clock-icon");
     const proximasIcon = screen
-      .getByRole("heading", { name: "Próximas" })
+      .getByRole("heading", { name: "Próximos 7 días" })
       .closest(".column-title")
       ?.querySelector(".clock-icon");
 

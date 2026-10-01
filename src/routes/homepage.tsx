@@ -8,6 +8,7 @@ import { DayProgressBar } from "../components/day-progress-bar";
 import { EventMenu } from "../components/event-menu";
 import { EventsView } from "../components/events-view";
 import { EventFormModal } from "../components/event-form-modal";
+import { EventWizard } from "../components/event-wizard";
 import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
 import { SubtaskCard } from "../components/subtask-card";
@@ -65,13 +66,18 @@ export function HomePage() {
   const [eventsStatus, setEventsStatus] = useState<"loading" | "ready" | "error">("loading");
   const [eventsError, setEventsError] = useState("");
 
+  // isFormOpen/editingEvent: EventFormModal en modo edición (PIM1-117 lo
+  // sacó de la creación, ver EventWizard más abajo) — siempre se abre con
+  // editingEvent ya puesto, nunca en modo "create".
   const [isFormOpen, setIsFormOpen] = useState(false);
   // Sube en cada apertura para forzar un montaje limpio de EventFormModal /
   // SubtaskFormModal (defaultValues frescos y fetch de tipos/categorías sin
   // depender de un reset() en efecto).
   const [formKey, setFormKey] = useState(0);
-  // Evento en edición; null significa que el formulario está en modo creación.
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [wizardKey, setWizardKey] = useState(0);
 
   const [isSubtaskFormOpen, setIsSubtaskFormOpen] = useState(false);
   const [subtaskFormKey, setSubtaskFormKey] = useState(0);
@@ -237,10 +243,15 @@ export function HomePage() {
     );
   }
 
+  // PIM1-117: "Crear Evento" abre el wizard (ver EventWizard), no
+  // EventFormModal — ese modal sigue siendo el flujo de edición (abajo).
   function openCreateForm() {
-    setEditingEvent(null);
-    setFormKey((key) => key + 1);
-    setIsFormOpen(true);
+    setWizardKey((key) => key + 1);
+    setIsWizardOpen(true);
+  }
+
+  function closeWizard() {
+    setIsWizardOpen(false);
   }
 
   function openEditEventForm(event: Event) {
@@ -267,6 +278,25 @@ export function HomePage() {
     setEvents((prev) => [event, ...prev.filter((item) => item.eid !== event.eid)]);
     handleSelectEvent(event);
     showSuccess(creationMessage("event", event.name));
+  }
+
+  // PIM1-117: igual que handleEventCreated, pero sin tocar isFormOpen (el
+  // wizard tiene su propio estado, ver isWizardOpen) — se llama apenas el
+  // wizard crea el evento de verdad (stage "¿Para quién?"), no al cerrarlo,
+  // así que el evento ya aparece seleccionado mientras el usuario sigue
+  // agregando gestiones en la stage de plan inicial.
+  function handleWizardEventCreated(event: Event) {
+    setEvents((prev) => [event, ...prev.filter((item) => item.eid !== event.eid)]);
+    handleSelectEvent(event);
+    showSuccess(creationMessage("event", event.name));
+  }
+
+  // Gestiones agregadas desde la stage de plan inicial del wizard: mismo
+  // refresco que handleSubtaskCreated, sin el toast (una por gestión sería
+  // ruidoso mientras se arma el plan inicial de varias seguidas).
+  function handleWizardSubtaskCreated() {
+    loadToday(selectedEventId);
+    setSubtasksVersion((version) => version + 1);
   }
 
   function handleEventUpdated(event: Event) {
@@ -439,6 +469,11 @@ export function HomePage() {
   // cualquier fecha — backend tiene en desarrollo un parámetro para
   // recuperar el comportamiento original.
   const sortedDone = today ? sortCompletedSubtasksByDateDesc(today.para_hoy.completadas) : [];
+  // `proximas` solo cubre hasta hoy + dias_proximos (7 por defecto, ver
+  // planning/views.py): una gestión agendada más adelante no aparece acá
+  // aunque sí exista (se ve completa, sin ese recorte, en la vista expandida
+  // de Eventos). La columna dice "Próximos 7 días" para que esto sea visible
+  // en la UI en vez de parecer que la gestión "se perdió".
   const sortedUpcoming = today ? sortSubtasksByDateThenHours(today.proximas) : [];
   const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedUpcoming.length;
 
@@ -568,7 +603,7 @@ export function HomePage() {
 
         {todayStatus === "ready" && (
           <section className="task-columns" aria-label="Gestiones del día">
-            <TaskColumn title="Próximas" countClass="count--blue" count={String(sortedUpcoming.length)} showClock>
+            <TaskColumn title="Próximos 7 días" countClass="count--blue" count={String(sortedUpcoming.length)} showClock>
               {sortedUpcoming.length > 0 && (
                 <div className="column-list">
                   {sortedUpcoming.map((subtask) => (
@@ -584,7 +619,7 @@ export function HomePage() {
                 </div>
               )}
               {totalCount > 0 && sortedUpcoming.length === 0 && (
-                <p className="column-empty-hint">Sin gestiones próximas.</p>
+                <p className="column-empty-hint">Sin gestiones en los próximos 7 días.</p>
               )}
             </TaskColumn>
 
@@ -725,6 +760,15 @@ export function HomePage() {
           }}
           onCreated={handleEventCreated}
           onUpdated={handleEventUpdated}
+        />
+      )}
+
+      {isWizardOpen && (
+        <EventWizard
+          key={wizardKey}
+          onClose={closeWizard}
+          onEventCreated={handleWizardEventCreated}
+          onSubtaskCreated={handleWizardSubtaskCreated}
         />
       )}
 
