@@ -54,6 +54,15 @@ afterEach(() => {
 });
 
 describe("RegisterPage", () => {
+  // El profesor señaló que la marca debería verse "en todo momento": antes
+  // de este cambio, login/register no mostraban ningún rastro de ella.
+  test("muestra la marca de la app (logo + nombre) encima del formulario", () => {
+    stubAuth();
+    renderRegisterPage();
+
+    expect(screen.getByText("PlanificApp")).toBeInTheDocument();
+  });
+
   test("renderiza el encabezado, los campos y el botón de envío", () => {
     stubAuth();
     renderRegisterPage();

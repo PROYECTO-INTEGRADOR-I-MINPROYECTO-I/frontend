@@ -195,6 +195,59 @@ describe("HomePage", () => {
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
   });
 
+  test("cada grupo de Hoy tiene un trigger '¿Cómo se ordena?' con su regla de orden real en el tooltip", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    // 3 grupos (Próximos/Para Hoy/Vencidas), cada uno con su propio trigger.
+    const triggers = screen.getAllByRole("button", { name: "¿Cómo se ordena?" });
+    expect(triggers).toHaveLength(3);
+
+    const tooltipFor = (title: string) => triggers.find((t) => t.getAttribute("title") === title);
+    // Vencidas: fecha más antigua primero (la más vencida), desempate por duración.
+    expect(
+      tooltipFor(
+        "En el grupo de gestiones vencidas se muestran primero las gestiones con fecha más antigua. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
+      )
+    ).toBeDefined();
+    // Próximas: fecha más cercana primero, desempate por duración.
+    expect(
+      tooltipFor(
+        "En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
+      )
+    ).toBeDefined();
+    // Para Hoy: todas comparten fecha, así que el único criterio real es la duración.
+    expect(
+      tooltipFor("En el grupo de gestiones para hoy todas comparten la misma fecha, así que se muestran primero las de mayor duración.")
+    ).toBeDefined();
+  });
+
+  test("'Crear gestión' aparece debajo del selector de evento, no arriba a la derecha", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    const button = screen.getByRole("button", { name: /Crear gestión/ });
+    const selectorTrigger = screen.getByRole("button", { name: /Boda Luisa & Carlos/, expanded: false });
+    const selectorRow = selectorTrigger.closest(".event-selector-row");
+    expect(selectorRow).not.toBeNull();
+    // El botón debe ser el siguiente hermano de la fila del selector (debajo de ella en el DOM/visualmente),
+    // no vivir dentro de .intro-row (arriba, junto al heading).
+    expect(button.closest(".intro-row")).toBeNull();
+    expect(selectorRow?.nextElementSibling).toContainElement(button);
+  });
+
   test("la barra de progreso del día usa progreso_dia de /api/hoy/, y el toggle cambia a horas sin volver a pedir datos", async () => {
     const fetchMock = stubHomepageFetch();
     const user = userEvent.setup();

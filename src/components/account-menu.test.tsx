@@ -49,6 +49,19 @@ describe("AccountMenu", () => {
     expect(screen.getByRole("menuitem", { name: /cerrar sesión/i })).toBeInTheDocument();
   });
 
+  test("el menú muestra el nombre del usuario, no solo las iniciales del avatar", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: meUser, access: "access-1" })));
+    const user = userEvent.setup();
+    renderMenu();
+
+    const trigger = await screen.findByRole("button", { name: "Cuenta de Ana López" });
+    expect(screen.queryByText("Ana López")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+
+    expect(screen.getByText("Ana López")).toBeInTheDocument();
+  });
+
   test("'Cerrar sesión' hace POST /auth/logout/ y redirige a /login", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       const href = String(url);
