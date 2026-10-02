@@ -670,7 +670,7 @@ export function HomePage() {
               countClass="count--blue"
               count={String(sortedUpcoming.length)}
               showClock
-              orderHint="Orden: primero fecha, desempate por duración"
+              orderHint="En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
             >
               {sortedUpcoming.length > 0 && (
                 <div className="column-list">
@@ -696,7 +696,7 @@ export function HomePage() {
               countClass="count--red"
               count={String(sortedTodayPending.length + sortedDone.length)}
               headingRef={todayColumnHeadingRef}
-              orderHint="Orden: duración"
+              orderHint="En el grupo de gestiones para hoy todas comparten la misma fecha, así que se muestran primero las de mayor duración."
             >
               {totalCount === 0 ? (
                 selectedEventId == null ? (
@@ -778,7 +778,7 @@ export function HomePage() {
               countClass="count--red"
               count={String(sortedOverdue.length)}
               showClock
-              orderHint="Orden: primero fecha, desempate por duración"
+              orderHint="En el grupo de gestiones vencidas se muestran primero las gestiones con fecha más antigua. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
             >
               {sortedOverdue.length > 0 && (
                 <div className="column-list">
@@ -954,9 +954,13 @@ function TaskColumn({
   showClock?: boolean;
   /** Destino de foco estable (ej. tras borrar una gestión); necesita tabIndex=-1 porque un h2 no es focuseable por defecto. */
   headingRef?: React.RefObject<HTMLHeadingElement | null>;
-  /** Criterio de aceptación del sprint: describir visiblemente la regla de
-   * orden de cada grupo (fecha primero, desempate por duración) — ver
-   * sortSubtasksByDateThenHours/sortCompletedSubtasksByDateDesc. */
+  /** Criterio de aceptación del sprint: describir la regla de orden real de
+   * cada grupo (fecha primero, desempate por duración) — ver
+   * sortSubtasksByDateThenHours/sortCompletedSubtasksByDateDesc. Se revisó
+   * con el equipo como texto siempre visible y se prefirió un trigger con
+   * tooltip (mismo patrón nativo `title` que ya usa WizardStageIndicator
+   * para los errores de validación) para no sumarle ruido permanente a la
+   * columna. */
   orderHint?: string;
   children?: React.ReactNode;
 }) {
@@ -971,7 +975,13 @@ function TaskColumn({
         </div>
         <span className={`task-count ${countClass}`}>{count}</span>
       </div>
-      {orderHint && <p className="column-order-hint">{orderHint}</p>}
+      {orderHint && (
+        <p className="column-order-hint">
+          <button type="button" className="column-order-hint-trigger" title={orderHint}>
+            ¿Cómo se ordena?
+          </button>
+        </p>
+      )}
       <div className="column-body">{children}</div>
     </article>
   );

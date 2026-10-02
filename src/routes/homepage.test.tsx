@@ -195,7 +195,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
   });
 
-  test("cada grupo de Hoy describe visiblemente su regla de orden (criterio de aceptación del sprint)", async () => {
+  test("cada grupo de Hoy tiene un trigger '¿Cómo se ordena?' con su regla de orden real en el tooltip", async () => {
     stubHomepageFetch();
 
     render(
@@ -205,10 +205,27 @@ describe("HomePage", () => {
     );
     await screen.findByText("Vencida A");
 
-    // Vencidas y Próximos 7 días comparten la misma regla (fecha, desempate por duración).
-    expect(screen.getAllByText("Orden: primero fecha, desempate por duración")).toHaveLength(2);
-    // Para Hoy: todas las gestiones comparten fecha, así que el único criterio real es la duración.
-    expect(screen.getByText("Orden: duración")).toBeInTheDocument();
+    // 3 grupos (Próximos/Para Hoy/Vencidas), cada uno con su propio trigger.
+    const triggers = screen.getAllByRole("button", { name: "¿Cómo se ordena?" });
+    expect(triggers).toHaveLength(3);
+
+    const tooltipFor = (title: string) => triggers.find((t) => t.getAttribute("title") === title);
+    // Vencidas: fecha más antigua primero (la más vencida), desempate por duración.
+    expect(
+      tooltipFor(
+        "En el grupo de gestiones vencidas se muestran primero las gestiones con fecha más antigua. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
+      )
+    ).toBeDefined();
+    // Próximas: fecha más cercana primero, desempate por duración.
+    expect(
+      tooltipFor(
+        "En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
+      )
+    ).toBeDefined();
+    // Para Hoy: todas comparten fecha, así que el único criterio real es la duración.
+    expect(
+      tooltipFor("En el grupo de gestiones para hoy todas comparten la misma fecha, así que se muestran primero las de mayor duración.")
+    ).toBeDefined();
   });
 
   test("'Crear gestión' aparece debajo del selector de evento, no arriba a la derecha", async () => {

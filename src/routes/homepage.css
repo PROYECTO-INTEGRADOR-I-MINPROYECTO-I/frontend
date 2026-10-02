@@ -146,9 +146,22 @@
 .task-count { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
 .count--blue { background: #eff6ff; color: #1447e6; }
 .count--red { background: #fff0f0; color: var(--wine); }
-/* Criterio de aceptación: describir visiblemente la regla de orden de cada
-   grupo (ver TaskColumn/orderHint en homepage.tsx). */
-.column-order-hint { margin: -4px 0 12px; color: var(--muted); font-size: 11px; }
+/* Criterio de aceptación: describir la regla de orden real de cada grupo
+   (ver TaskColumn/orderHint en homepage.tsx). Trigger resaltado + tooltip
+   nativo (title) en vez de texto siempre visible, a pedido del equipo. */
+.column-order-hint { margin: -4px 0 12px; }
+.column-order-hint-trigger {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--wine);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
 .column-body { min-height: 460px; display: flex; flex-direction: column; }
 
 .clock-icon { position: relative; display: inline-block; width: 13px; height: 13px; border: 2px solid #9ca3af; border-radius: 50%; }
