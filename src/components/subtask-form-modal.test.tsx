@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SubtaskFormModal } from "./subtask-form-modal";
 import type { Subtask } from "../lib/types";
 
@@ -31,7 +31,20 @@ async function waitForCategoriesLoaded() {
   return select;
 }
 
+// Varios tests usan fechas fijas ("2026-10-01" como "hoy o futuro",
+// "2026-09-01" como claramente vencida) para probar el aviso de PIM1-110 y
+// el payload enviado. Sin congelar el reloj, esas fechas se volvían
+// ambiguas (y, con el tiempo, directamente falsas) a medida que la fecha
+// real del sistema las alcanzaba y las dejaba atrás. `toFake: ["Date"]` solo
+// congela `new Date()`/`Date.now()` — los timers reales de setTimeout siguen
+// funcionando, así que no afecta las esperas internas de userEvent.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 8, 28, 10, 0));
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -257,5 +270,63 @@ describe("SubtaskFormModal", () => {
     const titleInput = await screen.findByLabelText("Nombre");
     await waitFor(() => expect(titleInput).toHaveAttribute("aria-invalid", "true"));
     expect(screen.getByText("Escribe el nombre de la gestión.")).toBeInTheDocument();
+  });
+
+  test("crear con fecha vencida muestra el popup no ignorable y no guarda hasta confirmar", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const href = String(url);
+      if (href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              subtask_id: 12,
+              eid: 1,
+              title: "Llamar al proveedor",
+              description: "",
+              category: "Catering",
+              estimated_hours: "1",
+              scheduled_date: "2026-09-01",
+              status: "pending",
+            },
+            201
+          )
+        );
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubtaskFormModal eventId={1} eventName="Boda Luisa & Carlos" onClose={vi.fn()} onCreated={onCreated} />);
+    const categorySelect = await waitForCategoriesLoaded();
+
+    await user.type(screen.getByLabelText("Nombre"), "Llamar al proveedor");
+    await user.selectOptions(categorySelect, "Catering");
+    // Fecha en el pasado respecto al "hoy" congelado en beforeEach (2026-09-28).
+    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-01" } });
+    await user.click(screen.getByRole("button", { name: "1 h" }));
+
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(await screen.findByText("Esta gestión ya está vencida")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/eventos/1/subtareas/"))).toBe(false);
+
+    // "Cambiar fecha" cierra el popup sin guardar.
+    await user.click(screen.getByRole("button", { name: "Cambiar fecha" }));
+    await waitFor(() => expect(screen.queryByText("Esta gestión ya está vencida")).not.toBeInTheDocument());
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/eventos/1/subtareas/"))).toBe(false);
+    expect(onCreated).not.toHaveBeenCalled();
+
+    // Reintentar y esta vez confirmar "Crear de todos modos" sí guarda.
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await screen.findByText("Esta gestión ya está vencida");
+    await user.click(screen.getByRole("button", { name: "Crear de todos modos" }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/eventos/1/subtareas/"))).toBe(true);
   });
 });

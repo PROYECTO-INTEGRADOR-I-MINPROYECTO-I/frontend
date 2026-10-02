@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { HomePage } from "./homepage";
-import type { Event, Subtask } from "../lib/types";
+import { AuthProvider } from "../lib/auth";
+import type { Event, Subtask, TodaySummary } from "../lib/types";
+
+const TODAY = "2026-09-20";
 
 const event: Event = {
   eid: 1,
@@ -44,18 +47,60 @@ const subtasks: Subtask[] = [
   subtask({ subtask_id: 8, title: "Próxima B", scheduled_date: "2026-09-22", estimated_hours: "10" }),
 ];
 
+function jsonResponse(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+// Deriva la respuesta de GET /api/hoy/ a partir de una lista plana de
+// gestiones, con el mismo criterio de agrupación que planning/services.py:
+// vencidas = pending antes de hoy, para_hoy separa pending/done de HOY,
+// proximas = pending después de hoy. Una completada de otra fecha (vencida o
+// próxima) no aparece en ningún grupo — la misma limitación conocida de
+// PIM1-55 (ver el comentario en homepage.tsx).
+function buildTodaySummary(items: Subtask[], eventId: number | null = null): TodaySummary {
+  const withEventName = items.map((item) => ({ ...item, event_name: event.name }));
+  const vencidas = withEventName.filter((item) => item.status === "pending" && item.scheduled_date < TODAY);
+  const pendientes = withEventName.filter((item) => item.status === "pending" && item.scheduled_date === TODAY);
+  const completadas = withEventName.filter((item) => item.status === "done" && item.scheduled_date === TODAY);
+  const proximas = withEventName.filter((item) => item.status === "pending" && item.scheduled_date > TODAY);
+  const horasCompletadas = completadas.reduce((sum, item) => sum + Number(item.estimated_hours), 0);
+  const horasTotales = horasCompletadas + pendientes.reduce((sum, item) => sum + Number(item.estimated_hours), 0);
+
+  return {
+    fecha: TODAY,
+    metrica: "gestiones",
+    vencidas,
+    para_hoy: { pendientes, completadas },
+    proximas,
+    progreso_dia: {
+      completadas: completadas.length,
+      total: pendientes.length + completadas.length,
+      horas_completadas: horasCompletadas.toFixed(2),
+      horas_totales: horasTotales.toFixed(2),
+    },
+    filtros: { event_id: eventId, status: null },
+  };
+}
+
+function eventIdFromHoyUrl(href: string): number | null {
+  const match = href.match(/event_id=(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+// EventsView (pestaña Eventos) sigue usando /eventos/<eid>/subtareas/ para su
+// propio resumen por card — no lo toca PIM1-55, así que el stub atiende
+// ambos endpoints: ese de siempre, y el nuevo /hoy/ para la pestaña Hoy.
 function stubHomepageFetch() {
   const fetchMock = vi.fn().mockImplementation((url: string) => {
     const href = String(url);
+    if (href.includes("/hoy/")) {
+      return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, eventIdFromHoyUrl(href)), 200));
+    }
     if (href.includes("/eventos/1/subtareas/")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(subtasks), { status: 200, headers: { "Content-Type": "application/json" } })
-      );
+      return Promise.resolve(jsonResponse(subtasks, 200));
     }
     if (href.includes("/eventos/")) {
-      return Promise.resolve(
-        new Response(JSON.stringify([event]), { status: 200, headers: { "Content-Type": "application/json" } })
-      );
+      return Promise.resolve(jsonResponse([event], 200));
     }
     return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
   });
@@ -65,35 +110,41 @@ function stubHomepageFetch() {
 
 // Igual que stubHomepageFetch, pero además atiende el PATCH /subtareas/<id>/
 // (marcar/desmarcar completada) con la respuesta que decida `patchHandler`.
+// Tras un PATCH exitoso, homepage.tsx vuelve a pedir /api/hoy/ (ya no hace un
+// parche optimista in-place): este stub recuerda esa respuesta para que el
+// refetch la refleje, igual que haría el backend real.
 function stubHomepageFetchWithPatch(
   patchHandler: (subtaskId: number, body: Record<string, unknown>) => Promise<Response>
 ) {
+  let currentSubtasks = subtasks;
   const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
     const href = String(url);
     const method = options?.method ?? "GET";
     const patchMatch = method === "PATCH" && href.match(/\/subtareas\/(\d+)\/$/);
     if (patchMatch) {
+      const subtaskId = Number(patchMatch[1]);
       const body = JSON.parse(String(options?.body ?? "{}"));
-      return patchHandler(Number(patchMatch[1]), body);
+      return patchHandler(subtaskId, body).then(async (response) => {
+        if (response.ok) {
+          const updated = await response.clone().json();
+          currentSubtasks = currentSubtasks.map((item) => (item.subtask_id === subtaskId ? updated : item));
+        }
+        return response;
+      });
+    }
+    if (href.includes("/hoy/")) {
+      return Promise.resolve(jsonResponse(buildTodaySummary(currentSubtasks, eventIdFromHoyUrl(href)), 200));
     }
     if (href.includes("/eventos/1/subtareas/")) {
-      return Promise.resolve(
-        new Response(JSON.stringify(subtasks), { status: 200, headers: { "Content-Type": "application/json" } })
-      );
+      return Promise.resolve(jsonResponse(currentSubtasks, 200));
     }
     if (href.includes("/eventos/")) {
-      return Promise.resolve(
-        new Response(JSON.stringify([event]), { status: 200, headers: { "Content-Type": "application/json" } })
-      );
+      return Promise.resolve(jsonResponse([event], 200));
     }
     return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
-}
-
-function jsonResponse(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 
 function columnCardTitles(headingName: string): string[] {
@@ -122,14 +173,14 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
     await screen.findByText("Vencida A");
 
     expect(columnCardTitles("Vencidas")).toEqual(["Vencida C", "Vencida B", "Vencida A"]);
-    expect(columnCardTitles("Próximas")).toEqual(["Próxima B", "Próxima A"]);
+    expect(columnCardTitles("Próximos 7 días")).toEqual(["Próxima B", "Próxima A"]);
 
     // "Para Hoy" separa pendientes de completadas: cada lista se ordena por horas.
     expect(screen.getByText("Pendientes")).toBeInTheDocument();
@@ -137,10 +188,122 @@ describe("HomePage", () => {
     expect(pendingSection).not.toBeNull();
     const pendingTitles = within(pendingSection as HTMLElement)
       .getAllByRole("button")
-      .map((button) => button.getAttribute("aria-label"));
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label): label is string => label !== null);
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
+  });
+
+  test("cada grupo de Hoy tiene un trigger '¿Cómo se ordena?' con su regla de orden real en el tooltip", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    // 3 grupos (Próximos/Para Hoy/Vencidas), cada uno con su propio trigger.
+    const triggers = screen.getAllByRole("button", { name: "¿Cómo se ordena?" });
+    expect(triggers).toHaveLength(3);
+
+    const tooltipFor = (title: string) => triggers.find((t) => t.getAttribute("title") === title);
+    // Vencidas: fecha más antigua primero (la más vencida), desempate por duración.
+    expect(
+      tooltipFor(
+        "En el grupo de gestiones vencidas se muestran primero las gestiones con fecha más antigua. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
+      )
+    ).toBeDefined();
+    // Próximas: fecha más cercana primero, desempate por duración.
+    expect(
+      tooltipFor(
+        "En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
+      )
+    ).toBeDefined();
+    // Para Hoy: todas comparten fecha, así que el único criterio real es la duración.
+    expect(
+      tooltipFor("En el grupo de gestiones para hoy todas comparten la misma fecha, así que se muestran primero las de mayor duración.")
+    ).toBeDefined();
+  });
+
+  test("'Crear gestión' aparece debajo del selector de evento, no arriba a la derecha", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    const button = screen.getByRole("button", { name: /Crear gestión/ });
+    const selectorTrigger = screen.getByRole("button", { name: /Boda Luisa & Carlos/, expanded: false });
+    const selectorRow = selectorTrigger.closest(".event-selector-row");
+    expect(selectorRow).not.toBeNull();
+    // El botón debe ser el siguiente hermano de la fila del selector (debajo de ella en el DOM/visualmente),
+    // no vivir dentro de .intro-row (arriba, junto al heading).
+    expect(button.closest(".intro-row")).toBeNull();
+    expect(selectorRow?.nextElementSibling).toContainElement(button);
+  });
+
+  test("la barra de progreso del día usa progreso_dia de /api/hoy/, y el toggle cambia a horas sin volver a pedir datos", async () => {
+    const fetchMock = stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    // Hoy (2026-09-20): Hoy A (2h, pendiente) + Hoy B (4h, pendiente) + Hoy Hecha (1h, completada).
+    expect(screen.getByText("1/3 gestiones para hoy completadas")).toBeInTheDocument();
+
+    const callsBeforeToggle = fetchMock.mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "Horas" }));
+
+    expect(screen.getByText("1 h/7 h horas para hoy completadas")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.length).toBe(callsBeforeToggle);
+  });
+
+  test("sin gestiones para hoy puntualmente (pero sí vencidas/próximas), muestra un único aviso grande en la columna 'Para Hoy'", async () => {
+    const noTodaySubtasks: Subtask[] = [
+      subtask({ subtask_id: 1, title: "Vencida A", scheduled_date: "2026-09-18", estimated_hours: "1" }),
+      subtask({ subtask_id: 7, title: "Próxima A", scheduled_date: "2026-09-25", estimated_hours: "1" }),
+    ];
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const href = String(url);
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary(noTodaySubtasks, eventIdFromHoyUrl(href)), 200));
+      }
+      if (href.includes("/eventos/1/subtareas/")) {
+        return Promise.resolve(jsonResponse(noTodaySubtasks, 200));
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    // Sin barra de progreso (progreso_dia.total === 0: nada agendado para hoy).
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mostrar progreso en:")).not.toBeInTheDocument();
+
+    // Un único aviso grande, no los dos paneles vacíos por separado.
+    expect(screen.getByText("No hay tareas asignadas para hoy.")).toBeInTheDocument();
+    expect(screen.queryByText("Sin pendientes para hoy.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sin gestiones completadas.")).not.toBeInTheDocument();
   });
 
   test("marcar una gestión pendiente la mueve a Completadas y envía el PATCH {status: 'done'}", async () => {
@@ -151,7 +314,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy A");
@@ -171,6 +334,7 @@ describe("HomePage", () => {
         within(completedSection)
           .getAllByRole("button")
           .map((button) => button.getAttribute("aria-label"))
+          .filter((label): label is string => label !== null)
       ).toContain("Hoy A")
     );
   });
@@ -183,7 +347,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy Hecha");
@@ -198,7 +362,7 @@ describe("HomePage", () => {
     );
   });
 
-  test("si el PATCH falla, revierte el cambio y 'Reintentar' vuelve a intentar con éxito", async () => {
+  test("si el PATCH falla, muestra el error y 'Reintentar' vuelve a intentar con éxito", async () => {
     let callCount = 0;
     stubHomepageFetchWithPatch((subtaskId, body) => {
       callCount += 1;
@@ -211,7 +375,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy B");
@@ -221,12 +385,14 @@ describe("HomePage", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Sin conexión. No se guardó el cambio.");
 
-    // Se revirtió: "Hoy B" sigue en Pendientes, no en Completadas.
+    // Sin flip optimista (PIM1-55): al fallar el PATCH nunca se movió de
+    // Pendientes en primer lugar, así que no hay nada que revertir.
     const pendingSection = screen.getByText("Pendientes").closest(".today-panel") as HTMLElement;
     expect(
       within(pendingSection)
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label"))
+        .filter((label): label is string => label !== null)
     ).toContain("Hoy B");
 
     await user.click(within(alert).getByRole("button", { name: "Reintentar" }));
@@ -238,11 +404,18 @@ describe("HomePage", () => {
         within(completedSection)
           .getAllByRole("button")
           .map((button) => button.getAttribute("aria-label"))
+          .filter((label): label is string => label !== null)
       ).toContain("Hoy B")
     );
   });
 
-  test("Completadas muestra gestiones de cualquier fecha, y desmarcar las devuelve a Vencidas/Próximas", async () => {
+  // PIM1-55, limitación conocida (ver el comentario en homepage.tsx):
+  // /api/hoy/ solo trae en "para_hoy.completadas" lo completado HOY; una
+  // vencida o próxima marcada como completada no aparece en ningún grupo de
+  // la respuesta, así que desaparece de Hoy en vez de pasar a Completadas
+  // como pasaba antes. Backend tiene en desarrollo un parámetro para
+  // recuperar el comportamiento original.
+  test("marcar como completada una vencida o próxima la saca de Hoy (no aparece en Completadas)", async () => {
     stubHomepageFetchWithPatch((subtaskId, body) =>
       Promise.resolve(jsonResponse({ ...subtasks.find((item) => item.subtask_id === subtaskId), ...body }, 200))
     );
@@ -250,41 +423,24 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Vencida A");
-    const todayCount = () =>
-      (screen.getByRole("heading", { name: "Para Hoy" }).closest("article") as HTMLElement).querySelector(
-        ".task-count"
-      )?.textContent;
-    const todayCountBefore = todayCount();
-
-    // Completar una vencida (id 1) y una próxima (id 7): ambas deben
-    // aparecer en Completadas, sin importar que su fecha no sea hoy.
-    await user.click(screen.getByRole("checkbox", { name: "Marcar Vencida A como completada" }));
-    await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
 
     const completedTitles = () =>
       within(screen.getByText("Completadas").closest(".today-panel") as HTMLElement)
         .getAllByRole("button")
-        .map((button) => button.getAttribute("aria-label"));
+        .map((button) => button.getAttribute("aria-label"))
+        .filter((label): label is string => label !== null);
 
-    await waitFor(() => expect(completedTitles()).toEqual(expect.arrayContaining(["Vencida A", "Próxima A"])));
-
-    // Y ya no siguen en su columna original.
-    expect(columnCardTitles("Vencidas")).not.toContain("Vencida A");
-    expect(columnCardTitles("Próximas")).not.toContain("Próxima A");
-    // El contador de "Para Hoy" no cuenta completadas de otras fechas.
-    expect(todayCount()).toBe(todayCountBefore);
-
-    // Desmarcarlas las devuelve a su columna según la fecha.
     await user.click(screen.getByRole("checkbox", { name: "Marcar Vencida A como completada" }));
-    await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
+    await waitFor(() => expect(columnCardTitles("Vencidas")).not.toContain("Vencida A"));
+    expect(completedTitles()).not.toContain("Vencida A");
 
-    await waitFor(() => expect(columnCardTitles("Vencidas")).toContain("Vencida A"));
-    await waitFor(() => expect(columnCardTitles("Próximas")).toContain("Próxima A"));
-    expect(completedTitles()).not.toEqual(expect.arrayContaining(["Vencida A", "Próxima A"]));
+    await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
+    await waitFor(() => expect(columnCardTitles("Próximos 7 días")).not.toContain("Próxima A"));
+    expect(completedTitles()).not.toContain("Próxima A");
   });
 
   test("togglear una gestión no bloquea otra, y un segundo clic sobre una gestión pendiente no reenvía el PATCH", async () => {
@@ -299,6 +455,9 @@ describe("HomePage", () => {
           resolvers[subtaskId] = resolve;
         });
       }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, eventIdFromHoyUrl(href)), 200));
+      }
       if (href.includes("/eventos/1/subtareas/")) {
         return Promise.resolve(jsonResponse(subtasks, 200));
       }
@@ -312,7 +471,7 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Hoy A");
@@ -350,69 +509,10 @@ describe("HomePage", () => {
     expect(patchCallsFor(4)).toHaveLength(1);
   });
 
-  test("si el PATCH de completar falla, la reversión no pisa cambios hechos mientras tanto (ej. la descripción)", async () => {
-    let rejectToggle: (() => void) | null = null;
-    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
-      const href = String(url);
-      const method = options?.method ?? "GET";
-      const patchMatch = method === "PATCH" && href.match(/\/subtareas\/(\d+)\/$/);
-      if (patchMatch) {
-        const subtaskId = Number(patchMatch[1]);
-        const body = JSON.parse(String(options?.body ?? "{}"));
-        if ("status" in body) {
-          // El PATCH de completar se queda pendiente hasta que el test lo resuelva/rechace.
-          return new Promise<Response>((_resolve, reject) => {
-            rejectToggle = () => reject(new TypeError("Failed to fetch"));
-          });
-        }
-        // Cualquier otra edición (ej. la descripción) se guarda de inmediato,
-        // simulando que el servidor ya procesó el "completar" (status: "done")
-        // antes de que la respuesta de esa petición se perdiera para el cliente.
-        const base = subtasks.find((item) => item.subtask_id === subtaskId);
-        return Promise.resolve(jsonResponse({ ...base, status: "done", ...body }, 200));
-      }
-      if (href.includes("/eventos/1/subtareas/")) {
-        return Promise.resolve(jsonResponse(subtasks, 200));
-      }
-      if (href.includes("/eventos/")) {
-        return Promise.resolve(jsonResponse([event], 200));
-      }
-      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
-      </MemoryRouter>
-    );
-    await screen.findByText("Hoy B");
-
-    await user.click(screen.getByRole("checkbox", { name: "Marcar Hoy B como completada" }));
-
-    // Mientras el PATCH de completar sigue pendiente, se edita la descripción.
-    await user.click(screen.getByRole("button", { name: "Hoy B" }));
-    await user.click(screen.getByRole("button", { name: "Editar" }));
-    const descriptionField = await screen.findByLabelText("Descripción");
-    await user.clear(descriptionField);
-    await user.type(descriptionField, "Descripción editada mientras se completaba");
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Editar gestión" })).not.toBeInTheDocument());
-
-    // Ahora falla el PATCH de completar: la reversión debe tocar solo el status.
-    expect(rejectToggle).not.toBeNull();
-    rejectToggle!();
-
-    await screen.findByRole("alert");
-
-    // Se reabre el detalle para comprobar que la descripción editada sigue ahí
-    // y que el estado volvió a pendiente (no se perdió el cambio concurrente).
-    await user.click(screen.getByRole("button", { name: "Hoy B" }));
-    expect(await screen.findByText("Descripción editada mientras se completaba")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Marcar como completada" })).toBeInTheDocument();
-  });
+  // (Antes había un test acá sobre que la reversión de un PATCH de completar
+  // fallido no debía pisar una edición concurrente de otro campo. Ya no
+  // aplica: PIM1-55 quitó el flip optimista, así que no hay ningún campo que
+  // revertir ni forma de que esa clase de bug ocurra.)
 
   test("crear un evento muestra el aviso con el nombre del evento creado", async () => {
     const user = userEvent.setup();
@@ -437,6 +537,9 @@ describe("HomePage", () => {
           new Response(JSON.stringify(createdEvent), { status: 201, headers: { "Content-Type": "application/json" } })
         );
       }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary([], eventIdFromHoyUrl(href)), 200));
+      }
       if (href.includes("/eventos/2/subtareas/")) {
         return Promise.resolve(
           new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -453,26 +556,142 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
-    await user.click(screen.getByRole("button", { name: "Nuevo Evento" }));
+    await user.click(screen.getByRole("button", { name: "Todos los eventos" }));
     await user.click(screen.getByRole("menuitem", { name: "Nuevo" }));
+
+    // PIM1-117: "Nuevo" ahora abre el wizard (intro + stages), no el modal directo.
+    await user.click(await screen.findByRole("button", { name: "Comenzar" }));
 
     const typeSelect = await screen.findByLabelText("Tipo");
     await waitFor(() => expect(typeSelect).not.toBeDisabled());
-
     await user.type(screen.getByLabelText("Nombre"), "Cumpleaños de Ana");
     await user.selectOptions(typeSelect, "Boda");
-    fireEvent.change(screen.getByLabelText("Fecha"), { target: { value: "2026-11-01" } });
-    fireEvent.change(screen.getByLabelText("Hora"), { target: { value: "18:00" } });
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
 
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    fireEvent.change(await screen.findByLabelText("Fecha"), { target: { value: "2026-11-01" } });
+    fireEvent.change(screen.getByLabelText("Hora"), { target: { value: "18:00" } });
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    // Última stage ("¿Para quién?"): acá se crea el evento de verdad.
+    await user.click(await screen.findByRole("button", { name: "Crear evento" }));
 
     expect(
       await screen.findByText("Se ha creado exitosamente el evento «Cumpleaños de Ana».")
     ).toBeInTheDocument();
+    // Tras crear, el wizard pasa a la stage de plan inicial de gestiones.
+    expect(await screen.findByText("Plan inicial de gestiones")).toBeInTheDocument();
+  });
+
+  test("crear un evento y una gestión en el wizard actualiza la vista de Hoy de inmediato", async () => {
+    const user = userEvent.setup();
+    const createdEvent: Event = {
+      eid: 2,
+      user: 1,
+      name: "Cumpleaños de Ana",
+      description: "",
+      due_date: "2026-09-23T18:00:00.000Z",
+      status: "pending",
+      progress_percentage: 0,
+      created_at: "2026-09-20T00:00:00.000Z",
+    };
+    // Fecha dentro de la ventana de "próximas" (dias_proximos, 7 por
+    // defecto en el backend real — ver planning/views.py): a diferencia de
+    // buildTodaySummary (el mock de este test, sin ese recorte), el backend
+    // real NO muestra en /api/hoy/ una gestión agendada más allá de esa
+    // ventana, aunque sí exista (se ve en la vista expandida de Eventos, que
+    // no tiene ese límite). Por eso la fecha de prueba aquí importa: debe
+    // quedar dentro de la ventana para que este test siga siendo
+    // representativo del comportamiento real.
+    const createdSubtask: Subtask = {
+      subtask_id: 50,
+      eid: 2,
+      title: "Reservar salón",
+      description: "",
+      category: "Lugar",
+      estimated_hours: "2",
+      scheduled_date: "2026-09-23",
+      status: "pending",
+    };
+    // Mock CON ESTADO: /hoy/ solo devuelve una gestión si ya se "creó" de
+    // verdad (POST ya resuelto) — a diferencia de un mock estático, esto
+    // prueba que loadToday se vuelve a llamar DESPUÉS de crear la gestión,
+    // no que el primer loadToday (al seleccionar el evento, antes de crear
+    // nada) ya la traía de pura casualidad.
+    let subtasksOfEvent2: Subtask[] = [];
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      if (href.includes("/tipos-evento/") || href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (method === "POST" && href.includes("/eventos/") && !href.includes("subtareas")) {
+        return Promise.resolve(jsonResponse(createdEvent, 201));
+      }
+      if (method === "POST" && href.includes("/eventos/2/subtareas/")) {
+        subtasksOfEvent2 = [...subtasksOfEvent2, createdSubtask];
+        return Promise.resolve(jsonResponse(createdSubtask, 201));
+      }
+      if (href.includes("/eventos/1/subtareas/") || href.includes("/eventos/2/subtareas/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      if (href.includes("/hoy/")) {
+        const eid = eventIdFromHoyUrl(href);
+        const items = eid === 2 ? subtasksOfEvent2 : [];
+        return Promise.resolve(jsonResponse(buildTodaySummary(items, eid), 200));
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Todos los eventos" }));
+    await user.click(screen.getByRole("menuitem", { name: "Nuevo" }));
+    await user.click(await screen.findByRole("button", { name: "Comenzar" }));
+
+    const typeSelect = await screen.findByLabelText("Tipo");
+    await waitFor(() => expect(typeSelect).not.toBeDisabled());
+    await user.type(screen.getByLabelText("Nombre"), "Cumpleaños de Ana");
+    await user.selectOptions(typeSelect, "Boda");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    fireEvent.change(await screen.findByLabelText("Fecha"), { target: { value: "2026-09-23" } });
+    fireEvent.change(screen.getByLabelText("Hora"), { target: { value: "18:00" } });
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(await screen.findByRole("button", { name: "Crear evento" }));
+    await screen.findByText("Plan inicial de gestiones");
+
+    const wizardDialog = screen.getByRole("dialog", { name: "Cumpleaños de Ana" });
+    await user.click(within(wizardDialog).getByRole("button", { name: "Agregar gestión" }));
+    await user.type(await screen.findByLabelText("Nombre"), "Reservar salón");
+    const categorySelect = screen.getByLabelText("Categoría");
+    await waitFor(() => expect(categorySelect).not.toBeDisabled());
+    await user.selectOptions(categorySelect, "Lugar");
+    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-23" } });
+    await user.click(screen.getByRole("button", { name: "2 h" }));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    // De vuelta en la stage de plan inicial del wizard (el modal de la gestión ya cerró).
+    expect(await within(wizardDialog).findByRole("cell", { name: "Reservar salón" })).toBeInTheDocument();
+
+    await user.click(within(wizardDialog).getByRole("button", { name: "Finalizar" }));
+
+    // El wizard ya cerró: el selector de Hoy debería mostrar el evento recién
+    // creado (no "Todos los eventos"), y la gestión agregada en el plan
+    // inicial debería verse en la columna correspondiente.
+    expect(await screen.findByRole("button", { name: "Cumpleaños de Ana" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Reservar salón")).toBeInTheDocument();
   });
 
   test("crear una gestión muestra el aviso con el título de la gestión creada", async () => {
@@ -494,6 +713,9 @@ describe("HomePage", () => {
           new Response(JSON.stringify(createdSubtask), { status: 201, headers: { "Content-Type": "application/json" } })
         );
       }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, eventIdFromHoyUrl(href)), 200));
+      }
       if (href.includes("/eventos/1/subtareas/")) {
         return Promise.resolve(
           new Response(JSON.stringify(subtasks), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -510,69 +732,98 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Vencida A");
 
     await user.click(screen.getByRole("button", { name: /Crear gestión/ }));
 
+    // PIM1-117: "Crear gestión" ahora abre el wizard (intro + stages), no el
+    // modal directo. El botón que lo disparó sigue en el fondo, así que las
+    // queries dentro del wizard se acotan a su diálogo ("Nueva gestión") para
+    // no chocar con botones del mismo nombre fuera de él.
+    const wizardDialog = await screen.findByRole("dialog", { name: "Nueva gestión" });
+    await user.click(within(wizardDialog).getByRole("button", { name: "Comenzar" }));
+
     const categorySelect = await screen.findByLabelText("Categoría");
     await waitFor(() => expect(categorySelect).not.toBeDisabled());
-
     await user.type(screen.getByLabelText("Nombre"), "Confirmar catering");
     await user.selectOptions(categorySelect, "Catering");
-    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-20" } });
-    await user.click(screen.getByRole("button", { name: "15 min" }));
+    await user.click(within(wizardDialog).getByRole("button", { name: "Siguiente" }));
 
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    fireEvent.change(await screen.findByLabelText("Fecha objetivo"), { target: { value: "2026-09-20" } });
+    await user.click(screen.getByRole("button", { name: "15 min" }));
+    await user.click(within(wizardDialog).getByRole("button", { name: "Siguiente" }));
+
+    // Última stage ("¿Algo más que agregar?"): acá se crea la gestión de verdad.
+    await user.click(within(wizardDialog).getByRole("button", { name: "Crear gestión" }));
 
     expect(
       await screen.findByText("Se ha creado exitosamente la gestión «Confirmar catering».")
     ).toBeInTheDocument();
   });
 
-  test("por defecto se ve la vista 'Plan inicial' con las columnas", async () => {
+  test("por defecto se ve la vista 'Hoy' con las columnas", async () => {
     stubHomepageFetch();
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
     await screen.findByText("Vencida A");
 
-    expect(screen.getByRole("heading", { name: /Plan inicial/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Próximos 7 días" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Vencidas" })).toBeInTheDocument();
   });
 
-  test("la pestaña Hoy muestra el estado 'Próximamente' y oculta las columnas", async () => {
+  test("la pestaña Eventos muestra las cards de eventos y oculta las columnas de Hoy", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    // Sin evento seleccionado en Hoy: sin esto, EventsView aterriza directo
+    // en el detalle del evento seleccionado (ver el siguiente test) en vez
+    // del roulette de cards que este test quiere comprobar.
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    await user.click(screen.getByRole("tab", { name: "Eventos" }));
+
+    // La card del evento (botón con su nombre) reemplaza al placeholder viejo.
+    expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximos 7 días" })).not.toBeInTheDocument();
+    expect(document.getElementById("hoy-panel")).toHaveAttribute("hidden");
+  });
+
+  test("la pestaña Eventos aterriza directo en el detalle del evento seleccionado en Hoy", async () => {
     stubHomepageFetch();
     const user = userEvent.setup();
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
     await screen.findByText("Vencida A");
 
-    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+    await user.click(screen.getByRole("tab", { name: "Eventos" }));
 
-    expect(
-      await screen.findByText(
-        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
-      )
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
-    expect(document.getElementById("plan-inicial-panel")).toHaveAttribute("hidden");
+    // Vista expandida directa, no el roulette de cards.
+    expect(await screen.findByRole("heading", { level: 1, name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Volver a Eventos" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear nuevo evento" })).not.toBeInTheDocument();
   });
 
-  test("volver a 'Plan inicial' desde Hoy conserva el evento seleccionado", async () => {
+  test("volver a 'Hoy' desde Eventos conserva el evento seleccionado", async () => {
     stubHomepageFetch();
     const user = userEvent.setup();
     // Muestra la query string actual para poder leerla desde el test.
@@ -583,54 +834,394 @@ describe("HomePage", () => {
 
     render(
       <MemoryRouter initialEntries={["/?evento=1"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
         <LocationProbe />
       </MemoryRouter>
     );
     await screen.findByText("Vencida A");
 
-    await user.click(screen.getByRole("tab", { name: "Hoy" }));
-    await screen.findByText(
-      "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
-    );
+    await user.click(screen.getByRole("tab", { name: "Eventos" }));
+    await screen.findByRole("heading", { level: 1, name: "Boda Luisa & Carlos" });
     // Cambiar de vista no pisa ?evento= en la URL.
     expect(currentParams().get("evento")).toBe("1");
-    expect(currentParams().get("vista")).toBe("hoy");
+    expect(currentParams().get("vista")).toBe("eventos");
 
-    await user.click(screen.getByRole("tab", { name: "Plan inicial" }));
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
 
     expect(await screen.findByText("Vencida A")).toBeInTheDocument();
     expect(currentParams().get("evento")).toBe("1");
+    // "Hoy" es la vista por defecto: al volver a ella, ?vista= se limpia de la URL.
+    expect(currentParams().get("vista")).toBeNull();
   });
 
-  test("un ?vista= inválido cae en Plan inicial", async () => {
+  test("un ?vista= inválido cae en Hoy", async () => {
     stubHomepageFetch();
 
     render(
       <MemoryRouter initialEntries={["/?evento=1&vista=xyz"]}>
-        <HomePage />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
-    expect(await screen.findByText("Vencida A")).toBeInTheDocument();
-  });
-
-  test("?vista=hoy en la URL abre directamente la pestaña Hoy", async () => {
-    stubHomepageFetch();
-
-    render(
-      <MemoryRouter initialEntries={["/?evento=1&vista=hoy"]}>
-        <HomePage />
+        <AuthProvider><HomePage /></AuthProvider>
       </MemoryRouter>
     );
 
     expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("Vencida A")).toBeInTheDocument();
+  });
+
+  test("?vista=eventos en la URL abre directamente la pestaña Eventos", async () => {
+    stubHomepageFetch();
+
+    // Sin ?evento=: este test cubre el parámetro ?vista= en sí, no la
+    // interacción con un evento ya seleccionado (ver el test de arriba).
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximos 7 días" })).not.toBeInTheDocument();
+  });
+
+  test("clickear una card en Eventos muestra la vista expandida del evento", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    const card = await screen.findByRole("button", { name: /Boda Luisa & Carlos/ });
+    await user.click(card);
+
+    // Sigue en la pestaña Eventos: ya no salta a Hoy (eso era el puente temporal).
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Editar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Borrar" })).toBeInTheDocument();
+  });
+
+  test("desde la vista expandida de Eventos, Editar abre el formulario y Borrar el diálogo de confirmación", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(await screen.findByRole("dialog", { name: "Editar evento" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await user.click(screen.getByRole("button", { name: "Borrar" }));
+    expect(await screen.findByRole("alertdialog", { name: "Eliminar evento" })).toBeInTheDocument();
+  });
+
+  test("clickear una gestión en las tablas de Eventos abre su detalle, y Editar funciona sin depender del filtro de Hoy", async () => {
+    stubHomepageFetch();
+    const user = userEvent.setup();
+
+    // Sin ?evento=: selectedEvent (el filtro de la pestaña Hoy) es null. Antes
+    // del fix, esto hacía que "Editar" no abriera nada (SubtaskFormModal
+    // dependía de selectedEvent en vez de resolver el evento por el eid de
+    // la propia gestión).
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+
+    const row = await screen.findByRole("row", { name: "Vencida A" });
+    await user.click(row);
+
+    const detailDialog = await screen.findByRole("dialog", { name: "Vencida A" });
+    await user.click(within(detailDialog).getByRole("button", { name: "Editar" }));
+    expect(await screen.findByRole("dialog", { name: "Editar gestión" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Nombre")).toHaveValue("Vencida A");
+  });
+
+  test("'Crear gestión' en la vista expandida de un evento abre el wizard para ESE evento, no el seleccionado en Hoy", async () => {
+    const event2: Event = { ...event, eid: 2, name: "Cumpleaños de Ana" };
+    const createdSubtask = {
+      subtask_id: 60,
+      eid: 2,
+      title: "Reservar salón",
+      description: "",
+      category: "Lugar",
+      estimated_hours: "2.00",
+      scheduled_date: "2026-10-01",
+      status: "pending",
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      if (href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (method === "POST" && href.includes("/eventos/2/subtareas/")) {
+        return Promise.resolve(jsonResponse(createdSubtask, 201));
+      }
+      if (href.includes("/eventos/1/subtareas/") || href.includes("/eventos/2/subtareas/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, eventIdFromHoyUrl(href)), 200));
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event, event2], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    // Sin evento seleccionado en Hoy: con uno seleccionado, PR #26
+    // (initialExpandedEventId) aterriza directo en SU detalle al entrar a
+    // Eventos, sin mostrar el roulette — acá sí lo necesitamos, para poder
+    // elegir el evento 2 (no el que tendría seleccionado Hoy) a propósito.
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Cumpleaños de Ana/ }));
+    await screen.findByRole("heading", { level: 1, name: "Cumpleaños de Ana" });
+
+    await user.click(screen.getByRole("button", { name: /Crear gestión/ }));
+
+    const wizardDialog = await screen.findByRole("dialog", { name: "Nueva gestión" });
+    // El chip del evento dueño confirma que es el 2, no el 1 seleccionado en Hoy.
+    expect(within(wizardDialog).getByText("Cumpleaños de Ana")).toBeInTheDocument();
+
+    await user.click(within(wizardDialog).getByRole("button", { name: "Comenzar" }));
+    const categorySelect = await screen.findByLabelText("Categoría");
+    await waitFor(() => expect(categorySelect).not.toBeDisabled());
+    await user.type(screen.getByLabelText("Nombre"), "Reservar salón");
+    await user.selectOptions(categorySelect, "Lugar");
+    await user.click(within(wizardDialog).getByRole("button", { name: "Siguiente" }));
+
+    fireEvent.change(await screen.findByLabelText("Fecha objetivo"), { target: { value: "2026-10-01" } });
+    await user.click(screen.getByRole("button", { name: "2 h" }));
+    await user.click(within(wizardDialog).getByRole("button", { name: "Siguiente" }));
+    await user.click(within(wizardDialog).getByRole("button", { name: "Crear gestión" }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, options]) => String(url).includes("/eventos/2/subtareas/") && options?.method === "POST"
+        )
+      ).toBe(true)
+    );
     expect(
-      await screen.findByText(
-        "La vista Hoy estará disponible pronto: aquí verás las gestiones de hoy de todos tus eventos."
+      fetchMock.mock.calls.some(
+        ([url, options]) => String(url).includes("/eventos/1/subtareas/") && options?.method === "POST"
       )
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
+    ).toBe(false);
+  });
+
+  test("sin eventos, la pestaña Eventos solo muestra el mensaje y el botón de crear", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    // El texto está partido por un <br/> (dos líneas en el mismo <p>): exact:false
+    // hace match por substring contra el texto combinado del elemento.
+    expect(await screen.findByText("Aún no tienes eventos", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear nuevo evento" })).toBeInTheDocument();
+  });
+
+  test("PIM1-59: cambiar de evento rápido aborta con AbortController la carga anterior de /hoy/", async () => {
+    const user = userEvent.setup();
+    const event2: Event = { ...event, eid: 2, name: "Cumpleaños de Ana" };
+
+    const hoyCalls: { eventId: number | null; signal?: AbortSignal; resolve: (response: Response) => void }[] = [];
+
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      if (href.includes("/hoy/")) {
+        return new Promise<Response>((resolve, reject) => {
+          const signal = options?.signal as AbortSignal | undefined;
+          hoyCalls.push({ eventId: eventIdFromHoyUrl(href), signal, resolve });
+          signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+        });
+      }
+      if (href.includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([event, event2], 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(hoyCalls).toHaveLength(1));
+    const firstCall = hoyCalls[0];
+    expect(firstCall.eventId).toBe(1);
+    expect(firstCall.signal?.aborted).toBe(false);
+
+    // Cambia de evento antes de que la primera carga de /hoy/ resuelva.
+    await user.click(await screen.findByRole("button", { name: "Boda Luisa & Carlos" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Cumpleaños de Ana" }));
+
+    await waitFor(() => expect(hoyCalls).toHaveLength(2));
+    expect(firstCall.signal?.aborted).toBe(true);
+    const secondCall = hoyCalls[1];
+    expect(secondCall.eventId).toBe(2);
+
+    // La primera (ya abortada) resuelve tarde con datos del evento 1: no debe pintarse.
+    firstCall.resolve(jsonResponse(buildTodaySummary(subtasks, 1), 200));
+    secondCall.resolve(jsonResponse(buildTodaySummary([], 2), 200));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Este evento no tiene gestiones/)).toBeInTheDocument()
+    );
+    expect(screen.queryByText("Hoy A")).not.toBeInTheDocument();
+    // El abort no debe pintarse como un error de carga.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("sin eventos, la pestaña Hoy también oculta selector/filtros y solo muestra 'Crear Evento'", async () => {
+    const emptyToday: TodaySummary = {
+      fecha: TODAY,
+      metrica: "gestiones",
+      vencidas: [],
+      para_hoy: { pendientes: [], completadas: [] },
+      proximas: [],
+      progreso_dia: { completadas: 0, total: 0, horas_completadas: "0", horas_totales: "0" },
+      filtros: { event_id: null, status: null },
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes("/eventos/")) {
+        return Promise.resolve(jsonResponse([], 200));
+      }
+      if (String(url).includes("/hoy/")) {
+        return Promise.resolve(jsonResponse(emptyToday, 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemoryRouter>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Aún no tienes eventos", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear Evento" })).toBeInTheDocument();
+    // Antes de la corrección, el botón decía "Crear gestión" y en realidad
+    // creaba un evento primero (justo la confusión que señaló el profesor).
+    expect(screen.queryByRole("button", { name: /Crear gestión/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Filtros de gestiones")).not.toBeInTheDocument();
+    expect(screen.queryByText("Viendo gestiones de:")).not.toBeInTheDocument();
+  });
+
+  test("PIM1-11: el selector de vistas vive en el header y el label de fecha vieja ya no existe", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    const tablist = screen.getByRole("tablist", { name: "Vistas" });
+    const header = tablist.closest("header");
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getByText("PlanificApp")).toBeInTheDocument();
+    expect(screen.queryByText("17 sep. 2026")).not.toBeInTheDocument();
+  });
+
+  test("PIM1-11: el ícono de Vencidas es el prominente, no el de Próximas", async () => {
+    stubHomepageFetch();
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    const vencidasIcon = screen
+      .getByRole("heading", { name: "Vencidas" })
+      .closest(".column-title")
+      ?.querySelector(".clock-icon");
+    const proximasIcon = screen
+      .getByRole("heading", { name: "Próximos 7 días" })
+      .closest(".column-title")
+      ?.querySelector(".clock-icon");
+
+    expect(vencidasIcon).toHaveClass("clock-icon--urgent");
+    expect(proximasIcon).not.toHaveClass("clock-icon--urgent");
+    expect(container.querySelectorAll(".clock-icon--muted")).toHaveLength(0);
+  });
+
+  test("PIM1-11: cada card de gestión muestra el nombre del evento como botón", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    // Una gestión de cada columna (Vencidas, Para Hoy, Próximas) basta para
+    // confirmar que el label se propagó a las tres, no solo a una.
+    const vencidaCard = screen.getByRole("button", { name: "Vencida A" });
+    const hoyCard = screen.getByRole("button", { name: "Hoy A" });
+    const proximaCard = screen.getByRole("button", { name: "Próxima A" });
+
+    for (const card of [vencidaCard, hoyCard, proximaCard]) {
+      expect(within(card).getByText("Evento:")).toBeInTheDocument();
+      expect(within(card).getByRole("button", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    }
+  });
+
+  test("PIM1-11: clickear el nombre del evento en una card no abre el detalle de la gestión", async () => {
+    const user = userEvent.setup();
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+
+    const vencidaCard = screen.getByRole("button", { name: "Vencida A" });
+    await user.click(within(vencidaCard).getByRole("button", { name: "Boda Luisa & Carlos" }));
+
+    // Sin destino todavía (HU-13 no existe): el click no hace nada visible,
+    // pero sobre todo NO debe abrir el popup de detalle de la gestión.
+    expect(screen.queryByRole("dialog", { name: "Vencida A" })).not.toBeInTheDocument();
   });
 });

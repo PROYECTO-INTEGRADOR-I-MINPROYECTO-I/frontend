@@ -72,6 +72,27 @@ describe("SubtaskDetailModal", () => {
     expect(onToggleComplete).toHaveBeenCalledWith(subtask);
   });
 
+  test("Editar y Borrar son botones dedicados que llaman a onEdit/onDelete con la gestión actual", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    render(
+      <SubtaskDetailModal
+        subtask={subtask}
+        onClose={vi.fn()}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onToggleComplete={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    expect(onEdit).toHaveBeenCalledWith(subtask);
+
+    await user.click(screen.getByRole("button", { name: "Borrar" }));
+    expect(onDelete).toHaveBeenCalledWith(subtask);
+  });
+
   test("togglePending deshabilita el botón", () => {
     render(
       <SubtaskDetailModal

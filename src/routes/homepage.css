@@ -3,8 +3,13 @@
   --ink: #101828;
   --muted: #99a1af;
   --surface: #f7f5f2;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  background: var(--surface);
+  /* Fondo decorativo (doodles de baja intensidad para no competir con el
+     contenido): color de respaldo primero por si la imagen no carga,
+     cover+center+fixed para que no se repita ni se mueva con el scroll. */
+  background: var(--surface) url("../assets/background.png") center / cover fixed no-repeat;
   color: var(--ink);
   font-family: "Source Sans 3", "Century Gothic", "Trebuchet MS", sans-serif;
 }
@@ -16,13 +21,13 @@
 .planner-shell .create-task-button,
 .planner-shell .filter-button,
 .planner-shell .filter-label,
-.planner-shell .date-label span:first-child,
 .planner-shell .task-count,
 .planner-shell .avatar {
   font-family: "Jost", "Century Gothic", "Trebuchet MS", sans-serif;
 }
 
 .planner-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -32,10 +37,18 @@
   border-bottom: 1px solid #f3f4f6;
 }
 
+/* Centrado real, independiente del ancho del logo vs. el avatar: con
+   justify-content: space-between el elemento del medio solo queda centrado
+   si los dos costados pesan igual, y el logo es más ancho que el avatar. Sacar
+   el selector del flujo flex con position:absolute lo centra sin importar eso. */
+.planner-header [role="tablist"] {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .brand-lockup,
-.date-label,
 .intro-row,
-.filter-row,
 .column-title {
   display: flex;
   align-items: center;
@@ -55,16 +68,6 @@
 .brand-mark img { width: 20px; height: 20px; }
 .brand-name { font-size: 36px; line-height: 1; letter-spacing: -0.4px; }
 
-.date-label {
-  gap: 4px;
-  margin-left: 8%;
-  font-size: 14px;
-}
-
-.date-label span:first-child { color: var(--wine); }
-.date-label time { color: #6a7282; }
-.date-divider { padding: 0 4px; color: #d1d5dc; }
-
 .avatar {
   display: grid;
   width: 32px;
@@ -77,24 +80,26 @@
 }
 
 .planner-intro { padding: 28px 32px 20px; }
-.intro-row { justify-content: space-between; }
-.intro-row h1 { margin: 0; font-size: 32px; font-weight: 400; letter-spacing: -0.6px; }
-.sun-icon { display: inline-flex; align-items: center; margin-left: 5px; vertical-align: -4px; color: var(--ink); }
-.plan-inicial-icon { display: inline-block; margin-left: 5px; vertical-align: -4px; color: var(--ink); }
-.intro-actions { display: flex; align-items: center; gap: 12px; }
-
-.view-switcher-row { padding: 0 32px; margin-top: 12px; }
-
-.hoy-placeholder {
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  padding: 64px 32px;
+.intro-row { justify-content: center; }
+.intro-row h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.6px;
   text-align: center;
-  color: var(--muted);
 }
-.hoy-placeholder h1 { margin: 0; font-family: "Jost", "Century Gothic", "Trebuchet MS", sans-serif; font-size: 28px; font-weight: 400; color: var(--ink); }
-.hoy-placeholder p { margin: 0; max-width: 420px; font-size: 15px; line-height: 1.4; }
+
+.event-selector-row {
+  display: flex;
+  justify-content: center;
+  padding: 4px 32px 20px;
+}
+
+/* "Crear gestión" vive debajo del selector (no arriba a la derecha, como
+   antes): así queda claro para qué evento se crea. margin-top negativo
+   compensa el padding-bottom de .event-selector-row para no duplicar el
+   espacio entre el selector y el botón. */
+.create-task-below-selector { display: flex; justify-content: center; margin-top: -12px; padding-bottom: 20px; }
 
 .event-button,
 .create-task-button,
@@ -115,13 +120,20 @@
 
 .event-button span { margin-left: 5px; font-size: 16px; }
 .filter-row { gap: 8px; padding-top: 20px; flex-wrap: wrap; }
-.filter-label { padding-right: 4px; color: var(--muted); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+/* Normalización de labels (corrección del profesor, clínica de Sprint 1):
+   antes 10px con var(--muted) (#99a1af) quedaba casi ilegible, en especial
+   sobre el fondo decorativo. Mismo tono que .today-panel-title (#4a5565),
+   que ya se leía bien. */
+.filter-label { padding-right: 4px; color: #4a5565; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
 .filter-button { padding: 6px 12px; border-color: #e5e7eb; border-radius: 999px; background: #fff; color: #6a7282; font-size: 12px; }
 .filter-button--active { border-color: var(--wine); background: var(--wine); color: #fff; }
 
 .task-columns {
   display: grid;
-  grid-template-columns: minmax(0, 270px) minmax(300px, 1fr) minmax(0, 270px);
+  /* PIM1-11: las 3 columnas deben medir lo mismo (antes Para Hoy, con
+     minmax(300px, 1fr), quedaba visiblemente más ancha que Vencidas/Próximas,
+     topadas a 270px — exactamente lo que señaló el profesor en la clínica). */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
   min-height: 500px;
   padding: 0 32px 32px;
@@ -134,17 +146,40 @@
 .task-count { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
 .count--blue { background: #eff6ff; color: #1447e6; }
 .count--red { background: #fff0f0; color: var(--wine); }
+/* Criterio de aceptación: describir la regla de orden real de cada grupo
+   (ver TaskColumn/orderHint en homepage.tsx). Trigger resaltado + tooltip
+   nativo (title) en vez de texto siempre visible, a pedido del equipo. */
+.column-order-hint { margin: -4px 0 12px; }
+.column-order-hint-trigger {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--wine);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
 .column-body { min-height: 460px; display: flex; flex-direction: column; }
 
 .clock-icon { position: relative; display: inline-block; width: 13px; height: 13px; border: 2px solid #9ca3af; border-radius: 50%; }
 .clock-icon::before { content: ""; position: absolute; left: 5px; top: 2px; width: 1px; height: 4px; background: #9ca3af; }
 .clock-icon::after { content: ""; position: absolute; left: 5px; top: 6px; width: 4px; height: 1px; background: #9ca3af; transform: rotate(25deg); transform-origin: left center; }
-.clock-icon--muted { border-color: #e99b9b; }
-.clock-icon--muted::before, .clock-icon--muted::after { background: #e99b9b; }
+/* PIM1-11: Vencidas destaca con el mismo rojo/wine que su badge de conteo
+   (.count--red), no un tono más pálido que el gris neutro de Próximas. */
+.clock-icon--urgent { border-color: var(--wine); }
+.clock-icon--urgent::before, .clock-icon--urgent::after { background: var(--wine); }
 
 .column-empty-wrap { display: grid; place-items: center; flex: 1; min-height: 420px; }
 .empty-state { display: grid; justify-items: center; gap: 20px; transform: translateY(-5px); }
 .empty-state p { margin: 0; color: var(--muted); font-size: 30px; line-height: 1.16; text-align: center; }
+/* Variante para el aviso de "sin gestiones en la ventana de Hoy" (PIM1-59):
+   es una frase más larga, con un link adentro, no un titular corto — el
+   tamaño de .empty-state p de base (30px) la haría casi ilegible. */
+.empty-state p.empty-state-hint { max-width: 420px; font-size: 16px; line-height: 1.5; }
+.empty-state-link { padding: 0; border: none; background: none; color: var(--wine); font: inherit; text-decoration: underline; cursor: pointer; }
 .create-task-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 208px; height: 46px; border-radius: 999px; background: var(--wine); color: #fff; font-size: 22px; }
 .create-task-button--compact { width: auto; height: 34px; padding: 0 16px; font-size: 14px; gap: 6px; }
 
@@ -254,24 +289,27 @@
 }
 
 @media (max-width: 760px) {
-  .planner-header { padding: 10px 18px; }
+  .planner-header { padding: 10px 18px; flex-wrap: wrap; row-gap: 8px; }
   .brand-name { font-size: 28px; }
   .brand-mark { width: 32px; height: 32px; }
   .brand-mark img { width: 18px; height: 18px; }
-  .date-label { display: none; }
+  /* El selector de vistas no cabe junto al logo y el avatar en pantallas
+     angostas: vuelve al flujo normal (ya no absolute) y baja a su propia
+     fila centrada. */
+  .planner-header [role="tablist"] {
+    position: static;
+    transform: none;
+    order: 3;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
   .planner-intro { padding: 24px 18px 20px; }
-  .view-switcher-row { padding: 0 18px; }
-  /* En pantallas angostas las acciones bajan a su propia fila para que
-     "Plan inicial" y los botones no se partan en varias líneas. */
-  .intro-row { flex-wrap: wrap; row-gap: 12px; }
   .intro-row h1 { white-space: nowrap; }
-  .intro-actions { width: 100%; justify-content: flex-end; }
-  .intro-actions button { white-space: nowrap; }
   .task-columns { grid-template-columns: 1fr; gap: 18px; padding: 0 18px 24px; }
   .task-column { min-height: 120px; }
   .column-body { min-height: 70px; }
   .task-column--today { min-height: 255px; }
   .task-column--today .column-body { min-height: 215px; }
   .empty-state p { font-size: 26px; }
-  .hoy-placeholder { padding: 40px 18px; }
 }

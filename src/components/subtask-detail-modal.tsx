@@ -1,8 +1,12 @@
-// Modal de detalle de una gestión, con Editar, Eliminar y completar (US-09):
-// el pie tiene "Editar" y "Marcar como completada"/"Marcar como pendiente".
+// Modal de detalle de una gestión, con Editar, Borrar y completar (US-09):
+// el pie tiene arriba el botón grande "Marcar como completada"/"Marcar como
+// pendiente", y abajo Editar/Borrar lado a lado — corrección del profesor
+// (clínica de Sprint 1): las 3 acciones deben verse como botones con ícono,
+// no como un link de texto.
 // El toggle de completar lo controla el padre (ver handleToggleComplete en
 // homepage.tsx, con actualización optimista y reversión si falla el PATCH).
 
+import { Check, Pencil, Trash2 } from "lucide-react";
 import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
 import {
   categoryChipStyle,
@@ -59,20 +63,32 @@ export function SubtaskDetailModal({
         <>
           <button
             type="button"
-            onClick={() => onEdit(subtask)}
-            className="flex-1 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a]"
-          >
-            Editar
-          </button>
-          <button
-            type="button"
             onClick={() => onToggleComplete(subtask)}
             disabled={togglePending}
             aria-busy={togglePending}
-            className="flex-1 rounded-lg bg-[#8b1a1a] py-[10px] font-jost text-[14px] text-white disabled:opacity-60"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#8b1a1a] py-[10px] font-jost text-[14px] text-white disabled:opacity-60"
           >
+            <Check aria-hidden="true" size={16} />
             {isDone ? "Marcar como pendiente" : "Marcar como completada"}
           </button>
+          <div className="flex w-full gap-3">
+            <button
+              type="button"
+              onClick={() => onEdit(subtask)}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a]"
+            >
+              <Pencil aria-hidden="true" size={16} />
+              Editar
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(subtask)}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a] hover:bg-[#fff0f0]"
+            >
+              <Trash2 aria-hidden="true" size={16} />
+              Borrar
+            </button>
+          </div>
         </>
       }
     >
@@ -88,30 +104,20 @@ export function SubtaskDetailModal({
 
         <div className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2">
           <div className="flex flex-col gap-1">
-            <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Fecha</span>
+            <span className="font-jost text-[12px] tracking-[1px] text-[#4a5565] uppercase">Fecha</span>
             <span className="font-source text-[14px] text-[#1e2939]">{formatShortDateEs(subtask.scheduled_date)}</span>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Horas estimadas</span>
+            <span className="font-jost text-[12px] tracking-[1px] text-[#4a5565] uppercase">Horas estimadas</span>
             <span className="font-source text-[14px] text-[#1e2939]">{hoursLabel}</span>
           </div>
         </div>
 
         <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
-          <span className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">Descripción</span>
+          <span className="font-jost text-[12px] tracking-[1px] text-[#4a5565] uppercase">Descripción</span>
           <p className="font-source text-[14px] leading-[22.75px] text-[#1e2939]">
             {subtask.description || "Sin descripción."}
           </p>
-        </div>
-
-        <div className="flex justify-end border-t border-[#f3f4f6] pt-4">
-          <button
-            type="button"
-            onClick={() => onDelete(subtask)}
-            className="font-jost text-[13px] text-[#8b1a1a] underline decoration-[#8b1a1a]/40 hover:decoration-[#8b1a1a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
-          >
-            Eliminar gestión
-          </button>
         </div>
       </div>
     </Modal>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { describe, expect, test } from "vitest";
 import { ViewSwitcher, type ViewSwitcherValue } from "./view-switcher";
 
-function ControlledViewSwitcher({ initialValue = "plan" as ViewSwitcherValue }) {
+function ControlledViewSwitcher({ initialValue = "eventos" as ViewSwitcherValue }) {
   const [value, setValue] = useState<ViewSwitcherValue>(initialValue);
   return <ViewSwitcher value={value} onChange={setValue} />;
 }
@@ -14,10 +14,10 @@ describe("ViewSwitcher", () => {
     render(<ControlledViewSwitcher />);
 
     expect(screen.getByRole("tablist", { name: "Vistas" })).toBeInTheDocument();
-    const planTab = screen.getByRole("tab", { name: "Plan inicial" });
+    const eventosTab = screen.getByRole("tab", { name: "Eventos" });
     const hoyTab = screen.getByRole("tab", { name: "Hoy" });
 
-    expect(planTab).toHaveAttribute("aria-selected", "true");
+    expect(eventosTab).toHaveAttribute("aria-selected", "true");
     expect(hoyTab).toHaveAttribute("aria-selected", "false");
   });
 
@@ -28,29 +28,29 @@ describe("ViewSwitcher", () => {
     await user.click(screen.getByRole("tab", { name: "Hoy" }));
 
     expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "false");
   });
 
   test("Fin e Inicio llevan la selección y el foco a la última y a la primera pestaña", async () => {
     const user = userEvent.setup();
     render(<ControlledViewSwitcher />);
 
-    screen.getByRole("tab", { name: "Plan inicial" }).focus();
+    screen.getByRole("tab", { name: "Eventos" }).focus();
     await user.keyboard("{End}");
     expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Hoy" })).toHaveFocus();
 
     await user.keyboard("{Home}");
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Plan inicial" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Eventos" })).toHaveFocus();
   });
 
   test("la flecha derecha mueve la selección y el foco a la siguiente pestaña", async () => {
     const user = userEvent.setup();
     render(<ControlledViewSwitcher />);
 
-    const planTab = screen.getByRole("tab", { name: "Plan inicial" });
-    planTab.focus();
+    const eventosTab = screen.getByRole("tab", { name: "Eventos" });
+    eventosTab.focus();
     await user.keyboard("{ArrowRight}");
 
     const hoyTab = screen.getByRole("tab", { name: "Hoy" });
@@ -62,8 +62,8 @@ describe("ViewSwitcher", () => {
     const user = userEvent.setup();
     render(<ControlledViewSwitcher />);
 
-    const planTab = screen.getByRole("tab", { name: "Plan inicial" });
-    planTab.focus();
+    const eventosTab = screen.getByRole("tab", { name: "Eventos" });
+    eventosTab.focus();
     await user.keyboard("{ArrowLeft}");
 
     const hoyTab = screen.getByRole("tab", { name: "Hoy" });

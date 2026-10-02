@@ -26,6 +26,9 @@ export interface Event {
   event_type?: number | null;
   place?: string | null;
   client_contact?: string | null;
+  /** Portada personalizada (PIM1-120): "color" (hex en cover_value) o "image" (URL). null/undefined = sin personalizar, usar eventCoverColor. */
+  cover_kind?: "color" | "image" | null;
+  cover_value?: string | null;
 }
 
 /** Payload para crear un evento (POST /eventos/). */
@@ -82,9 +85,37 @@ export interface Subtask {
   /** "YYYY-MM-DD", sin hora. */
   scheduled_date: string;
   status: SubtaskStatus;
+  /** Solo presente en GET /api/hoy/ (TodaySubtaskSerializer): nombre del evento dueño, para la vista agregada. */
+  event_name?: string;
   // TODO(backend): SubtaskSerializer todavía devuelve `priority`. El frontend
   // ya no la muestra ni la usa (no hay prioridad: la jerarquía la dan las
   // horas estimadas). Quitar esta nota cuando backend elimine el campo.
+}
+
+/** Progreso del día (PIM1-55): siempre trae ambas métricas, el toggle de la UI solo decide cuál se pinta. */
+export interface DayProgress {
+  completadas: number;
+  total: number;
+  /** Decimales como string, tal como los manda DRF. */
+  horas_completadas: string;
+  horas_totales: string;
+}
+
+/**
+ * Respuesta de GET /api/hoy/ (PIM1-51/54/55). `para_hoy.completadas` solo
+ * trae gestiones agendadas HOY y completadas — una completada de otra fecha
+ * no aparece en ningún grupo de esta respuesta (limitación conocida, ver
+ * PIM1-55: backend ya tiene en desarrollo un parámetro para traer todas las
+ * completadas sin importar fecha).
+ */
+export interface TodaySummary {
+  fecha: string;
+  metrica: "gestiones" | "horas";
+  vencidas: Subtask[];
+  para_hoy: { pendientes: Subtask[]; completadas: Subtask[] };
+  proximas: Subtask[];
+  progreso_dia: DayProgress;
+  filtros: { event_id: number | null; status: string | null };
 }
 
 /** Payload para crear una gestión (POST /eventos/<eid>/subtareas/). */

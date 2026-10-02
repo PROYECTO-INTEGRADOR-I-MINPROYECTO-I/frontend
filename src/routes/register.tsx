@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import { AuthBrandMark } from "../components/auth-brand-mark";
-import { LoginForm } from "../components/login-form";
+import { RegisterForm } from "../components/register-form";
 
-export function LoginPage() {
+export function RegisterPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f7f5f2] px-0">
       <AuthBrandMark />
@@ -11,23 +11,23 @@ export function LoginPage() {
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            ¡Bienvenido!
+            Crea tu cuenta
           </h1>
           <p className="text-sm text-slate-500">
-            Por favor ingresa tus credenciales.
+            Tus eventos y gestiones quedan privados para ti.
           </p>
         </div>
 
-        <LoginForm />
+        <RegisterForm />
 
         {/* Footer Link */}
         <p className="text-center text-xs text-slate-500">
-          ¿No tienes una cuenta?{" "}
+          ¿Ya tienes una cuenta?{" "}
           <Link
-            to="/register"
+            to="/login"
             className="text-blue-600 hover:text-blue-500 font-medium"
           >
-            Regístrate
+            Inicia sesión
           </Link>
         </p>
 

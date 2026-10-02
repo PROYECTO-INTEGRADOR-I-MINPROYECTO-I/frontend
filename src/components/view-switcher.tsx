@@ -1,15 +1,20 @@
-// Selector de vistas "Plan inicial" / "Hoy" (PIM1-96), debajo del header.
-// Sigue el patrón WAI-ARIA de pestañas con activación automática:
+// Selector de vistas "Eventos" / "Hoy" (PIM1-96), en la barra superior
+// (PIM1-11). Sigue el patrón WAI-ARIA de pestañas con activación automática:
 // role="tablist"/"tab", navegación con flechas ← → (con wrap-around),
 // Inicio/Fin para ir a la primera/última pestaña, y
 // `aria-selected` reflejando la pestaña activa. Se expone como componente
-// controlado (`value`/`onChange`) para reutilizarlo cuando exista la vista
-// Hoy real.
+// controlado (`value`/`onChange`).
+//
+// PIM1-11/HU-13: lo que antes era la pestaña "Plan inicial" con las columnas
+// Vencidas/Para hoy/Próximas en realidad siempre fue la vista "Hoy" (el
+// profesor lo señaló en la clínica de Sprint 1). Ese contenido se reasignó a
+// la pestaña "Hoy" (ahora la vista por defecto), y "Plan inicial" se
+// renombró a "Eventos": la vista nueva que pide HU-13 (PIM1-111).
 
 import { useRef } from "react";
 import { cn } from "../lib/utils";
 
-export type ViewSwitcherValue = "plan" | "hoy";
+export type ViewSwitcherValue = "eventos" | "hoy";
 
 interface ViewSwitcherOption {
   value: ViewSwitcherValue;
@@ -18,7 +23,7 @@ interface ViewSwitcherOption {
 }
 
 const OPTIONS: ViewSwitcherOption[] = [
-  { value: "plan", label: "Plan inicial", panelId: "plan-inicial-panel" },
+  { value: "eventos", label: "Eventos", panelId: "eventos-panel" },
   { value: "hoy", label: "Hoy", panelId: "hoy-panel" },
 ];
 
@@ -56,8 +61,12 @@ export function ViewSwitcher({ value, onChange }: ViewSwitcherProps) {
     }
   }
 
+  // Sin borde/fondo propios: el contenedor quedaba como una caja extra
+  // flotando en la barra superior ahora que el selector vive ahí (antes,
+  // en su propia fila debajo del header, sí se justificaba). Las pestañas
+  // ya tienen su propio borde cuando no están seleccionadas.
   return (
-    <div role="tablist" aria-label="Vistas" className="flex w-fit gap-1 rounded-full border border-[#d4d5d7] p-1">
+    <div role="tablist" aria-label="Vistas" className="flex w-fit gap-1">
       {OPTIONS.map((option, index) => {
         const selected = option.value === value;
         return (
