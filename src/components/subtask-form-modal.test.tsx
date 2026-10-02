@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SubtaskFormModal } from "./subtask-form-modal";
 import type { Subtask } from "../lib/types";
 
@@ -31,7 +31,20 @@ async function waitForCategoriesLoaded() {
   return select;
 }
 
+// Varios tests usan fechas fijas ("2026-10-01" como "hoy o futuro",
+// "2026-09-01" como claramente vencida) para probar el aviso de PIM1-110 y
+// el payload enviado. Sin congelar el reloj, esas fechas se volvían
+// ambiguas (y, con el tiempo, directamente falsas) a medida que la fecha
+// real del sistema las alcanzaba y las dejaba atrás. `toFake: ["Date"]` solo
+// congela `new Date()`/`Date.now()` — los timers reales de setTimeout siguen
+// funcionando, así que no afecta las esperas internas de userEvent.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 8, 28, 10, 0));
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -293,7 +306,7 @@ describe("SubtaskFormModal", () => {
 
     await user.type(screen.getByLabelText("Nombre"), "Llamar al proveedor");
     await user.selectOptions(categorySelect, "Catering");
-    // Fecha en el pasado respecto a "hoy" (2026-09-28 en este entorno).
+    // Fecha en el pasado respecto al "hoy" congelado en beforeEach (2026-09-28).
     fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-01" } });
     await user.click(screen.getByRole("button", { name: "1 h" }));
 
