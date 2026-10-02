@@ -80,26 +80,26 @@
 }
 
 .planner-intro { padding: 28px 32px 20px; }
-/* Grid en vez de flex: la columna central (auto) centra el heading en todo el
-   ancho de la fila sin importar si "Crear gestión" está presente o no, porque
-   la columna izquierda (1fr) reserva el mismo espacio que la derecha. */
-.intro-row { display: grid; grid-template-columns: 1fr auto 1fr; }
+.intro-row { justify-content: center; }
 .intro-row h1 {
-  grid-column: 2;
-  justify-self: center;
   margin: 0;
   font-size: 32px;
   font-weight: 400;
   letter-spacing: -0.6px;
   text-align: center;
 }
-.intro-actions { grid-column: 3; display: flex; align-items: center; justify-self: end; gap: 12px; }
 
 .event-selector-row {
   display: flex;
   justify-content: center;
   padding: 4px 32px 20px;
 }
+
+/* "Crear gestión" vive debajo del selector (no arriba a la derecha, como
+   antes): así queda claro para qué evento se crea. margin-top negativo
+   compensa el padding-bottom de .event-selector-row para no duplicar el
+   espacio entre el selector y el botón. */
+.create-task-below-selector { display: flex; justify-content: center; margin-top: -12px; padding-bottom: 20px; }
 
 .event-button,
 .create-task-button,
@@ -146,6 +146,9 @@
 .task-count { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
 .count--blue { background: #eff6ff; color: #1447e6; }
 .count--red { background: #fff0f0; color: var(--wine); }
+/* Criterio de aceptación: describir visiblemente la regla de orden de cada
+   grupo (ver TaskColumn/orderHint en homepage.tsx). */
+.column-order-hint { margin: -4px 0 12px; color: var(--muted); font-size: 11px; }
 .column-body { min-height: 460px; display: flex; flex-direction: column; }
 
 .clock-icon { position: relative; display: inline-block; width: 13px; height: 13px; border: 2px solid #9ca3af; border-radius: 50%; }
@@ -289,12 +292,7 @@
     justify-content: center;
   }
   .planner-intro { padding: 24px 18px 20px; }
-  /* En pantallas angostas las acciones bajan a su propia fila para que
-     "Plan inicial" y los botones no se partan en varias líneas. */
-  .intro-row { flex-wrap: wrap; row-gap: 12px; }
   .intro-row h1 { white-space: nowrap; }
-  .intro-actions { width: 100%; justify-content: flex-end; }
-  .intro-actions button { white-space: nowrap; }
   .task-columns { grid-template-columns: 1fr; gap: 18px; padding: 0 18px 24px; }
   .task-column { min-height: 120px; }
   .column-body { min-height: 70px; }

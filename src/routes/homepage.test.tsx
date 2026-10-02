@@ -195,6 +195,42 @@ describe("HomePage", () => {
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
   });
 
+  test("cada grupo de Hoy describe visiblemente su regla de orden (criterio de aceptación del sprint)", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    // Vencidas y Próximos 7 días comparten la misma regla (fecha, desempate por duración).
+    expect(screen.getAllByText("Orden: primero fecha, desempate por duración")).toHaveLength(2);
+    // Para Hoy: todas las gestiones comparten fecha, así que el único criterio real es la duración.
+    expect(screen.getByText("Orden: duración")).toBeInTheDocument();
+  });
+
+  test("'Crear gestión' aparece debajo del selector de evento, no arriba a la derecha", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    const button = screen.getByRole("button", { name: /Crear gestión/ });
+    const selectorTrigger = screen.getByRole("button", { name: /Boda Luisa & Carlos/, expanded: false });
+    const selectorRow = selectorTrigger.closest(".event-selector-row");
+    expect(selectorRow).not.toBeNull();
+    // El botón debe ser el siguiente hermano de la fila del selector (debajo de ella en el DOM/visualmente),
+    // no vivir dentro de .intro-row (arriba, junto al heading).
+    expect(button.closest(".intro-row")).toBeNull();
+    expect(selectorRow?.nextElementSibling).toContainElement(button);
+  });
+
   test("la barra de progreso del día usa progreso_dia de /api/hoy/, y el toggle cambia a horas sin volver a pedir datos", async () => {
     const fetchMock = stubHomepageFetch();
     const user = userEvent.setup();

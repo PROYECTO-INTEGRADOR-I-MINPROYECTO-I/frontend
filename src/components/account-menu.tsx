@@ -66,8 +66,16 @@ export function AccountMenu() {
         <div
           role="menu"
           aria-label="Cuenta"
-          className="absolute top-[calc(100%+8px)] right-0 z-40 w-[180px] rounded-[6px] border border-[#e1e5ea] bg-white py-1 shadow-sm"
+          className="absolute top-[calc(100%+8px)] right-0 z-40 w-[200px] rounded-[6px] border border-[#e1e5ea] bg-white py-1 shadow-sm"
         >
+          {/* Único rastro del nombre del usuario en la UI hasta ahora era el
+              avatar con sus iniciales — acá se ve el nombre completo.
+              role="presentation": no es un ítem accionable del menú. */}
+          {user && (
+            <div role="presentation" className="truncate border-b border-[#f3f4f6] px-3 py-2 font-jost text-[13px] text-[#101828]">
+              {user.name}
+            </div>
+          )}
           <button
             type="button"
             role="menuitem"

@@ -603,18 +603,6 @@ export function HomePage() {
                 qué vista se está). Texto fijo: el selector de abajo ("Todos
                 los eventos" o el nombre del evento) ya completa la oración. */}
             <h1 id="hoy-heading">Viendo gestiones de:</h1>
-            <div className="intro-actions">
-              {selectedEventId != null && todayStatus === "ready" && totalCount > 0 && (
-                <button
-                  ref={createTaskButtonRef}
-                  type="button"
-                  className="create-task-button create-task-button--compact"
-                  onClick={() => openSubtaskForm()}
-                >
-                  Crear gestión <Plus aria-hidden="true" size={16} />
-                </button>
-              )}
-            </div>
           </div>
 
           {/* PIM1-12: selector de evento grande y centrado, en vez del menú
@@ -635,6 +623,23 @@ export function HomePage() {
               onDeleteEvent={requestDeleteEvent}
             />
           </div>
+
+          {/* Antes vivía arriba a la derecha (grid-column 3 de .intro-row),
+              lejos del selector de evento al que corresponde. Debajo del
+              selector queda claro para qué evento se está creando la
+              gestión. */}
+          {selectedEventId != null && todayStatus === "ready" && totalCount > 0 && (
+            <div className="create-task-below-selector">
+              <button
+                ref={createTaskButtonRef}
+                type="button"
+                className="create-task-button create-task-button--compact"
+                onClick={() => openSubtaskForm()}
+              >
+                Crear gestión <Plus aria-hidden="true" size={16} />
+              </button>
+            </div>
+          )}
         </section>
 
         {todayStatus === "loading" && (
@@ -660,7 +665,13 @@ export function HomePage() {
 
         {todayStatus === "ready" && (
           <section className="task-columns" aria-label="Gestiones del día">
-            <TaskColumn title="Próximos 7 días" countClass="count--blue" count={String(sortedUpcoming.length)} showClock>
+            <TaskColumn
+              title="Próximos 7 días"
+              countClass="count--blue"
+              count={String(sortedUpcoming.length)}
+              showClock
+              orderHint="Orden: primero fecha, desempate por duración"
+            >
               {sortedUpcoming.length > 0 && (
                 <div className="column-list">
                   {sortedUpcoming.map((subtask) => (
@@ -685,6 +696,7 @@ export function HomePage() {
               countClass="count--red"
               count={String(sortedTodayPending.length + sortedDone.length)}
               headingRef={todayColumnHeadingRef}
+              orderHint="Orden: duración"
             >
               {totalCount === 0 ? (
                 selectedEventId == null ? (
@@ -761,7 +773,13 @@ export function HomePage() {
               )}
             </TaskColumn>
 
-            <TaskColumn title="Vencidas" countClass="count--red" count={String(sortedOverdue.length)} showClock>
+            <TaskColumn
+              title="Vencidas"
+              countClass="count--red"
+              count={String(sortedOverdue.length)}
+              showClock
+              orderHint="Orden: primero fecha, desempate por duración"
+            >
               {sortedOverdue.length > 0 && (
                 <div className="column-list">
                   {sortedOverdue.map((subtask) => (
@@ -927,6 +945,7 @@ function TaskColumn({
   countClass,
   showClock = false,
   headingRef,
+  orderHint,
   children,
 }: {
   title: string;
@@ -935,6 +954,10 @@ function TaskColumn({
   showClock?: boolean;
   /** Destino de foco estable (ej. tras borrar una gestión); necesita tabIndex=-1 porque un h2 no es focuseable por defecto. */
   headingRef?: React.RefObject<HTMLHeadingElement | null>;
+  /** Criterio de aceptación del sprint: describir visiblemente la regla de
+   * orden de cada grupo (fecha primero, desempate por duración) — ver
+   * sortSubtasksByDateThenHours/sortCompletedSubtasksByDateDesc. */
+  orderHint?: string;
   children?: React.ReactNode;
 }) {
   return (
@@ -948,6 +971,7 @@ function TaskColumn({
         </div>
         <span className={`task-count ${countClass}`}>{count}</span>
       </div>
+      {orderHint && <p className="column-order-hint">{orderHint}</p>}
       <div className="column-body">{children}</div>
     </article>
   );
