@@ -15,7 +15,7 @@
 // creación — la gestión se crea en la última stage de campos y el wizard
 // cierra de una vez.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { ChevronLeft, ClipboardList } from "lucide-react";
 import { apiFetch, ApiError, createSubtask } from "../lib/api";
@@ -28,12 +28,14 @@ import { Modal } from "./modal";
 import { WizardStageIndicator } from "./wizard-stage-indicator";
 import { cn } from "../lib/utils";
 import type { Category, CreateSubtaskPayload, Subtask } from "../lib/types";
+import { findPlanningConflict, formatPlanningHours } from "../lib/planning-conflicts";
 
 interface SubtaskWizardProps {
   eventId: number;
   eventName: string;
   /** `Event.due_date` (ISO datetime) para el aviso de "posterior al evento". */
   eventDueDate?: string;
+  maxDailyHours?: string;
   onClose: () => void;
   onCreated: (subtask: Subtask, warnings?: string[]) => void;
 }
@@ -94,7 +96,14 @@ function remapSubtaskErrorFields(error: unknown): unknown {
 
 const KNOWN_FIELDS = ["title", "categoryId", "scheduled_date", "estimated_hours", "description"] as const;
 
-export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCreated }: SubtaskWizardProps) {
+export function SubtaskWizard({
+  eventId,
+  eventName,
+  eventDueDate,
+  maxDailyHours,
+  onClose,
+  onCreated,
+}: SubtaskWizardProps) {
   const [stage, setStage] = useState(INTRO_STAGE);
   const [furthest, setFurthest] = useState(INTRO_STAGE);
   const [apiError, setApiError] = useState<ApiError | null>(null);
@@ -105,11 +114,14 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
 
   // PIM1-110: valores en espera de confirmación cuando scheduled_date ya venció.
   const [pendingPastDateValues, setPendingPastDateValues] = useState<SubtaskWizardValues | null>(null);
+  const [planningSubtasks, setPlanningSubtasks] = useState<Subtask[]>([]);
+  const [planningLoadError, setPlanningLoadError] = useState<string | null>(null);
 
   const {
     register,
     control,
     handleSubmit,
+    setValue,
     trigger,
     setError,
     formState: { errors, isSubmitting },
@@ -118,6 +130,21 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
     shouldFocusError: true,
     defaultValues: EMPTY_VALUES,
   });
+
+  useEffect(() => {
+    if (!maxDailyHours) return;
+    let cancelled = false;
+    apiFetch<Subtask[]>(`/eventos/${eventId}/subtareas/`)
+      .then((subtasks) => {
+        if (!cancelled) setPlanningSubtasks(subtasks);
+      })
+      .catch(() => {
+        if (!cancelled) setPlanningLoadError("No pudimos verificar las horas ya planificadas para esta fecha.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, maxDailyHours]);
 
   function ensureCategoriesLoaded() {
     if (categoriesLoaded) return;
@@ -143,8 +170,14 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
   }
 
   const scheduledDate = useWatch({ control, name: "scheduled_date" });
+  const estimatedHours = useWatch({ control, name: "estimated_hours" });
   const eventDueLocalDate = eventDueDate ? isoDateTimeToLocalDateString(eventDueDate) : null;
   const dateAfterEventDue = Boolean(eventDueLocalDate && scheduledDate && scheduledDate > eventDueLocalDate);
+  const dailyHoursLimit = maxDailyHours ? Number(maxDailyHours) : null;
+  const planningConflict =
+    dailyHoursLimit !== null && Number.isFinite(dailyHoursLimit)
+      ? findPlanningConflict(planningSubtasks, scheduledDate, estimatedHours, dailyHoursLimit)
+      : null;
 
   function goToStage(index: number) {
     if (index > furthest) return;
@@ -387,6 +420,51 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
                     <p id="wizard-subtask-hours-error" role="alert" className="text-[12px] text-red-600">
                       {errors.estimated_hours.message}
                     </p>
+                  )}
+                  {!errors.estimated_hours && planningLoadError && (
+                    <p id="wizard-subtask-hours-warning-error" role="alert" className="text-[12px] text-[#8b1a1a]">
+                      {planningLoadError}
+                    </p>
+                  )}
+                  {!errors.estimated_hours && planningConflict && (
+                    <div id="wizard-subtask-hours-warning" role="status" className="flex flex-col gap-2 text-[12px] text-[#bb4d00]">
+                      <p>
+                        Quedarías con {formatPlanningHours(planningConflict.plannedHours)} planificadas (límite{" "}
+                        {formatPlanningHours(planningConflict.limit)}).
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {planningConflict.suggestedDate && (
+                          <button
+                            type="button"
+                            className="underline"
+                            onClick={() =>
+                              setValue("scheduled_date", planningConflict.suggestedDate!, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                            }
+                          >
+                            Mover al {formatShortDateEs(planningConflict.suggestedDate)}
+                          </button>
+                        )}
+                        {planningConflict.reducibleHours !== null &&
+                          planningConflict.reducibleHours > 0 &&
+                          planningConflict.reducibleHours < Number(estimatedHours) && (
+                            <button
+                              type="button"
+                              className="underline"
+                              onClick={() =>
+                                setValue("estimated_hours", planningConflict.reducibleHours!.toFixed(2), {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            >
+                              Reducir a {formatPlanningHours(planningConflict.reducibleHours)}
+                            </button>
+                          )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </>

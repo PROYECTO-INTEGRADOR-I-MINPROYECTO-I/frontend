@@ -19,6 +19,7 @@ import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
 import { creationMessage } from "../lib/success-messages";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { describeSaveError } from "../lib/subtask-errors";
+import { useAuth } from "../lib/auth";
 import type { Event, Subtask, SubtaskStatus, TodaySummary } from "../lib/types";
 import "./homepage.css";
 
@@ -58,6 +59,7 @@ function subtaskDeleteDescription(subtask: Subtask): string {
 }
 
 export function HomePage() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [events, setEvents] = useState<Event[]>([]);
@@ -863,6 +865,7 @@ export function HomePage() {
       {isWizardOpen && (
         <EventWizard
           key={wizardKey}
+          maxDailyHours={user?.max_daily_hours}
           onClose={closeWizard}
           onEventCreated={handleWizardEventCreated}
           onSubtaskCreated={handleWizardSubtaskCreated}
@@ -875,6 +878,7 @@ export function HomePage() {
           eventId={subtaskFormEvent.eid}
           eventName={subtaskFormEvent.name}
           eventDueDate={subtaskFormEvent.due_date}
+          maxDailyHours={user?.max_daily_hours}
           initialValues={editingSubtask ?? undefined}
           onClose={() => {
             setIsSubtaskFormOpen(false);
@@ -891,6 +895,7 @@ export function HomePage() {
           eventId={subtaskWizardEvent.eid}
           eventName={subtaskWizardEvent.name}
           eventDueDate={subtaskWizardEvent.due_date}
+          maxDailyHours={user?.max_daily_hours}
           onClose={closeSubtaskWizard}
           onCreated={handleSubtaskWizardCreated}
         />

@@ -13,12 +13,15 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { HoursPicker } from "./hours-picker";
 import { cn } from "../lib/utils";
+import { findPlanningConflict, formatPlanningHours } from "../lib/planning-conflicts";
 
 interface SubtaskFormModalProps {
   eventId: number;
   eventName: string;
   /** `Event.due_date` (ISO datetime, no solo fecha) para el aviso de "posterior al evento". */
   eventDueDate?: string;
+  /** Límite diario del usuario para mostrar una advertencia no bloqueante. */
+  maxDailyHours?: string;
   /** Presente en modo edición: precarga el formulario y hace PATCH en vez de POST. */
   initialValues?: Subtask;
   onClose: () => void;
@@ -104,6 +107,7 @@ export function SubtaskFormModal({
   eventId,
   eventName,
   eventDueDate,
+  maxDailyHours,
   initialValues,
   onClose,
   onCreated,
@@ -118,11 +122,14 @@ export function SubtaskFormModal({
   // No basta con el mensaje inline (el profesor lo pasó por alto en la clínica
   // de Sprint 1); esto interrumpe el guardado con un popup que no se puede ignorar.
   const [pendingPastDateValues, setPendingPastDateValues] = useState<SubtaskFormValues | null>(null);
+  const [planningSubtasks, setPlanningSubtasks] = useState<Subtask[]>([]);
+  const [planningLoadError, setPlanningLoadError] = useState<string | null>(null);
 
   const {
     register,
     control,
     handleSubmit,
+    setValue,
     setError,
     formState: { errors, isSubmitting, isDirty, dirtyFields },
   } = useForm<SubtaskFormValues>({
@@ -163,6 +170,21 @@ export function SubtaskFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initialValues es estable durante la vida del modal (remonta con key en cada apertura).
   }, []);
 
+  useEffect(() => {
+    if (!maxDailyHours) return;
+    let cancelled = false;
+    apiFetch<Subtask[]>(`/eventos/${eventId}/subtareas/`)
+      .then((subtasks) => {
+        if (!cancelled) setPlanningSubtasks(subtasks);
+      })
+      .catch(() => {
+        if (!cancelled) setPlanningLoadError("No pudimos verificar las horas ya planificadas para esta fecha.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, maxDailyHours]);
+
   async function createCategory(name: string): Promise<SelectOption> {
     try {
       const created = await apiFetch<Category>("/categorias/", {
@@ -182,9 +204,21 @@ export function SubtaskFormModal({
   }
 
   const scheduledDate = useWatch({ control, name: "scheduled_date" });
+  const estimatedHours = useWatch({ control, name: "estimated_hours" });
   const eventDueLocalDate = eventDueDate ? isoDateTimeToLocalDateString(eventDueDate) : null;
   // Comparación como texto: "YYYY-MM-DD" ya ordena cronológicamente.
   const dateAfterEventDue = Boolean(eventDueLocalDate && scheduledDate && scheduledDate > eventDueLocalDate);
+  const dailyHoursLimit = maxDailyHours ? Number(maxDailyHours) : null;
+  const planningConflict =
+    dailyHoursLimit !== null && Number.isFinite(dailyHoursLimit)
+      ? findPlanningConflict(
+          planningSubtasks,
+          scheduledDate,
+          estimatedHours,
+          dailyHoursLimit,
+          initialValues?.subtask_id
+        )
+      : null;
 
   async function submit(values: SubtaskFormValues) {
     // Solo al crear: si ya se está editando una gestión pasada, no interrumpir
@@ -391,6 +425,51 @@ export function SubtaskFormModal({
               <p id="subtask-hours-error" role="alert" className="text-[12px] text-red-600">
                 {errors.estimated_hours.message}
               </p>
+            )}
+            {!errors.estimated_hours && planningLoadError && (
+              <p id="subtask-hours-warning-error" role="alert" className="text-[12px] text-[#8b1a1a]">
+                {planningLoadError}
+              </p>
+            )}
+            {!errors.estimated_hours && planningConflict && (
+              <div id="subtask-hours-warning" role="status" className="flex flex-col gap-2 text-[12px] text-[#bb4d00]">
+                <p>
+                  Quedarías con {formatPlanningHours(planningConflict.plannedHours)} planificadas (límite{" "}
+                  {formatPlanningHours(planningConflict.limit)}).
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {planningConflict.suggestedDate && (
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() =>
+                        setValue("scheduled_date", planningConflict.suggestedDate!, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        })
+                      }
+                    >
+                      Mover al {formatShortDateEs(planningConflict.suggestedDate)}
+                    </button>
+                  )}
+                  {planningConflict.reducibleHours !== null &&
+                    planningConflict.reducibleHours > 0 &&
+                    planningConflict.reducibleHours < Number(estimatedHours) && (
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() =>
+                          setValue("estimated_hours", planningConflict.reducibleHours!.toFixed(2), {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
+                      >
+                        Reducir a {formatPlanningHours(planningConflict.reducibleHours)}
+                      </button>
+                    )}
+                </div>
+              </div>
             )}
           </div>
         </div>

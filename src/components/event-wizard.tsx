@@ -38,6 +38,7 @@ interface EventWizardProps {
   onClose: () => void;
   onEventCreated: (event: Event) => void;
   onSubtaskCreated: (subtask: Subtask) => void;
+  maxDailyHours?: string;
 }
 
 interface EventWizardValues {
@@ -106,7 +107,7 @@ function remapEventErrorFields(error: unknown): unknown {
 
 const KNOWN_FIELDS = ["name", "description", "date", "eventTypeId", "place", "clientContact"] as const;
 
-export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: EventWizardProps) {
+export function EventWizard({ onClose, onEventCreated, onSubtaskCreated, maxDailyHours }: EventWizardProps) {
   const [stage, setStage] = useState(INTRO_STAGE);
   // Furthest reached: permite volver a revisar una stage ya validada, pero no
   // saltar adelante sin pasar por "Siguiente" (ver corrección del profesor:
@@ -506,6 +507,7 @@ export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: Event
           eventId={createdEvent.eid}
           eventName={createdEvent.name}
           eventDueDate={createdEvent.due_date}
+          maxDailyHours={maxDailyHours}
           onClose={() => setIsAddingSubtask(false)}
           onCreated={(subtask) => handleSubtaskCreated(subtask)}
         />
