@@ -9,6 +9,11 @@
 // entre sí; "Ir atrás" vuelve directo al form original (no a la stage 1,
 // así lo pidió el equipo), "Confirmar" solo aplica la resolución elegida al
 // campo del form original — no guarda nada por su cuenta.
+//
+// El estado interno (stage, selección) no se reinicia con un efecto: quien
+// abre el wizard le pasa un `key` que cambia por cada conflicto nuevo (ver
+// reprogram-modal.tsx), así que React lo remonta limpio en vez de arrastrar
+// la stage/selección de un conflicto anterior.
 
 import { useEffect, useRef, useState } from "react";
 import { formatShortDateEs } from "../lib/dates";
@@ -48,16 +53,6 @@ export function OverloadConflictWizard({
   useEffect(() => {
     onBackRef.current = onBack;
   }, [onBack]);
-
-  // Reinicia a la stage informativa y sin selección cada vez que se abre
-  // para un conflicto nuevo (ej. tras "Confirmar" en una gestión y volver a
-  // chocar con otro día).
-  useEffect(() => {
-    if (open) {
-      setStage(0);
-      setSelected(null);
-    }
-  }, [open, conflict]);
 
   useEffect(() => {
     if (!open) return;

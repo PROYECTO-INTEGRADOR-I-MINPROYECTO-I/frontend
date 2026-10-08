@@ -12,10 +12,12 @@ import { EventWizard } from "../components/event-wizard";
 import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskWizard } from "../components/subtask-wizard";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
+import { ReprogramModal } from "../components/reprogram-modal";
 import { SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { ViewSwitcher, type ViewSwitcherValue } from "../components/view-switcher";
 import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { creationMessage } from "../lib/success-messages";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { describeSaveError } from "../lib/subtask-errors";
@@ -58,6 +60,7 @@ function subtaskDeleteDescription(subtask: Subtask): string {
 }
 
 export function HomePage() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [events, setEvents] = useState<Event[]>([]);
@@ -84,6 +87,10 @@ export function HomePage() {
   const [subtaskFormKey, setSubtaskFormKey] = useState(0);
   const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
   const [detailSubtask, setDetailSubtask] = useState<Subtask | null>(null);
+  // Sprint 3 / C1: ReprogramModal, separado de SubtaskFormModal porque es un
+  // popup más chico (solo fecha y duración) y reutiliza los campos del
+  // Wizard de creación en vez del formulario completo.
+  const [reprogrammingSubtask, setReprogrammingSubtask] = useState<Subtask | null>(null);
 
   const [isSubtaskWizardOpen, setIsSubtaskWizardOpen] = useState(false);
   const [subtaskWizardKey, setSubtaskWizardKey] = useState(0);
@@ -163,6 +170,12 @@ export function HomePage() {
   // pestaña Eventos, selectedEvent puede ser otro evento (o ninguno).
   const subtaskFormEvent = editingSubtask
     ? (events.find((event) => event.eid === editingSubtask.eid) ?? null)
+    : null;
+
+  // Mismo criterio que subtaskFormEvent: resuelve por el `eid` de la propia
+  // gestión, no por selectedEvent.
+  const reprogramEvent = reprogrammingSubtask
+    ? (events.find((event) => event.eid === reprogrammingSubtask.eid) ?? null)
     : null;
 
   // ?vista=eventos|hoy, igual que ?evento=; "hoy" es el valor por defecto
@@ -296,6 +309,18 @@ export function HomePage() {
     setEditingSubtask(subtask);
     setSubtaskFormKey((key) => key + 1);
     setIsSubtaskFormOpen(true);
+  }
+
+  function openReprogramSubtask(subtask: Subtask) {
+    setDetailSubtask(null);
+    setReprogrammingSubtask(subtask);
+  }
+
+  function handleSubtaskReprogrammed() {
+    setReprogrammingSubtask(null);
+    loadToday(selectedEventId);
+    setSubtasksVersion((version) => version + 1);
+    showSuccess("Gestión reprogramada");
   }
 
   function handleEventCreated(event: Event) {
@@ -885,6 +910,17 @@ export function HomePage() {
         />
       )}
 
+      {reprogrammingSubtask && reprogramEvent && (
+        <ReprogramModal
+          subtask={reprogrammingSubtask}
+          eventName={reprogramEvent.name}
+          eventDueDate={reprogramEvent.due_date}
+          maxDailyHours={user?.max_daily_hours}
+          onClose={() => setReprogrammingSubtask(null)}
+          onReprogrammed={handleSubtaskReprogrammed}
+        />
+      )}
+
       {isSubtaskWizardOpen && subtaskWizardEvent && (
         <SubtaskWizard
           key={subtaskWizardKey}
@@ -902,6 +938,7 @@ export function HomePage() {
           onClose={() => setDetailSubtask(null)}
           onEdit={openEditSubtaskForm}
           onDelete={requestDeleteSubtask}
+          onReprogram={openReprogramSubtask}
           onToggleComplete={handleToggleComplete}
           togglePending={pendingToggleIds.has(detailSubtask.subtask_id)}
           toggleError={
