@@ -128,7 +128,19 @@ export function ReprogramModal({
   }
 
   return (
-    <Modal open onClose={onClose} title="Reprogramar gestión" chips={[{ label: eventName }]}>
+    // Fragment, no solo <Modal>: OverloadConflictWizard tiene que vivir
+    // FUERA de Modal (hermano, no hijo) para seguir montado con su propio
+    // estado mientras Modal está oculto (open=false, más abajo) — si
+    // quedara anidado adentro, ocultar Modal lo desmontaría a él también.
+    <>
+      <Modal
+        // Oculto mientras OverloadConflictWizard está arriba (Sprint 3 /
+        // C3): evita 2 fondos oscuros y 2 cajas apiladas a la vez.
+        open={conflict === null}
+        onClose={onClose}
+        title="Reprogramar gestión"
+        chips={[{ label: eventName }]}
+      >
       <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">
         {apiError && (
           <div role="alert" className="flex flex-col gap-2 rounded-lg bg-[#fff0f0] p-3 text-[13px] text-[#8b1a1a]">
@@ -217,6 +229,7 @@ export function ReprogramModal({
           </button>
         </div>
       </form>
+      </Modal>
 
       <OverloadConflictWizard
         key={wizardKey}
@@ -227,6 +240,6 @@ export function ReprogramModal({
         onBack={() => setConflict(null)}
         onConfirm={handleResolution}
       />
-    </Modal>
+    </>
   );
 }

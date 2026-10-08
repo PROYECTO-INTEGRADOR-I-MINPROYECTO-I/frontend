@@ -142,6 +142,9 @@ describe("ReprogramModal", () => {
     expect(await screen.findByText("¡Esta reprogramación supera tu límite diario!")).toBeInTheDocument();
     // No debe haber guardado nada todavía.
     expect(fetchMock.mock.calls.some(([, options]) => options?.method === "PATCH")).toBe(false);
+    // Un solo popup visible a la vez: el form de "Reprogramar gestión" se
+    // oculta (no solo queda detrás) mientras el wizard de conflicto está arriba.
+    expect(screen.queryByRole("dialog", { name: "Reprogramar gestión" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Ver opciones de solución" }));
     // Nada más está agendado ese rango: el día siguiente (10-26) debería tener capacidad.
@@ -150,6 +153,7 @@ describe("ReprogramModal", () => {
 
     // Vuelve al form con la fecha ya actualizada, sin haber guardado por su cuenta.
     expect(screen.queryByText("¡Esta reprogramación supera tu límite diario!")).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Reprogramar gestión" })).toBeInTheDocument();
     expect(screen.getByLabelText("Nueva fecha")).toHaveValue("2026-10-26");
     expect(onReprogrammed).not.toHaveBeenCalled();
   });

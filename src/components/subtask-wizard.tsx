@@ -277,7 +277,20 @@ export function SubtaskWizard({
   };
 
   return (
-    <Modal open onClose={onClose} title="Nueva gestión" chips={[{ label: eventName }]} className="max-w-[560px]">
+    // Fragment, no solo <Modal>: OverloadConflictWizard tiene que vivir
+    // FUERA de Modal (hermano, no hijo) para seguir montado con su propio
+    // estado mientras Modal está oculto (open=false, más abajo) — si
+    // quedara anidado adentro, ocultar Modal lo desmontaría a él también.
+    <>
+      <Modal
+        // Oculto mientras OverloadConflictWizard está arriba (Sprint 3 / C3):
+        // evita 2 fondos oscuros y 2 cajas apiladas a la vez.
+        open={conflict === null}
+        onClose={onClose}
+        title="Nueva gestión"
+        chips={[{ label: eventName }]}
+        className="max-w-[560px]"
+      >
       <div className="flex flex-col gap-6">
         <WizardStageIndicator
           total={TOTAL_STAGES}
@@ -507,6 +520,7 @@ export function SubtaskWizard({
           setStage(2); // vuelve a la stage de fecha/horas para que la cambie
         }}
       />
+      </Modal>
 
       <OverloadConflictWizard
         key={wizardKey}
@@ -517,6 +531,6 @@ export function SubtaskWizard({
         onBack={() => setConflict(null)}
         onConfirm={handleConflictResolution}
       />
-    </Modal>
+    </>
   );
 }

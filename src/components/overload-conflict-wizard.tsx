@@ -90,6 +90,19 @@ export function OverloadConflictWizard({
     };
   }, [open]);
 
+  // Igual que Modal: bloquea el scroll de fondo mientras está abierto. Hace
+  // falta su propio bloqueo (no basta con el del form que lo disparó) porque
+  // ese form se oculta (open=false) mientras este wizard está arriba, lo que
+  // apaga su propio bloqueo.
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   if (!open || !conflict) return null;
 
   return (

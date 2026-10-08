@@ -322,12 +322,22 @@ export function SubtaskFormModal({
   }
 
   return (
-    <Modal
-      open
-      onClose={handleClose}
-      title={mode === "edit" ? "Editar gestión" : "Nueva gestión"}
-      chips={[{ label: eventName }]}
-    >
+    // Fragment, no solo <Modal>: OverloadConflictWizard tiene que vivir
+    // FUERA de Modal (hermano, no hijo) para seguir montado con su propio
+    // estado mientras Modal está oculto (open=false, más abajo) — si
+    // quedara anidado adentro, ocultar Modal lo desmontaría a él también.
+    <>
+      <Modal
+        // Oculto mientras OverloadConflictWizard está arriba (Sprint 3 /
+        // C3): evita 2 fondos oscuros y 2 cajas apiladas a la vez. El popup
+        // de fecha vencida (PIM1-110) no oculta este form a propósito: es
+        // una decisión rápida y chica, conviene seguir viendo lo ya escrito
+        // detrás.
+        open={conflict === null}
+        onClose={handleClose}
+        title={mode === "edit" ? "Editar gestión" : "Nueva gestión"}
+        chips={[{ label: eventName }]}
+      >
       <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">
         {apiError && (
           <div role="alert" className="flex flex-col gap-2 rounded-lg bg-[#fff0f0] p-3 text-[13px] text-[#8b1a1a]">
@@ -504,6 +514,7 @@ export function SubtaskFormModal({
         }}
         onCancel={() => setPendingPastDateValues(null)}
       />
+      </Modal>
 
       <OverloadConflictWizard
         key={wizardKey}
@@ -514,6 +525,6 @@ export function SubtaskFormModal({
         onBack={() => setConflict(null)}
         onConfirm={handleResolution}
       />
-    </Modal>
+    </>
   );
 }

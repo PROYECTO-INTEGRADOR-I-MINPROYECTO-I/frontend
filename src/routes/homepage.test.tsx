@@ -691,10 +691,16 @@ describe("HomePage", () => {
     await user.click(within(subtaskWizardDialog).getByRole("button", { name: "2 h" }));
     await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Siguiente" }));
     await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Crear gestión" }));
-    // De vuelta en la stage de plan inicial del wizard (el modal de la gestión ya cerró).
-    expect(await within(wizardDialog).findByRole("cell", { name: "Reservar salón" })).toBeInTheDocument();
+    // De vuelta en la stage de plan inicial del wizard (el modal de la gestión
+    // ya cerró). El wizard de evento se vuelve a montar (no solo a mostrar):
+    // se re-consulta el <dialog>, la referencia vieja de wizardDialog ya no
+    // vale (ver el oculto/mostrado de Modal en event-wizard.tsx).
+    const wizardDialogAfterSubtask = await screen.findByRole("dialog", { name: "Cumpleaños de Ana" });
+    expect(
+      await within(wizardDialogAfterSubtask).findByRole("cell", { name: "Reservar salón" })
+    ).toBeInTheDocument();
 
-    await user.click(within(wizardDialog).getByRole("button", { name: "Finalizar" }));
+    await user.click(within(wizardDialogAfterSubtask).getByRole("button", { name: "Finalizar" }));
 
     // El wizard ya cerró: el selector de Hoy debería mostrar el evento recién
     // creado (no "Todos los eventos"), y la gestión agregada en el plan

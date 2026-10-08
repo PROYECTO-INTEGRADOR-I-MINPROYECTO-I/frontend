@@ -247,12 +247,20 @@ export function EventWizard({ maxDailyHours, onClose, onEventCreated, onSubtaskC
   };
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title={createdEvent ? createdEvent.name : "Nuevo evento"}
-      className="max-w-[560px]"
-    >
+    // Fragment, no solo <Modal>: SubtaskWizard tiene que vivir FUERA de
+    // Modal (hermano, no hijo) para poder seguir montado con su estado
+    // intacto mientras Modal está oculto (open=false, más abajo) — si
+    // quedara anidado adentro, ocultar Modal lo desmontaría a él también.
+    <>
+      <Modal
+        // Oculto (sin desmontar, con todo su estado intacto) mientras el
+        // SubtaskWizard del plan inicial está arriba: evitar 2 fondos
+        // oscuros y 2 cajas apiladas en el eje Z a la vez.
+        open={!isAddingSubtask}
+        onClose={onClose}
+        title={createdEvent ? createdEvent.name : "Nuevo evento"}
+        className="max-w-[560px]"
+      >
       <div className="flex flex-col gap-6">
         <WizardStageIndicator
           total={TOTAL_STAGES}
@@ -504,6 +512,7 @@ export function EventWizard({ maxDailyHours, onClose, onEventCreated, onSubtaskC
           </div>
         )}
       </div>
+      </Modal>
 
       {isAddingSubtask && createdEvent && (
         <SubtaskWizard
@@ -515,6 +524,6 @@ export function EventWizard({ maxDailyHours, onClose, onEventCreated, onSubtaskC
           onCreated={(subtask) => handleSubtaskCreated(subtask)}
         />
       )}
-    </Modal>
+    </>
   );
 }
