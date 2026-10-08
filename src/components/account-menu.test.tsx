@@ -49,6 +49,19 @@ describe("AccountMenu", () => {
     expect(screen.getByRole("menuitem", { name: /cerrar sesión/i })).toBeInTheDocument();
   });
 
+  test("'Configuración' abre el popup del límite diario (Sprint 3 / C2)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: meUser, access: "access-1" })));
+    const user = userEvent.setup();
+    renderMenu();
+
+    await user.click(await screen.findByRole("button", { name: "Cuenta de Ana López" }));
+    await user.click(screen.getByRole("menuitem", { name: "Configuración" }));
+
+    expect(screen.queryByRole("menu", { name: "Cuenta" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Configuración" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Límite diario de horas de gestión")).toHaveValue(6);
+  });
+
   test("el menú muestra el nombre del usuario, no solo las iniciales del avatar", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ user: meUser, access: "access-1" })));
     const user = userEvent.setup();
