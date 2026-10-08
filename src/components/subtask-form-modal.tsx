@@ -7,18 +7,22 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { apiFetch, ApiError, createSubtask } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
 import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
+import { checkOverloadConflict, type ConflictInfo } from "../lib/daily-capacity";
 import type { Category, CreateSubtaskPayload, Subtask, UpdateSubtaskPayload } from "../lib/types";
 import { Modal } from "./modal";
 import { ConfirmDialog } from "./confirm-dialog";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { HoursPicker } from "./hours-picker";
+import { OverloadConflictWizard, type ConflictResolution } from "./overload-conflict-wizard";
 import { cn } from "../lib/utils";
 
 interface SubtaskFormModalProps {
   eventId: number;
   eventName: string;
-  /** `Event.due_date` (ISO datetime, no solo fecha) para el aviso de "posterior al evento". */
+  /** `Event.due_date` (ISO datetime, no solo fecha) para el aviso de "posterior al evento" y el tope de la sugerencia de "mover" (C4). */
   eventDueDate?: string;
+  /** Límite diario del organizador (Sprint 3 / C3): sin esto no hay cómo predecir conflicto al crear/editar fecha u horas. */
+  maxDailyHours?: string;
   /** Presente en modo edición: precarga el formulario y hace PATCH en vez de POST. */
   initialValues?: Subtask;
   onClose: () => void;
@@ -104,6 +108,7 @@ export function SubtaskFormModal({
   eventId,
   eventName,
   eventDueDate,
+  maxDailyHours,
   initialValues,
   onClose,
   onCreated,
@@ -118,11 +123,20 @@ export function SubtaskFormModal({
   // No basta con el mensaje inline (el profesor lo pasó por alto en la clínica
   // de Sprint 1); esto interrumpe el guardado con un popup que no se puede ignorar.
   const [pendingPastDateValues, setPendingPastDateValues] = useState<SubtaskFormValues | null>(null);
+  // Sprint 3 / C3: conflicto de sobrecarga predicho al editar fecha u horas
+  // (el PATCH genérico nunca bloquea por su cuenta, a diferencia de
+  // /subtareas/<id>/reprogram/ — ver reprogram-modal.tsx). wizardKey sube en
+  // cada conflicto nuevo para que OverloadConflictWizard remonte limpio.
+  const [conflict, setConflict] = useState<ConflictInfo | null>(null);
+  const [moveSuggestion, setMoveSuggestion] = useState<string | null>(null);
+  const [maxReduce, setMaxReduce] = useState<number | null>(null);
+  const [wizardKey, setWizardKey] = useState(0);
 
   const {
     register,
     control,
     handleSubmit,
+    setValue,
     setError,
     formState: { errors, isSubmitting, isDirty, dirtyFields },
   } = useForm<SubtaskFormValues>({
@@ -196,6 +210,32 @@ export function SubtaskFormModal({
     await performSubmit(values);
   }
 
+  // Sprint 3 / C3: true si hay conflicto (ya dejó el wizard abierto y no se
+  // debe guardar todavía). Si falla la predicción (red caída, etc.), no
+  // bloquea: ninguno de los dos guardados de abajo rechaza por sobrecarga
+  // por su cuenta, así que solo se deja de avisar con anticipación esta vez.
+  async function checkConflictBeforeSaving(
+    date: string,
+    hours: number,
+    excludeSubtaskId?: number
+  ): Promise<boolean> {
+    if (!maxDailyHours) return false;
+    const limit = Number(maxDailyHours);
+    if (!Number.isFinite(limit)) return false;
+
+    try {
+      const result = await checkOverloadConflict({ date, hours, limit, eventDueDate, excludeSubtaskId });
+      if (!result) return false;
+      setWizardKey((key) => key + 1);
+      setConflict(result.conflict);
+      setMoveSuggestion(result.moveSuggestion);
+      setMaxReduce(result.maxReduceHours);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function performSubmit(values: SubtaskFormValues) {
     setApiError(null);
 
@@ -209,6 +249,13 @@ export function SubtaskFormModal({
         onClose();
         return;
       }
+
+      if (payload.scheduled_date || payload.estimated_hours) {
+        const date = payload.scheduled_date ?? initialValues.scheduled_date;
+        const hours = Number(payload.estimated_hours ?? initialValues.estimated_hours);
+        if (await checkConflictBeforeSaving(date, hours, initialValues.subtask_id)) return;
+      }
+
       try {
         const updated = await apiFetch<Subtask>(`/subtareas/${initialValues.subtask_id}/`, {
           method: "PATCH",
@@ -226,6 +273,8 @@ export function SubtaskFormModal({
       }
       return;
     }
+
+    if (await checkConflictBeforeSaving(values.scheduled_date, Number(values.estimated_hours))) return;
 
     const payload: CreateSubtaskPayload = {
       title: values.title.trim(),
@@ -263,13 +312,32 @@ export function SubtaskFormModal({
     handleSubmit(submit)();
   }
 
+  function handleResolution(resolution: ConflictResolution) {
+    if (resolution.type === "move") {
+      setValue("scheduled_date", resolution.date, { shouldDirty: true });
+    } else {
+      setValue("estimated_hours", String(resolution.hours), { shouldDirty: true });
+    }
+    setConflict(null);
+  }
+
   return (
-    <Modal
-      open
-      onClose={handleClose}
-      title={mode === "edit" ? "Editar gestión" : "Nueva gestión"}
-      chips={[{ label: eventName }]}
-    >
+    // Fragment, no solo <Modal>: OverloadConflictWizard tiene que vivir
+    // FUERA de Modal (hermano, no hijo) para seguir montado con su propio
+    // estado mientras Modal está oculto (open=false, más abajo) — si
+    // quedara anidado adentro, ocultar Modal lo desmontaría a él también.
+    <>
+      <Modal
+        // Oculto mientras OverloadConflictWizard está arriba (Sprint 3 /
+        // C3): evita 2 fondos oscuros y 2 cajas apiladas a la vez. El popup
+        // de fecha vencida (PIM1-110) no oculta este form a propósito: es
+        // una decisión rápida y chica, conviene seguir viendo lo ya escrito
+        // detrás.
+        open={conflict === null}
+        onClose={handleClose}
+        title={mode === "edit" ? "Editar gestión" : "Nueva gestión"}
+        chips={[{ label: eventName }]}
+      >
       <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">
         {apiError && (
           <div role="alert" className="flex flex-col gap-2 rounded-lg bg-[#fff0f0] p-3 text-[13px] text-[#8b1a1a]">
@@ -446,6 +514,17 @@ export function SubtaskFormModal({
         }}
         onCancel={() => setPendingPastDateValues(null)}
       />
-    </Modal>
+      </Modal>
+
+      <OverloadConflictWizard
+        key={wizardKey}
+        open={conflict !== null}
+        conflict={conflict}
+        moveSuggestion={moveSuggestion}
+        maxReduceHours={maxReduce}
+        onBack={() => setConflict(null)}
+        onConfirm={handleResolution}
+      />
+    </>
   );
 }

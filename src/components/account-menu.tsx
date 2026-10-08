@@ -5,8 +5,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { SettingsModal } from "./settings-modal";
 
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -20,6 +21,8 @@ export function AccountMenu() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  // Sprint 3 / C2: popup de configuración del límite diario (ver settings-modal.tsx).
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,6 +47,11 @@ export function AccountMenu() {
     setOpen(false);
     await logout();
     navigate("/login");
+  }
+
+  function openSettings() {
+    setOpen(false);
+    setSettingsOpen(true);
   }
 
   const initials = user ? initialsFor(user.name) : "?";
@@ -79,6 +87,15 @@ export function AccountMenu() {
           <button
             type="button"
             role="menuitem"
+            onClick={openSettings}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left font-jost text-[12px] text-[#101828] hover:bg-[#fff0f0] focus-visible:bg-[#fff0f0] focus-visible:outline-none"
+          >
+            <Settings size={13} aria-hidden="true" />
+            Configuración
+          </button>
+          <button
+            type="button"
+            role="menuitem"
             onClick={handleLogout}
             className="flex w-full items-center gap-2 px-3 py-2 text-left font-jost text-[12px] text-[#8b1a1a] hover:bg-[#fff0f0] focus-visible:bg-[#fff0f0] focus-visible:outline-none"
           >
@@ -87,6 +104,8 @@ export function AccountMenu() {
           </button>
         </div>
       )}
+
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

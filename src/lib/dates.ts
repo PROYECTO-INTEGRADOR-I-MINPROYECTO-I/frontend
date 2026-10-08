@@ -59,3 +59,16 @@ export function formatShortDateEs(dateStr: string): string {
   const date = parseLocalDate(dateStr);
   return `${date.getDate()} ${SHORT_MONTHS_ES[date.getMonth()]}`;
 }
+
+/** Suma (o resta, con `delta` negativo) días a una fecha "YYYY-MM-DD". */
+export function addDaysToLocalDate(dateStr: string, delta: number): string {
+  const date = parseLocalDate(dateStr);
+  date.setDate(date.getDate() + delta);
+  return toLocalDateString(date);
+}
+
+/** Días de diferencia entre dos fechas "YYYY-MM-DD" (`to` menos `from`; negativo si `to` es anterior). */
+export function daysBetweenLocalDates(from: string, to: string): number {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((parseLocalDate(to).getTime() - parseLocalDate(from).getTime()) / msPerDay);
+}
