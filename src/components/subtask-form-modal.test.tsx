@@ -241,6 +241,64 @@ describe("SubtaskFormModal", () => {
     expect(JSON.parse(options.body as string)).toEqual({ title: "Reservar salón principal" });
   });
 
+  test("crear una gestión que supera el límite diario abre el wizard de conflicto en vez de mandar el POST (C3)", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      const method = options?.method ?? "GET";
+      if (href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              fecha: "2026-09-28",
+              metrica: "gestiones",
+              vencidas: [],
+              para_hoy: { pendientes: [], completadas: [] },
+              proximas: [
+                { subtask_id: 9, eid: 2, title: "Otra gestión", description: "", category: "Lugar", estimated_hours: "5", scheduled_date: "2026-10-01", status: "pending" },
+              ],
+              progreso_dia: { completadas: 0, total: 0, horas_completadas: "0", horas_totales: "0" },
+              filtros: { event_id: null, status: null },
+            },
+            200
+          )
+        );
+      }
+      // Si esto se llega a invocar, el bug reapareció: el backend respondería
+      // el 409 real y se mostraría como un mensaje genérico en vez de abrir
+      // el wizard (justo lo que se reportó).
+      if (method === "POST" && href.includes("/eventos/1/subtareas/")) {
+        return Promise.reject(new Error("no debería llegar a crear con el conflicto sin resolver"));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SubtaskFormModal
+        eventId={1}
+        eventName="Boda Luisa & Carlos"
+        maxDailyHours="6.00"
+        onClose={vi.fn()}
+        onCreated={onCreated}
+      />
+    );
+    const categorySelect = await waitForCategoriesLoaded();
+
+    await user.type(screen.getByLabelText("Nombre"), "Confirmar catering");
+    await user.selectOptions(categorySelect, "Catering");
+    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-10-01" } });
+    await user.click(screen.getByRole("button", { name: "2 h" }));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(await screen.findByText("¡Esta reprogramación supera tu límite diario!")).toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
   test("editar la duración a un valor que supera el límite diario abre el wizard de conflicto en vez de guardar (C3)", async () => {
     const user = userEvent.setup();
     const onUpdated = vi.fn();

@@ -888,6 +888,7 @@ export function HomePage() {
       {isWizardOpen && (
         <EventWizard
           key={wizardKey}
+          maxDailyHours={user?.max_daily_hours}
           onClose={closeWizard}
           onEventCreated={handleWizardEventCreated}
           onSubtaskCreated={handleWizardSubtaskCreated}
@@ -928,6 +929,7 @@ export function HomePage() {
           eventId={subtaskWizardEvent.eid}
           eventName={subtaskWizardEvent.name}
           eventDueDate={subtaskWizardEvent.due_date}
+          maxDailyHours={user?.max_daily_hours}
           onClose={closeSubtaskWizard}
           onCreated={handleSubtaskWizardCreated}
         />

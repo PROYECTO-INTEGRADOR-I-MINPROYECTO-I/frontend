@@ -6,20 +6,8 @@ import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { apiFetch, ApiError, createSubtask } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
-import {
-  addDaysToLocalDate,
-  daysBetweenLocalDates,
-  formatShortDateEs,
-  isoDateTimeToLocalDateString,
-  todayLocalDateString,
-} from "../lib/dates";
-import {
-  fetchDailyCapacity,
-  findMoveSuggestion,
-  maxReducibleHours,
-  predictConflict,
-  type ConflictInfo,
-} from "../lib/daily-capacity";
+import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
+import { checkOverloadConflict, type ConflictInfo } from "../lib/daily-capacity";
 import type { Category, CreateSubtaskPayload, Subtask, UpdateSubtaskPayload } from "../lib/types";
 import { Modal } from "./modal";
 import { ConfirmDialog } from "./confirm-dialog";
@@ -33,7 +21,7 @@ interface SubtaskFormModalProps {
   eventName: string;
   /** `Event.due_date` (ISO datetime, no solo fecha) para el aviso de "posterior al evento" y el tope de la sugerencia de "mover" (C4). */
   eventDueDate?: string;
-  /** Límite diario del organizador (Sprint 3 / C3): sin esto no hay cómo predecir conflicto al editar fecha/horas. */
+  /** Límite diario del organizador (Sprint 3 / C3): sin esto no hay cómo predecir conflicto al crear/editar fecha u horas. */
   maxDailyHours?: string;
   /** Presente en modo edición: precarga el formulario y hace PATCH en vez de POST. */
   initialValues?: Subtask;
@@ -41,10 +29,6 @@ interface SubtaskFormModalProps {
   onCreated?: (subtask: Subtask, warnings?: string[]) => void;
   onUpdated?: (subtask: Subtask) => void;
 }
-
-// Tope por defecto cuando no hay fecha de evento: mismo límite que ya valida
-// el backend para `dias_proximos`.
-const DEFAULT_WINDOW_DAYS = 60;
 
 interface SubtaskFormValues {
   title: string;
@@ -226,6 +210,32 @@ export function SubtaskFormModal({
     await performSubmit(values);
   }
 
+  // Sprint 3 / C3: true si hay conflicto (ya dejó el wizard abierto y no se
+  // debe guardar todavía). Si falla la predicción (red caída, etc.), no
+  // bloquea: ninguno de los dos guardados de abajo rechaza por sobrecarga
+  // por su cuenta, así que solo se deja de avisar con anticipación esta vez.
+  async function checkConflictBeforeSaving(
+    date: string,
+    hours: number,
+    excludeSubtaskId?: number
+  ): Promise<boolean> {
+    if (!maxDailyHours) return false;
+    const limit = Number(maxDailyHours);
+    if (!Number.isFinite(limit)) return false;
+
+    try {
+      const result = await checkOverloadConflict({ date, hours, limit, eventDueDate, excludeSubtaskId });
+      if (!result) return false;
+      setWizardKey((key) => key + 1);
+      setConflict(result.conflict);
+      setMoveSuggestion(result.moveSuggestion);
+      setMaxReduce(result.maxReduceHours);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function performSubmit(values: SubtaskFormValues) {
     setApiError(null);
 
@@ -240,31 +250,10 @@ export function SubtaskFormModal({
         return;
       }
 
-      if ((payload.scheduled_date || payload.estimated_hours) && maxDailyHours) {
-        const limit = Number(maxDailyHours);
-        if (Number.isFinite(limit)) {
-          const date = payload.scheduled_date ?? initialValues.scheduled_date;
-          const hours = Number(payload.estimated_hours ?? initialValues.estimated_hours);
-          const today = todayLocalDateString();
-          const maxDate = eventDueLocalDate ?? addDaysToLocalDate(today, DEFAULT_WINDOW_DAYS);
-          const windowDays = Math.max(1, daysBetweenLocalDates(today, maxDate));
-          try {
-            const snapshot = await fetchDailyCapacity(limit, windowDays);
-            const predicted = predictConflict(snapshot, date, hours, initialValues.subtask_id);
-            if (predicted) {
-              setWizardKey((key) => key + 1);
-              setConflict(predicted);
-              setMoveSuggestion(
-                findMoveSuggestion(snapshot, predicted.date, hours, today, maxDate, initialValues.subtask_id)
-              );
-              setMaxReduce(maxReducibleHours(snapshot, predicted.date, initialValues.subtask_id));
-              return; // No guarda: espera a que el organizador resuelva el conflicto.
-            }
-          } catch {
-            // Si falla la predicción (red caída, etc.), no bloquea el guardado:
-            // el PATCH genérico igual nunca rechaza por sobrecarga.
-          }
-        }
+      if (payload.scheduled_date || payload.estimated_hours) {
+        const date = payload.scheduled_date ?? initialValues.scheduled_date;
+        const hours = Number(payload.estimated_hours ?? initialValues.estimated_hours);
+        if (await checkConflictBeforeSaving(date, hours, initialValues.subtask_id)) return;
       }
 
       try {
@@ -284,6 +273,8 @@ export function SubtaskFormModal({
       }
       return;
     }
+
+    if (await checkConflictBeforeSaving(values.scheduled_date, Number(values.estimated_hours))) return;
 
     const payload: CreateSubtaskPayload = {
       title: values.title.trim(),

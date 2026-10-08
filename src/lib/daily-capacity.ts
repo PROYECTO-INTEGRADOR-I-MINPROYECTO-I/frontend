@@ -5,18 +5,18 @@
 // solo cuentan gestiones pendientes y ejecutadas (las pospuestas no
 // consumen capacidad), comparación estricta (> no >=).
 //
-// Se usa en 2 flujos distintos:
-// - Reprogramar (reprogram-modal.tsx): PATCH /subtareas/<id>/reprogram/ ya
-//   bloquea con un 409 real si hay conflicto; este módulo solo calcula la
-//   sugerencia de "mover" una vez el backend confirmó el conflicto, con un
-//   algoritmo ping-pong (día siguiente, día anterior, dos días después...)
-//   distinto al forward-only que ofrece el backend en `alternativas`.
-// - Editar (subtask-form-modal.tsx): el PATCH genérico (PATCH
-//   /subtareas/<id>/) nunca bloquea, así que acá se predice el conflicto
-//   ANTES de guardar, con las mismas funciones.
+// Se usa en 4 flujos (crear, editar, el wizard de creación y reprogramar):
+// ninguno de los endpoints de creación/edición genéricos bloquea de verdad
+// por sobrecarga salvo el POST de creación y PATCH /reprogram/ (que sí dan
+// un 409 real) — y aun ahí, el backend solo sugiere fechas hacia adelante.
+// checkOverloadConflict() predice el conflicto ANTES de guardar, con el
+// mismo criterio que evaluate_conflict() en planning/services.py, y calcula
+// la sugerencia de "mover" con un algoritmo propio (ping-pong: día
+// siguiente, anterior, dos después...) acotado entre hoy y la fecha del
+// evento.
 
 import { apiFetch } from "./api";
-import { addDaysToLocalDate } from "./dates";
+import { addDaysToLocalDate, daysBetweenLocalDates, isoDateTimeToLocalDateString, todayLocalDateString } from "./dates";
 import type { TodaySummary } from "./types";
 
 export interface DailyCapacityEntry {
@@ -130,4 +130,51 @@ export function maxReducibleHours(
 /** "2.5 horas", "6 horas": el formato plano que pide la UI de resolución de conflictos (distinto de "2 h 30 min" en otros lados de la app). */
 export function formatPlainHours(hours: number): string {
   return `${Number(hours.toFixed(2))} horas`;
+}
+
+export interface OverloadConflictCheck {
+  conflict: ConflictInfo;
+  moveSuggestion: string | null;
+  maxReduceHours: number | null;
+}
+
+/**
+ * Trae la capacidad diaria, predice el conflicto para `date`/`hours` y, si
+ * lo hay, calcula de una vez la sugerencia de "mover" y el máximo de
+ * "reducir horas" (ver OverloadConflictWizard). null si no hay conflicto.
+ * Único punto de entrada para los 4 flujos que necesitan esto (crear,
+ * editar, el wizard de creación y reprogramar) — así los cuatro quedan con
+ * el mismo criterio y la misma ventana de búsqueda.
+ */
+export async function checkOverloadConflict(params: {
+  date: string;
+  hours: number;
+  limit: number;
+  /** `Event.due_date` (ISO datetime): tope de la sugerencia de "mover". Sin esto, tope de 60 días desde hoy. */
+  eventDueDate?: string;
+  /** La propia gestión, para no contarla dos veces (editar/reprogramar); sin esto en crear. */
+  excludeSubtaskId?: number;
+}): Promise<OverloadConflictCheck | null> {
+  const today = todayLocalDateString();
+  const maxDate = params.eventDueDate
+    ? isoDateTimeToLocalDateString(params.eventDueDate)
+    : addDaysToLocalDate(today, MAX_WINDOW_DAYS);
+  const windowDays = Math.max(1, daysBetweenLocalDates(today, maxDate));
+
+  const snapshot = await fetchDailyCapacity(params.limit, windowDays);
+  const conflict = predictConflict(snapshot, params.date, params.hours, params.excludeSubtaskId);
+  if (!conflict) return null;
+
+  return {
+    conflict,
+    moveSuggestion: findMoveSuggestion(
+      snapshot,
+      conflict.date,
+      params.hours,
+      today,
+      maxDate,
+      params.excludeSubtaskId
+    ),
+    maxReduceHours: maxReducibleHours(snapshot, conflict.date, params.excludeSubtaskId),
+  };
 }

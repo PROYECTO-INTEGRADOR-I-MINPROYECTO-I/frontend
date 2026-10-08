@@ -35,6 +35,8 @@ import { cn } from "../lib/utils";
 import type { CreateEventPayload, Event, EventType, Subtask } from "../lib/types";
 
 interface EventWizardProps {
+  /** Límite diario del organizador (Sprint 3 / C3), para la detección de conflicto del plan inicial de gestiones. */
+  maxDailyHours?: string;
   onClose: () => void;
   onEventCreated: (event: Event) => void;
   onSubtaskCreated: (subtask: Subtask) => void;
@@ -106,7 +108,7 @@ function remapEventErrorFields(error: unknown): unknown {
 
 const KNOWN_FIELDS = ["name", "description", "date", "eventTypeId", "place", "clientContact"] as const;
 
-export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: EventWizardProps) {
+export function EventWizard({ maxDailyHours, onClose, onEventCreated, onSubtaskCreated }: EventWizardProps) {
   const [stage, setStage] = useState(INTRO_STAGE);
   // Furthest reached: permite volver a revisar una stage ya validada, pero no
   // saltar adelante sin pasar por "Siguiente" (ver corrección del profesor:
@@ -506,6 +508,7 @@ export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: Event
           eventId={createdEvent.eid}
           eventName={createdEvent.name}
           eventDueDate={createdEvent.due_date}
+          maxDailyHours={maxDailyHours}
           onClose={() => setIsAddingSubtask(false)}
           onCreated={(subtask) => handleSubtaskCreated(subtask)}
         />

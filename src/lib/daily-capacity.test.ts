@@ -1,11 +1,16 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
+  checkOverloadConflict,
   findMoveSuggestion,
   loadForDate,
   maxReducibleHours,
   predictConflict,
   type DailyCapacitySnapshot,
 } from "./daily-capacity";
+
+function jsonResponse(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
 
 function snapshot(limit: number, entries: DailyCapacitySnapshot["entries"]): DailyCapacitySnapshot {
   return { limit, entries };
@@ -108,5 +113,62 @@ describe("loadForDate", () => {
       { subtaskId: 2, date: "2026-10-11", hours: 3 },
     ]);
     expect(loadForDate(s, "2026-10-10", undefined)).toBe(2);
+  });
+});
+
+describe("checkOverloadConflict", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("null cuando no hay conflicto (no llega a calcular sugerencias)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          { fecha: "2026-10-10", metrica: "gestiones", vencidas: [], para_hoy: { pendientes: [], completadas: [] }, proximas: [], progreso_dia: { completadas: 0, total: 0, horas_completadas: "0", horas_totales: "0" }, filtros: { event_id: null, status: null } },
+          200
+        )
+      )
+    );
+
+    const result = await checkOverloadConflict({ date: "2026-10-10", hours: 2, limit: 6 });
+
+    expect(result).toBeNull();
+  });
+
+  test("con conflicto, junta el resumen, la sugerencia de mover y el máximo de reducir en una sola llamada", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            fecha: "2026-10-10",
+            metrica: "gestiones",
+            vencidas: [],
+            para_hoy: { pendientes: [], completadas: [] },
+            proximas: [
+              { subtask_id: 1, eid: 1, title: "Otra", description: "", category: "Lugar", estimated_hours: "5", scheduled_date: "2026-10-10", status: "pending" },
+            ],
+            progreso_dia: { completadas: 0, total: 0, horas_completadas: "0", horas_totales: "0" },
+            filtros: { event_id: null, status: null },
+          },
+          200
+        )
+      )
+    );
+
+    const result = await checkOverloadConflict({
+      date: "2026-10-10",
+      hours: 2,
+      limit: 6,
+      eventDueDate: "2026-12-01T16:00:00.000Z",
+    });
+
+    expect(result).toEqual({
+      conflict: { date: "2026-10-10", existingHours: 5, plannedHours: 7, limit: 6 },
+      moveSuggestion: "2026-10-11",
+      maxReduceHours: 1,
+    });
   });
 });

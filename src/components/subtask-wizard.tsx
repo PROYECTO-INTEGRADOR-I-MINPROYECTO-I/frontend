@@ -21,10 +21,12 @@ import { ChevronLeft, ClipboardList } from "lucide-react";
 import { apiFetch, ApiError, createSubtask } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
 import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
+import { checkOverloadConflict, type ConflictInfo } from "../lib/daily-capacity";
 import { ConfirmDialog } from "./confirm-dialog";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { HoursPicker } from "./hours-picker";
 import { Modal } from "./modal";
+import { OverloadConflictWizard, type ConflictResolution } from "./overload-conflict-wizard";
 import { WizardStageIndicator } from "./wizard-stage-indicator";
 import { cn } from "../lib/utils";
 import type { Category, CreateSubtaskPayload, Subtask } from "../lib/types";
@@ -32,8 +34,10 @@ import type { Category, CreateSubtaskPayload, Subtask } from "../lib/types";
 interface SubtaskWizardProps {
   eventId: number;
   eventName: string;
-  /** `Event.due_date` (ISO datetime) para el aviso de "posterior al evento". */
+  /** `Event.due_date` (ISO datetime) para el aviso de "posterior al evento" y el tope de la sugerencia de "mover" (Sprint 3 / C4). */
   eventDueDate?: string;
+  /** Límite diario del organizador (Sprint 3 / C3): sin esto no hay cómo predecir conflicto. */
+  maxDailyHours?: string;
   onClose: () => void;
   onCreated: (subtask: Subtask, warnings?: string[]) => void;
 }
@@ -94,7 +98,14 @@ function remapSubtaskErrorFields(error: unknown): unknown {
 
 const KNOWN_FIELDS = ["title", "categoryId", "scheduled_date", "estimated_hours", "description"] as const;
 
-export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCreated }: SubtaskWizardProps) {
+export function SubtaskWizard({
+  eventId,
+  eventName,
+  eventDueDate,
+  maxDailyHours,
+  onClose,
+  onCreated,
+}: SubtaskWizardProps) {
   const [stage, setStage] = useState(INTRO_STAGE);
   const [furthest, setFurthest] = useState(INTRO_STAGE);
   const [apiError, setApiError] = useState<ApiError | null>(null);
@@ -105,6 +116,12 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
 
   // PIM1-110: valores en espera de confirmación cuando scheduled_date ya venció.
   const [pendingPastDateValues, setPendingPastDateValues] = useState<SubtaskWizardValues | null>(null);
+  // Sprint 3 / C3: conflicto de sobrecarga predicho antes de crear. wizardKey
+  // sube en cada conflicto nuevo para que OverloadConflictWizard remonte limpio.
+  const [conflict, setConflict] = useState<ConflictInfo | null>(null);
+  const [moveSuggestion, setMoveSuggestion] = useState<string | null>(null);
+  const [maxReduce, setMaxReduce] = useState<number | null>(null);
+  const [wizardKey, setWizardKey] = useState(0);
 
   const {
     register,
@@ -112,6 +129,7 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
     handleSubmit,
     trigger,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<SubtaskWizardValues>({
     mode: "onBlur",
@@ -184,6 +202,31 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
 
   async function performSubmit(values: SubtaskWizardValues) {
     setApiError(null);
+
+    if (maxDailyHours) {
+      const limit = Number(maxDailyHours);
+      if (Number.isFinite(limit)) {
+        try {
+          const result = await checkOverloadConflict({
+            date: values.scheduled_date,
+            hours: Number(values.estimated_hours),
+            limit,
+            eventDueDate,
+          });
+          if (result) {
+            setWizardKey((key) => key + 1);
+            setConflict(result.conflict);
+            setMoveSuggestion(result.moveSuggestion);
+            setMaxReduce(result.maxReduceHours);
+            return; // No crea: espera a que el organizador resuelva el conflicto.
+          }
+        } catch {
+          // Si falla la predicción (red caída, etc.), no bloquea la creación:
+          // el backend igual puede rechazar con su propio 409 si corresponde.
+        }
+      }
+    }
+
     const payload: CreateSubtaskPayload = {
       title: values.title.trim(),
       description: values.description.trim(),
@@ -210,6 +253,18 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
 
   function retrySubmit() {
     void handleSubmit(submit, onInvalid)();
+  }
+
+  // Aplica la resolución a los campos y vuelve a la stage de fecha/horas
+  // para que el organizador vea el valor actualizado antes de reintentar.
+  function handleConflictResolution(resolution: ConflictResolution) {
+    if (resolution.type === "move") {
+      setValue("scheduled_date", resolution.date, { shouldDirty: true });
+    } else {
+      setValue("estimated_hours", String(resolution.hours), { shouldDirty: true });
+    }
+    setConflict(null);
+    setStage(2); // stage "fecha" (índice 2: intro=0, básico=1, fecha=2, detalle=3)
   }
 
   const activeFieldStage = stage >= 1 && stage <= FIELD_STAGES.length ? FIELD_STAGES[stage - 1] : null;
@@ -451,6 +506,16 @@ export function SubtaskWizard({ eventId, eventName, eventDueDate, onClose, onCre
           setPendingPastDateValues(null);
           setStage(2); // vuelve a la stage de fecha/horas para que la cambie
         }}
+      />
+
+      <OverloadConflictWizard
+        key={wizardKey}
+        open={conflict !== null}
+        conflict={conflict}
+        moveSuggestion={moveSuggestion}
+        maxReduceHours={maxReduce}
+        onBack={() => setConflict(null)}
+        onConfirm={handleConflictResolution}
       />
     </Modal>
   );

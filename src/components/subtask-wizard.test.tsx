@@ -144,6 +144,69 @@ describe("SubtaskWizard", () => {
     expect(sentBody).toMatchObject({ title: "Confirmar catering", category: "Catering", estimated_hours: "2" });
   });
 
+  test("crear una gestión que supera el límite diario abre el wizard de conflicto en vez de mandar el POST (C3)", async () => {
+    const fetchMock = stubCategoriesNotFound((href, options) => {
+      if (href.includes("/hoy/")) {
+        return jsonResponse(
+          {
+            fecha: "2026-09-28",
+            metrica: "gestiones",
+            vencidas: [],
+            para_hoy: { pendientes: [], completadas: [] },
+            proximas: [
+              { subtask_id: 9, eid: 2, title: "Otra gestión", description: "", category: "Lugar", estimated_hours: "5", scheduled_date: "2026-10-20", status: "pending" },
+            ],
+            progreso_dia: { completadas: 0, total: 0, horas_completadas: "0", horas_totales: "0" },
+            filtros: { event_id: null, status: null },
+          },
+          200
+        );
+      }
+      // Si esto se llega a invocar, el conflicto no se detectó a tiempo.
+      if (href.includes("/eventos/1/subtareas/") && (options?.method ?? "GET") === "POST") {
+        throw new Error("no debería llegar a crear con el conflicto sin resolver");
+      }
+      return null;
+    });
+    const onCreated = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SubtaskWizard
+        eventId={1}
+        eventName="Boda Luisa & Carlos"
+        maxDailyHours="6.00"
+        onClose={vi.fn()}
+        onCreated={onCreated}
+      />
+    );
+
+    await startWizard(user);
+    const categorySelect = await waitForCategoriesLoaded();
+    await user.type(screen.getByLabelText("Nombre"), "Confirmar catering");
+    await user.selectOptions(categorySelect, "Catering");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    // Límite 6h, el día ya tiene 5h (de otro evento); 2h más son 7h > 6h: conflicto.
+    fireEvent.change(await screen.findByLabelText("Fecha objetivo"), { target: { value: "2026-10-20" } });
+    await user.click(screen.getByRole("button", { name: "2 h" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Crear gestión" }));
+
+    expect(await screen.findByText("¡Esta reprogramación supera tu límite diario!")).toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(
+      fetchMock.mock.calls.some(([url, opts]) => String(url).includes("/eventos/1/subtareas/") && opts?.method === "POST")
+    ).toBe(false);
+
+    // Resolver con "reducir horas" vuelve a la stage de fecha/horas con el valor ya aplicado.
+    await user.click(screen.getByRole("button", { name: "Ver opciones de solución" }));
+    await user.click(screen.getByRole("button", { name: "Opción 2: Reducir duración de la gestión a 1 horas" }));
+    await user.click(screen.getByRole("button", { name: "Confirmar" }));
+
+    expect(screen.queryByText("¡Esta reprogramación supera tu límite diario!")).not.toBeInTheDocument();
+    expect(await screen.findByText("¿Cuándo y cuánto esfuerzo?")).toBeInTheDocument();
+  });
+
   test("fecha vencida muestra el popup no ignorable y no guarda hasta confirmar", async () => {
     const createdSubtask = {
       subtask_id: 51,
