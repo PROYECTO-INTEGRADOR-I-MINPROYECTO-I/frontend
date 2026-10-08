@@ -35,6 +35,8 @@ interface AuthContextValue {
   /** PIM1-121: POST /auth/register/ crea la cuenta y devuelve el usuario ya logueado (misma sesión que login). */
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Sprint 3 / PIM1-9: sincroniza campos del usuario tras un cambio que no pasa por login/register (ej. límite diario). */
+  updateUser: (patch: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -113,8 +115,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function updateUser(patch: Partial<AuthUser>) {
+    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 
