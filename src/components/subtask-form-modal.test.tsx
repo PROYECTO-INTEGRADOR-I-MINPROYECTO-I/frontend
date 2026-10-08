@@ -241,6 +241,74 @@ describe("SubtaskFormModal", () => {
     expect(JSON.parse(options.body as string)).toEqual({ title: "Reservar salón principal" });
   });
 
+  test("editar la duración a un valor que supera el límite diario abre el wizard de conflicto en vez de guardar (C3)", async () => {
+    const user = userEvent.setup();
+    const onUpdated = vi.fn();
+    const initialValues: Subtask = {
+      subtask_id: 5,
+      eid: 1,
+      title: "Reservar salón",
+      description: "",
+      category: "Lugar",
+      estimated_hours: "1",
+      scheduled_date: "2026-10-05",
+      status: "pending",
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      const href = String(url);
+      if (href.includes("/categorias/")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      if (href.includes("/hoy/")) {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              fecha: "2026-09-28",
+              metrica: "gestiones",
+              vencidas: [],
+              para_hoy: { pendientes: [], completadas: [] },
+              proximas: [
+                { subtask_id: 5, eid: 1, title: "Reservar salón", description: "", category: "Lugar", estimated_hours: "1", scheduled_date: "2026-10-05", status: "pending" },
+                { subtask_id: 9, eid: 2, title: "Otra gestión", description: "", category: "Lugar", estimated_hours: "5", scheduled_date: "2026-10-05", status: "pending" },
+              ],
+              progreso_dia: { completadas: 0, total: 0, horas_completadas: "0", horas_totales: "0" },
+              filtros: { event_id: null, status: null },
+            },
+            200
+          )
+        );
+      }
+      if (href.includes("/subtareas/5/")) {
+        const body = JSON.parse(String(options?.body ?? "{}"));
+        return Promise.resolve(jsonResponse({ ...initialValues, ...body }, 200));
+      }
+      return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <SubtaskFormModal
+        eventId={1}
+        eventName="Boda Luisa & Carlos"
+        maxDailyHours="6.00"
+        initialValues={initialValues}
+        onClose={vi.fn()}
+        onUpdated={onUpdated}
+      />
+    );
+    await waitForCategoriesLoaded();
+
+    // Límite 6h, el día ya tiene 5h (de otra gestión, subtask_id 9) sin
+    // contar esta (subtask_id 5, excluida del acumulado); subir esta de 1h a
+    // 2h deja 7h > 6h: conflicto.
+    await user.click(screen.getByRole("button", { name: "2 h" }));
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+
+    expect(await screen.findByText("¡Esta reprogramación supera tu límite diario!")).toBeInTheDocument();
+    expect(onUpdated).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.some(([, opts]) => opts?.method === "PATCH")).toBe(false);
+  });
+
   test("un 400 del servidor pinta el error en el input correspondiente", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockImplementation((url: string) => {

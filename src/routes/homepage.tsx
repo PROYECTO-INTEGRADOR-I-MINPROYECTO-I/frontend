@@ -900,6 +900,7 @@ export function HomePage() {
           eventId={subtaskFormEvent.eid}
           eventName={subtaskFormEvent.name}
           eventDueDate={subtaskFormEvent.due_date}
+          maxDailyHours={user?.max_daily_hours}
           initialValues={editingSubtask ?? undefined}
           onClose={() => {
             setIsSubtaskFormOpen(false);

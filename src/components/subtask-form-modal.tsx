@@ -6,25 +6,45 @@ import { useEffect, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { apiFetch, ApiError, createSubtask } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
-import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
+import {
+  addDaysToLocalDate,
+  daysBetweenLocalDates,
+  formatShortDateEs,
+  isoDateTimeToLocalDateString,
+  todayLocalDateString,
+} from "../lib/dates";
+import {
+  fetchDailyCapacity,
+  findMoveSuggestion,
+  maxReducibleHours,
+  predictConflict,
+  type ConflictInfo,
+} from "../lib/daily-capacity";
 import type { Category, CreateSubtaskPayload, Subtask, UpdateSubtaskPayload } from "../lib/types";
 import { Modal } from "./modal";
 import { ConfirmDialog } from "./confirm-dialog";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { HoursPicker } from "./hours-picker";
+import { OverloadConflictWizard, type ConflictResolution } from "./overload-conflict-wizard";
 import { cn } from "../lib/utils";
 
 interface SubtaskFormModalProps {
   eventId: number;
   eventName: string;
-  /** `Event.due_date` (ISO datetime, no solo fecha) para el aviso de "posterior al evento". */
+  /** `Event.due_date` (ISO datetime, no solo fecha) para el aviso de "posterior al evento" y el tope de la sugerencia de "mover" (C4). */
   eventDueDate?: string;
+  /** Límite diario del organizador (Sprint 3 / C3): sin esto no hay cómo predecir conflicto al editar fecha/horas. */
+  maxDailyHours?: string;
   /** Presente en modo edición: precarga el formulario y hace PATCH en vez de POST. */
   initialValues?: Subtask;
   onClose: () => void;
   onCreated?: (subtask: Subtask, warnings?: string[]) => void;
   onUpdated?: (subtask: Subtask) => void;
 }
+
+// Tope por defecto cuando no hay fecha de evento: mismo límite que ya valida
+// el backend para `dias_proximos`.
+const DEFAULT_WINDOW_DAYS = 60;
 
 interface SubtaskFormValues {
   title: string;
@@ -104,6 +124,7 @@ export function SubtaskFormModal({
   eventId,
   eventName,
   eventDueDate,
+  maxDailyHours,
   initialValues,
   onClose,
   onCreated,
@@ -118,11 +139,20 @@ export function SubtaskFormModal({
   // No basta con el mensaje inline (el profesor lo pasó por alto en la clínica
   // de Sprint 1); esto interrumpe el guardado con un popup que no se puede ignorar.
   const [pendingPastDateValues, setPendingPastDateValues] = useState<SubtaskFormValues | null>(null);
+  // Sprint 3 / C3: conflicto de sobrecarga predicho al editar fecha u horas
+  // (el PATCH genérico nunca bloquea por su cuenta, a diferencia de
+  // /subtareas/<id>/reprogram/ — ver reprogram-modal.tsx). wizardKey sube en
+  // cada conflicto nuevo para que OverloadConflictWizard remonte limpio.
+  const [conflict, setConflict] = useState<ConflictInfo | null>(null);
+  const [moveSuggestion, setMoveSuggestion] = useState<string | null>(null);
+  const [maxReduce, setMaxReduce] = useState<number | null>(null);
+  const [wizardKey, setWizardKey] = useState(0);
 
   const {
     register,
     control,
     handleSubmit,
+    setValue,
     setError,
     formState: { errors, isSubmitting, isDirty, dirtyFields },
   } = useForm<SubtaskFormValues>({
@@ -209,6 +239,34 @@ export function SubtaskFormModal({
         onClose();
         return;
       }
+
+      if ((payload.scheduled_date || payload.estimated_hours) && maxDailyHours) {
+        const limit = Number(maxDailyHours);
+        if (Number.isFinite(limit)) {
+          const date = payload.scheduled_date ?? initialValues.scheduled_date;
+          const hours = Number(payload.estimated_hours ?? initialValues.estimated_hours);
+          const today = todayLocalDateString();
+          const maxDate = eventDueLocalDate ?? addDaysToLocalDate(today, DEFAULT_WINDOW_DAYS);
+          const windowDays = Math.max(1, daysBetweenLocalDates(today, maxDate));
+          try {
+            const snapshot = await fetchDailyCapacity(limit, windowDays);
+            const predicted = predictConflict(snapshot, date, hours, initialValues.subtask_id);
+            if (predicted) {
+              setWizardKey((key) => key + 1);
+              setConflict(predicted);
+              setMoveSuggestion(
+                findMoveSuggestion(snapshot, predicted.date, hours, today, maxDate, initialValues.subtask_id)
+              );
+              setMaxReduce(maxReducibleHours(snapshot, predicted.date, initialValues.subtask_id));
+              return; // No guarda: espera a que el organizador resuelva el conflicto.
+            }
+          } catch {
+            // Si falla la predicción (red caída, etc.), no bloquea el guardado:
+            // el PATCH genérico igual nunca rechaza por sobrecarga.
+          }
+        }
+      }
+
       try {
         const updated = await apiFetch<Subtask>(`/subtareas/${initialValues.subtask_id}/`, {
           method: "PATCH",
@@ -261,6 +319,15 @@ export function SubtaskFormModal({
 
   function retry() {
     handleSubmit(submit)();
+  }
+
+  function handleResolution(resolution: ConflictResolution) {
+    if (resolution.type === "move") {
+      setValue("scheduled_date", resolution.date, { shouldDirty: true });
+    } else {
+      setValue("estimated_hours", String(resolution.hours), { shouldDirty: true });
+    }
+    setConflict(null);
   }
 
   return (
@@ -445,6 +512,16 @@ export function SubtaskFormModal({
           if (values) void performSubmit(values);
         }}
         onCancel={() => setPendingPastDateValues(null)}
+      />
+
+      <OverloadConflictWizard
+        key={wizardKey}
+        open={conflict !== null}
+        conflict={conflict}
+        moveSuggestion={moveSuggestion}
+        maxReduceHours={maxReduce}
+        onBack={() => setConflict(null)}
+        onConfirm={handleResolution}
       />
     </Modal>
   );
