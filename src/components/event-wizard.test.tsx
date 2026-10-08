@@ -175,28 +175,36 @@ describe("EventWizard", () => {
     await user.click(screen.getByRole("button", { name: "Crear evento" }));
     await screen.findByText("Plan inicial de gestiones");
 
-    // Primera gestión: más tarde en el calendario.
+    // Primera gestión: más tarde en el calendario. El plan inicial anida el
+    // wizard de creación de gestión (no el form de un solo paso): intro +
+    // sus propias 3 stages de campos.
     await user.click(screen.getByRole("button", { name: "Agregar gestión" }));
+    await startWizard(user);
     await user.type(await screen.findByLabelText("Nombre"), "Confirmar catering");
     const categorySelect = screen.getByLabelText("Categoría");
     await waitFor(() => expect(categorySelect).not.toBeDisabled());
     await user.selectOptions(categorySelect, "Lugar");
-    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-11-20" } });
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    fireEvent.change(await screen.findByLabelText("Fecha objetivo"), { target: { value: "2026-11-20" } });
     await user.click(screen.getByRole("button", { name: "2 h" }));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Crear gestión" }));
 
     expect(await screen.findByText("Confirmar catering")).toBeInTheDocument();
     expect(onSubtaskCreated).toHaveBeenCalledTimes(1);
 
     // Segunda gestión: antes en el calendario — debe listarse primero.
     await user.click(screen.getByRole("button", { name: "Agregar gestión" }));
+    await startWizard(user);
     await user.type(await screen.findByLabelText("Nombre"), "Reservar salón");
     const secondCategorySelect = screen.getByLabelText("Categoría");
     await waitFor(() => expect(secondCategorySelect).not.toBeDisabled());
     await user.selectOptions(secondCategorySelect, "Lugar");
-    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-11-10" } });
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    fireEvent.change(await screen.findByLabelText("Fecha objetivo"), { target: { value: "2026-11-10" } });
     await user.click(screen.getByRole("button", { name: "1 h" }));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Crear gestión" }));
 
     await screen.findByText("Reservar salón");
     const rowNames = screen.getAllByRole("row").map((row) => row.textContent ?? "");

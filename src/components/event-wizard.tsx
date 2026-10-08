@@ -9,8 +9,10 @@
 //   tenía EventFormModal: qué evento / cuándo y dónde / para quién) + una
 //   stage final de "plan inicial" para agregar las primeras gestiones del
 //   evento recién creado, reutilizando GestionTable (misma tabla de la vista
-//   expandida de un evento) y SubtaskFormModal (mismo formulario de "Nueva
-//   gestión" que ya existe, anidado como modal sobre el wizard).
+//   expandida de un evento) y SubtaskWizard (mismo wizard de creación de
+//   gestión que ya usa Hoy, anidado como modal sobre este wizard — antes
+//   usaba SubtaskFormModal, el formulario de un solo paso que ya quedó
+//   relegado a solo edición en el resto de la app).
 // - El evento se crea (POST) al confirmar la stage "¿Para quién?", no al
 //   cerrar el wizard: así la stage de plan inicial ya tiene un eid real al
 //   que asociar las gestiones. Por eso, una vez creado el evento, ya no se
@@ -27,7 +29,7 @@ import { apiFetch, ApiError } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
 import { GestionTable } from "./gestion-table";
 import { Modal } from "./modal";
-import { SubtaskFormModal } from "./subtask-form-modal";
+import { SubtaskWizard } from "./subtask-wizard";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { WizardStageIndicator } from "./wizard-stage-indicator";
 import { sortSubtasksByDateThenHours } from "../lib/subtask-display";
@@ -504,7 +506,7 @@ export function EventWizard({ maxDailyHours, onClose, onEventCreated, onSubtaskC
       </div>
 
       {isAddingSubtask && createdEvent && (
-        <SubtaskFormModal
+        <SubtaskWizard
           eventId={createdEvent.eid}
           eventName={createdEvent.name}
           eventDueDate={createdEvent.due_date}

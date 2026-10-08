@@ -674,13 +674,23 @@ describe("HomePage", () => {
 
     const wizardDialog = screen.getByRole("dialog", { name: "Cumpleaños de Ana" });
     await user.click(within(wizardDialog).getByRole("button", { name: "Agregar gestión" }));
-    await user.type(await screen.findByLabelText("Nombre"), "Reservar salón");
-    const categorySelect = screen.getByLabelText("Categoría");
+    // SubtaskWizard anidado: es otro <dialog> independiente (hermano, no
+    // descendiente de wizardDialog), así que sus propias interacciones se
+    // escopan contra él, no contra wizardDialog ni contra screen a secas
+    // (había más de un "Crear gestión" visible de fondo).
+    const subtaskWizardDialog = await screen.findByRole("dialog", { name: "Nueva gestión" });
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Comenzar" }));
+    await user.type(await within(subtaskWizardDialog).findByLabelText("Nombre"), "Reservar salón");
+    const categorySelect = within(subtaskWizardDialog).getByLabelText("Categoría");
     await waitFor(() => expect(categorySelect).not.toBeDisabled());
     await user.selectOptions(categorySelect, "Lugar");
-    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-23" } });
-    await user.click(screen.getByRole("button", { name: "2 h" }));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Siguiente" }));
+    fireEvent.change(await within(subtaskWizardDialog).findByLabelText("Fecha objetivo"), {
+      target: { value: "2026-09-23" },
+    });
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "2 h" }));
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Siguiente" }));
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Crear gestión" }));
     // De vuelta en la stage de plan inicial del wizard (el modal de la gestión ya cerró).
     expect(await within(wizardDialog).findByRole("cell", { name: "Reservar salón" })).toBeInTheDocument();
 
