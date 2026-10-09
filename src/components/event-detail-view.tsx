@@ -75,7 +75,12 @@ export function EventDetailView({
         </button>
 
         <div className="overflow-hidden rounded-lg border border-[#f3f4f6] bg-white">
-          <EventCover event={event} onEventCoverUpdated={onEventCoverUpdated} className="aspect-video w-full" />
+          <EventCover
+            event={event}
+            eventTypeName={eventTypeName}
+            onEventCoverUpdated={onEventCoverUpdated}
+            className="aspect-video w-full"
+          />
 
           <div className="flex flex-col gap-4 p-6">
             <div className="flex flex-col gap-2">
