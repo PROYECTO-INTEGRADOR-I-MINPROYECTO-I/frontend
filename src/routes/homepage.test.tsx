@@ -195,6 +195,20 @@ describe("HomePage", () => {
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
   });
 
+  test("las columnas se muestran en el orden Vencidas, Para Hoy, Próximos 7 días (corrección del profesor)", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    const columnHeadings = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    expect(columnHeadings).toEqual(["Vencidas", "Para Hoy", "Próximos 7 días"]);
+  });
+
   test("cada grupo de Hoy tiene un trigger '¿Cómo se ordena?' con su regla de orden real en el tooltip", async () => {
     stubHomepageFetch();
 
