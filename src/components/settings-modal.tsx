@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { ApiError, updateUserSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { applyFieldErrors } from "../lib/form-errors";
 import { Modal } from "./modal";
 import { cn } from "../lib/utils";
 
@@ -25,6 +26,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<SettingsFormValues>({
     defaultValues: { max_daily_hours: user?.max_daily_hours ?? "6.00" },
@@ -38,6 +40,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       updateUser({ max_daily_hours: updated.max_daily_hours });
       setSaved(true);
     } catch (err) {
+      // El rechazo de validación (400) se pinta bajo el input, sin banner
+      if (err instanceof ApiError && err.status === 400 && applyFieldErrors(err, setError, ["max_daily_hours"])) {
+        return;
+      }
       setApiError(
         err instanceof ApiError ? err : new ApiError("Ocurrió un error inesperado. Intenta de nuevo.", 0, "UNKNOWN")
       );
