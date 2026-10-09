@@ -80,26 +80,6 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("Contraseña")).toHaveAttribute("id", "login-password");
   });
 
-  test("el recuadro de modo demo muestra las credenciales visibles", () => {
-    stubAuth();
-    renderLoginPage();
-
-    expect(screen.getByText("Modo demo")).toBeInTheDocument();
-    expect(screen.getByText(DEMO_CREDENTIALS.email)).toBeInTheDocument();
-    expect(screen.getByText(DEMO_CREDENTIALS.password)).toBeInTheDocument();
-  });
-
-  test("'Usar cuenta demo' rellena los campos con las credenciales demo", async () => {
-    stubAuth();
-    const user = userEvent.setup();
-    renderLoginPage();
-
-    await user.click(screen.getByRole("button", { name: "Usar cuenta demo" }));
-
-    expect(screen.getByLabelText("Correo electrónico")).toHaveValue(DEMO_CREDENTIALS.email);
-    expect(screen.getByLabelText("Contraseña")).toHaveValue(DEMO_CREDENTIALS.password);
-  });
-
   test("un login exitoso hace POST /auth/login/ y navega a la página de inicio", async () => {
     const fetchMock = stubAuth((body) => {
       expect(body).toEqual({ email: DEMO_CREDENTIALS.email, password: DEMO_CREDENTIALS.password });
@@ -108,7 +88,8 @@ describe("LoginPage", () => {
     const user = userEvent.setup();
     renderLoginPage();
 
-    await user.click(screen.getByRole("button", { name: "Usar cuenta demo" }));
+    await user.type(screen.getByLabelText("Correo electrónico"), DEMO_CREDENTIALS.email);
+    await user.type(screen.getByLabelText("Contraseña"), DEMO_CREDENTIALS.password);
     await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
 
     expect(await screen.findByText("Página de inicio")).toBeInTheDocument();
