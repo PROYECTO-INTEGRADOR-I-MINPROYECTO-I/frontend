@@ -9,18 +9,33 @@
 import { useEffect, useRef, useState } from "react";
 import { Palette, X } from "lucide-react";
 import { apiFetch, ApiError } from "../lib/api";
-import { COVER_PALETTE, eventCoverColor } from "../lib/event-display";
+import { COVER_PALETTE, eventCoverColor, eventDoodleKind, type EventDoodleKind } from "../lib/event-display";
 import type { Event } from "../lib/types";
 import { cn } from "../lib/utils";
+import doodleAlternative from "../assets/doodles_alternative_event.svg";
+import doodleCorporate from "../assets/doodles_corportaive_event.svg";
+import doodleSocial from "../assets/doodles_social_event.svg";
+
+// Corrección del profesor (clínica anterior): un color plano se sentía
+// vacío. El doodle solo se pinta con color plano, nunca con imagen (ver
+// `usesFlatColor` más abajo); cuál de los 3 se elige depende del tipo del
+// evento (ver eventDoodleKind en lib/event-display.ts).
+const DOODLE_BY_KIND: Record<EventDoodleKind, string> = {
+  social: doodleSocial,
+  corporate: doodleCorporate,
+  alternative: doodleAlternative,
+};
 
 interface EventCoverProps {
   event: Event;
+  /** Para elegir el doodle de fondo (ver DOODLE_BY_KIND); sin esto, cae en "alternative". */
+  eventTypeName?: string;
   /** El PATCH devuelve el evento completo; el padre lo mezcla en su lista para que todas las vistas se actualicen. */
   onEventCoverUpdated: (event: Event) => void;
   className?: string;
 }
 
-export function EventCover({ event, onEventCoverUpdated, className }: EventCoverProps) {
+export function EventCover({ event, eventTypeName, onEventCoverUpdated, className }: EventCoverProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [imageDraft, setImageDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -64,17 +79,26 @@ export function EventCover({ event, onEventCoverUpdated, className }: EventCover
   }
 
   const hasOverride = Boolean(event.cover_kind && event.cover_value);
-  const backgroundStyle: React.CSSProperties =
-    event.cover_kind === "image" && event.cover_value
-      ? { backgroundImage: `url(${event.cover_value})`, backgroundSize: "cover", backgroundPosition: "center" }
-      : {
-          backgroundColor:
-            event.cover_kind === "color" && event.cover_value ? event.cover_value : eventCoverColor(event.name),
-        };
+  const usesImage = event.cover_kind === "image" && Boolean(event.cover_value);
+  const backgroundStyle: React.CSSProperties = usesImage
+    ? { backgroundImage: `url(${event.cover_value})`, backgroundSize: "cover", backgroundPosition: "center" }
+    : {
+        backgroundColor:
+          event.cover_kind === "color" && event.cover_value ? event.cover_value : eventCoverColor(event.name),
+      };
 
   return (
-    <div ref={rootRef} className={cn("group relative", className)}>
+    <div ref={rootRef} className={cn("group relative overflow-hidden", className)}>
       <div className="h-full w-full" style={backgroundStyle} aria-hidden="true" />
+
+      {!usesImage && (
+        <img
+          src={DOODLE_BY_KIND[eventDoodleKind(eventTypeName)]}
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20 brightness-0 invert"
+        />
+      )}
 
       <button
         type="button"
