@@ -8,7 +8,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { DEMO_CREDENTIALS } from "../lib/demo-auth";
 
 export function LoginForm() {
   const { login } = useAuth();
@@ -32,32 +31,8 @@ export function LoginForm() {
     }
   }
 
-  function fillDemoCredentials() {
-    setEmail(DEMO_CREDENTIALS.email);
-    setPassword(DEMO_CREDENTIALS.password);
-    setError(null);
-  }
-
   return (
     <>
-      {/* Modo demo: credenciales visibles + botón que rellena el formulario,
-          para que probar la app no dependa de tener una cuenta propia. */}
-      <div className="rounded-lg border border-[#8b1a1a]/20 bg-[#fff0f0] p-3 space-y-2">
-        <p className="text-xs font-medium text-[#8b1a1a]">Modo demo</p>
-        <p className="text-xs text-slate-600">
-          Correo: <span className="font-medium">{DEMO_CREDENTIALS.email}</span>
-          <br />
-          Contraseña: <span className="font-medium">{DEMO_CREDENTIALS.password}</span>
-        </p>
-        <button
-          type="button"
-          onClick={fillDemoCredentials}
-          className="text-xs font-medium text-[#8b1a1a] underline decoration-[#8b1a1a]/40 hover:decoration-[#8b1a1a]"
-        >
-          Usar cuenta demo
-        </button>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <p role="alert" className="text-sm text-[#8b1a1a]">

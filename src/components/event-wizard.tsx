@@ -9,8 +9,10 @@
 //   tenía EventFormModal: qué evento / cuándo y dónde / para quién) + una
 //   stage final de "plan inicial" para agregar las primeras gestiones del
 //   evento recién creado, reutilizando GestionTable (misma tabla de la vista
-//   expandida de un evento) y SubtaskFormModal (mismo formulario de "Nueva
-//   gestión" que ya existe, anidado como modal sobre el wizard).
+//   expandida de un evento) y SubtaskWizard (mismo wizard de creación de
+//   gestión que ya usa Hoy, anidado como modal sobre este wizard — antes
+//   usaba SubtaskFormModal, el formulario de un solo paso que ya quedó
+//   relegado a solo edición en el resto de la app).
 // - El evento se crea (POST) al confirmar la stage "¿Para quién?", no al
 //   cerrar el wizard: así la stage de plan inicial ya tiene un eid real al
 //   que asociar las gestiones. Por eso, una vez creado el evento, ya no se
@@ -27,7 +29,7 @@ import { apiFetch, ApiError } from "../lib/api";
 import { applyFieldErrors } from "../lib/form-errors";
 import { GestionTable } from "./gestion-table";
 import { Modal } from "./modal";
-import { SubtaskFormModal } from "./subtask-form-modal";
+import { SubtaskWizard } from "./subtask-wizard";
 import { CreatableSelect, type SelectOption } from "./creatable-select";
 import { WizardStageIndicator } from "./wizard-stage-indicator";
 import { sortSubtasksByDateThenHours } from "../lib/subtask-display";
@@ -35,6 +37,8 @@ import { cn } from "../lib/utils";
 import type { CreateEventPayload, Event, EventType, Subtask } from "../lib/types";
 
 interface EventWizardProps {
+  /** Límite diario del organizador (Sprint 3 / C3), para la detección de conflicto del plan inicial de gestiones. */
+  maxDailyHours?: string;
   onClose: () => void;
   onEventCreated: (event: Event) => void;
   onSubtaskCreated: (subtask: Subtask) => void;
@@ -106,7 +110,7 @@ function remapEventErrorFields(error: unknown): unknown {
 
 const KNOWN_FIELDS = ["name", "description", "date", "eventTypeId", "place", "clientContact"] as const;
 
-export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: EventWizardProps) {
+export function EventWizard({ maxDailyHours, onClose, onEventCreated, onSubtaskCreated }: EventWizardProps) {
   const [stage, setStage] = useState(INTRO_STAGE);
   // Furthest reached: permite volver a revisar una stage ya validada, pero no
   // saltar adelante sin pasar por "Siguiente" (ver corrección del profesor:
@@ -243,12 +247,20 @@ export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: Event
   };
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title={createdEvent ? createdEvent.name : "Nuevo evento"}
-      className="max-w-[560px]"
-    >
+    // Fragment, no solo <Modal>: SubtaskWizard tiene que vivir FUERA de
+    // Modal (hermano, no hijo) para poder seguir montado con su estado
+    // intacto mientras Modal está oculto (open=false, más abajo) — si
+    // quedara anidado adentro, ocultar Modal lo desmontaría a él también.
+    <>
+      <Modal
+        // Oculto (sin desmontar, con todo su estado intacto) mientras el
+        // SubtaskWizard del plan inicial está arriba: evitar 2 fondos
+        // oscuros y 2 cajas apiladas en el eje Z a la vez.
+        open={!isAddingSubtask}
+        onClose={onClose}
+        title={createdEvent ? createdEvent.name : "Nuevo evento"}
+        className="max-w-[560px]"
+      >
       <div className="flex flex-col gap-6">
         <WizardStageIndicator
           total={TOTAL_STAGES}
@@ -500,16 +512,18 @@ export function EventWizard({ onClose, onEventCreated, onSubtaskCreated }: Event
           </div>
         )}
       </div>
+      </Modal>
 
       {isAddingSubtask && createdEvent && (
-        <SubtaskFormModal
+        <SubtaskWizard
           eventId={createdEvent.eid}
           eventName={createdEvent.name}
           eventDueDate={createdEvent.due_date}
+          maxDailyHours={maxDailyHours}
           onClose={() => setIsAddingSubtask(false)}
           onCreated={(subtask) => handleSubtaskCreated(subtask)}
         />
       )}
-    </Modal>
+    </>
   );
 }

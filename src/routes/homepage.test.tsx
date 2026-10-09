@@ -195,6 +195,20 @@ describe("HomePage", () => {
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
   });
 
+  test("las columnas se muestran en el orden Vencidas, Para Hoy, Próximos 7 días (corrección del profesor)", async () => {
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findByText("Vencida A");
+
+    const columnHeadings = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    expect(columnHeadings).toEqual(["Vencidas", "Para Hoy", "Próximos 7 días"]);
+  });
+
   test("cada grupo de Hoy tiene un trigger '¿Cómo se ordena?' con su regla de orden real en el tooltip", async () => {
     stubHomepageFetch();
 
@@ -674,17 +688,33 @@ describe("HomePage", () => {
 
     const wizardDialog = screen.getByRole("dialog", { name: "Cumpleaños de Ana" });
     await user.click(within(wizardDialog).getByRole("button", { name: "Agregar gestión" }));
-    await user.type(await screen.findByLabelText("Nombre"), "Reservar salón");
-    const categorySelect = screen.getByLabelText("Categoría");
+    // SubtaskWizard anidado: es otro <dialog> independiente (hermano, no
+    // descendiente de wizardDialog), así que sus propias interacciones se
+    // escopan contra él, no contra wizardDialog ni contra screen a secas
+    // (había más de un "Crear gestión" visible de fondo).
+    const subtaskWizardDialog = await screen.findByRole("dialog", { name: "Nueva gestión" });
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Comenzar" }));
+    await user.type(await within(subtaskWizardDialog).findByLabelText("Nombre"), "Reservar salón");
+    const categorySelect = within(subtaskWizardDialog).getByLabelText("Categoría");
     await waitFor(() => expect(categorySelect).not.toBeDisabled());
     await user.selectOptions(categorySelect, "Lugar");
-    fireEvent.change(screen.getByLabelText("Fecha objetivo"), { target: { value: "2026-09-23" } });
-    await user.click(screen.getByRole("button", { name: "2 h" }));
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
-    // De vuelta en la stage de plan inicial del wizard (el modal de la gestión ya cerró).
-    expect(await within(wizardDialog).findByRole("cell", { name: "Reservar salón" })).toBeInTheDocument();
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Siguiente" }));
+    fireEvent.change(await within(subtaskWizardDialog).findByLabelText("Fecha objetivo"), {
+      target: { value: "2026-09-23" },
+    });
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "2 h" }));
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Siguiente" }));
+    await user.click(within(subtaskWizardDialog).getByRole("button", { name: "Crear gestión" }));
+    // De vuelta en la stage de plan inicial del wizard (el modal de la gestión
+    // ya cerró). El wizard de evento se vuelve a montar (no solo a mostrar):
+    // se re-consulta el <dialog>, la referencia vieja de wizardDialog ya no
+    // vale (ver el oculto/mostrado de Modal en event-wizard.tsx).
+    const wizardDialogAfterSubtask = await screen.findByRole("dialog", { name: "Cumpleaños de Ana" });
+    expect(
+      await within(wizardDialogAfterSubtask).findByRole("cell", { name: "Reservar salón" })
+    ).toBeInTheDocument();
 
-    await user.click(within(wizardDialog).getByRole("button", { name: "Finalizar" }));
+    await user.click(within(wizardDialogAfterSubtask).getByRole("button", { name: "Finalizar" }));
 
     // El wizard ya cerró: el selector de Hoy debería mostrar el evento recién
     // creado (no "Todos los eventos"), y la gestión agregada en el plan

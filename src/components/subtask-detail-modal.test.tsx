@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SubtaskDetailModal } from "./subtask-detail-modal";
@@ -33,6 +33,7 @@ describe("SubtaskDetailModal", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onToggleComplete={vi.fn()}
+        onReprogram={vi.fn()}
       />
     );
 
@@ -48,6 +49,7 @@ describe("SubtaskDetailModal", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onToggleComplete={vi.fn()}
+        onReprogram={vi.fn()}
       />
     );
 
@@ -64,6 +66,7 @@ describe("SubtaskDetailModal", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onToggleComplete={onToggleComplete}
+        onReprogram={vi.fn()}
       />
     );
 
@@ -83,6 +86,7 @@ describe("SubtaskDetailModal", () => {
         onEdit={onEdit}
         onDelete={onDelete}
         onToggleComplete={vi.fn()}
+        onReprogram={vi.fn()}
       />
     );
 
@@ -101,6 +105,7 @@ describe("SubtaskDetailModal", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onToggleComplete={vi.fn()}
+        onReprogram={vi.fn()}
         togglePending
       />
     );
@@ -118,6 +123,7 @@ describe("SubtaskDetailModal", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onToggleComplete={vi.fn()}
+        onReprogram={vi.fn()}
         toggleError={{ message: "Sin conexión. No se guardó el cambio.", onRetry }}
       />
     );
@@ -128,5 +134,33 @@ describe("SubtaskDetailModal", () => {
     await user.click(screen.getByRole("button", { name: "Reintentar" }));
 
     expect(onRetry).toHaveBeenCalled();
+  });
+
+  test("'Reprogramar' vive debajo de 'Marcar como completada' y llama a onReprogram con la gestión actual", async () => {
+    const user = userEvent.setup();
+    const onReprogram = vi.fn();
+    render(
+      <SubtaskDetailModal
+        subtask={subtask}
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onToggleComplete={vi.fn()}
+        onReprogram={onReprogram}
+      />
+    );
+
+    const footer = screen.getByRole("button", { name: "Marcar como completada" }).parentElement;
+    const buttons = within(footer as HTMLElement).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      "Marcar como completada",
+      "Reprogramar",
+      "Editar",
+      "Borrar",
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Reprogramar" }));
+
+    expect(onReprogram).toHaveBeenCalledWith(subtask);
   });
 });

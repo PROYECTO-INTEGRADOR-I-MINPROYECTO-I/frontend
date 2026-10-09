@@ -14,3 +14,24 @@ export function eventCoverColor(name: string): string {
   }
   return COVER_PALETTE[hash % COVER_PALETTE.length];
 }
+
+// Doodles sobre la portada (corrección del profesor en la clínica pasada:
+// un color plano solo se sentía vacío). Solo aplica con color plano, nunca
+// con imagen (ver EventCover) — se eligen por el NOMBRE del tipo de evento,
+// porque EventType no tiene un campo de categoría propio en el backend, solo
+// `name` (ver event/migrations/0002_seed_predefinidos.py: los predefinidos
+// son "Boda", "Social", "Corporativo", "Cumpleaños", "Otro"). Un tipo
+// personalizado que no calce con ninguno de estos, "Otro", o un evento sin
+// tipo asignado, caen en "alternative".
+export type EventDoodleKind = "social" | "corporate" | "alternative";
+
+const SOCIAL_EVENT_TYPE_NAMES = new Set(["boda", "social", "cumpleaños", "cumpleanos"]);
+const CORPORATE_EVENT_TYPE_NAMES = new Set(["corporativo"]);
+
+export function eventDoodleKind(eventTypeName: string | null | undefined): EventDoodleKind {
+  if (!eventTypeName) return "alternative";
+  const normalized = eventTypeName.trim().toLowerCase();
+  if (SOCIAL_EVENT_TYPE_NAMES.has(normalized)) return "social";
+  if (CORPORATE_EVENT_TYPE_NAMES.has(normalized)) return "corporate";
+  return "alternative";
+}

@@ -2,7 +2,7 @@
 // Centraliza la URL base, las cabeceras por defecto y el manejo de errores.
 
 import type { AuthUser } from "./auth";
-import type { CreateSubtaskPayload, Subtask, SubtaskStatus } from "./types";
+import type { CreateSubtaskPayload, Subtask, SubtaskStatus, SubtaskWithConflict } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -57,18 +57,28 @@ export class ApiError extends Error {
   status: number;
   code: string;
   fields: Record<string, string>;
+  /**
+   * Cuerpo crudo de `body.error` tal como lo mandó el backend, sin aplanar.
+   * Sprint 3: DAILY_OVERLOAD (409 de /reprogram/) manda `detalle` y
+   * `alternativas`, que no entran en el contrato `fields` (string por
+   * campo) — los consumidores que los necesitan (ver daily-capacity.ts)
+   * los leen de acá en vez de volver a parsear la respuesta.
+   */
+  raw?: Record<string, unknown>;
 
   constructor(
     message: string,
     status: number,
     code: string,
-    fields: Record<string, string> = {}
+    fields: Record<string, string> = {},
+    raw?: Record<string, unknown>
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.fields = fields;
+    this.raw = raw;
   }
 }
 
@@ -97,7 +107,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// Contrato acordado (TS-03): { error: { code, message, fields } }.
+// Contrato acordado (TS-03): { error: { code, message, fields } }. También es
+// la forma que cae DAILY_OVERLOAD (Sprint 3): code/message coinciden con este
+// contrato, y detalle/alternativas viajan en `raw` para quien los necesite.
 function buildFromAgreedContract(
   errorBody: Record<string, unknown>,
   status: number,
@@ -113,7 +125,7 @@ function buildFromAgreedContract(
       }
     }
   }
-  return new ApiError(message, status, code, fields);
+  return new ApiError(message, status, code, fields, errorBody);
 }
 
 // Aplana errores anidados de DRF (objetos dentro de objetos) a notación de
@@ -411,5 +423,39 @@ export async function setSubtaskStatus(subtaskId: number, status: SubtaskStatus)
   return apiFetch<Subtask>(`/subtareas/${subtaskId}/`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  });
+}
+
+/**
+ * Reprograma una gestión (PATCH /subtareas/<id>/reprogram/, Sprint 3 /
+ * PIM1-14). Con `confirm: false` (por defecto) y conflicto de sobrecarga, el
+ * backend responde 409 DAILY_OVERLOAD sin guardar nada (ver ApiError.raw
+ * para el detalle/alternativas); `confirm: true` guarda aunque haya
+ * conflicto, una vez el organizador ya decidió qué hacer.
+ */
+export async function reprogramSubtask(
+  subtaskId: number,
+  scheduledDate: string,
+  confirm = false
+): Promise<SubtaskWithConflict> {
+  return apiFetch<SubtaskWithConflict>(`/subtareas/${subtaskId}/reprogram/`, {
+    method: "PATCH",
+    body: JSON.stringify({ scheduled_date: scheduledDate, confirm }),
+  });
+}
+
+/** Límite diario del organizador (Sprint 3 / PIM1-9). */
+export interface UserSettings {
+  max_daily_hours: string;
+}
+
+export async function getUserSettings(): Promise<UserSettings> {
+  return apiFetch<UserSettings>("/user/settings/");
+}
+
+export async function updateUserSettings(maxDailyHours: string): Promise<UserSettings> {
+  return apiFetch<UserSettings>("/user/settings/", {
+    method: "PUT",
+    body: JSON.stringify({ max_daily_hours: maxDailyHours }),
   });
 }

@@ -130,3 +130,21 @@ export interface CreateSubtaskPayload {
 
 /** Payload para editar una gestión (PATCH /subtareas/<subtask_id>/). Parcial: solo los campos modificados. */
 export type UpdateSubtaskPayload = Partial<CreateSubtaskPayload>;
+
+/**
+ * Resumen de conflicto de sobrecarga diaria (Sprint 3 / TS-07) que el backend
+ * adjunta a las respuestas 200 de PATCH /subtareas/<id>/ y PATCH
+ * /subtareas/<id>/reprogram/ cuando el campo editado afecta la carga del día
+ * (estimated_hours, scheduled_date o status). `horas_planificadas` ya incluye
+ * esta gestión; nunca bloquea el guardado en el PATCH genérico.
+ */
+export interface ConflictSummary {
+  hay_conflicto: boolean;
+  fecha: string;
+  horas_planificadas: number;
+  limite: number;
+  exceso: number;
+}
+
+/** Gestión con el resumen de conflicto adjunto (ver ConflictSummary). */
+export type SubtaskWithConflict = Subtask & { conflicto?: ConflictSummary };

@@ -4,6 +4,9 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { EventCover } from "./event-cover";
 import { eventCoverColor } from "../lib/event-display";
 import type { Event } from "../lib/types";
+import doodleAlternative from "../assets/doodles_alternative_event.svg";
+import doodleCorporate from "../assets/doodles_corportaive_event.svg";
+import doodleSocial from "../assets/doodles_social_event.svg";
 
 const event: Event = {
   eid: 1,
@@ -33,6 +36,37 @@ describe("EventCover", () => {
     const { container } = render(<EventCover event={event} onEventCoverUpdated={vi.fn()} />);
 
     expect(coverBox(container)).toHaveStyle({ backgroundColor: eventCoverColor(event.name) });
+  });
+
+  test("con color plano, muestra el doodle según el tipo de evento (corrección del profesor: color plano se sentía vacío)", () => {
+    render(<EventCover event={event} eventTypeName="Boda" onEventCoverUpdated={vi.fn()} />);
+    expect(screen.getByAltText("")).toHaveAttribute("src", doodleSocial);
+  });
+
+  test("tipo Corporativo usa el doodle corporativo", () => {
+    render(<EventCover event={event} eventTypeName="Corporativo" onEventCoverUpdated={vi.fn()} />);
+    expect(screen.getByAltText("")).toHaveAttribute("src", doodleCorporate);
+  });
+
+  test("tipo personalizado o sin tipo cae en el doodle alternativo", () => {
+    const { rerender } = render(
+      <EventCover event={event} eventTypeName="Conferencia de prensa" onEventCoverUpdated={vi.fn()} />
+    );
+    expect(screen.getByAltText("")).toHaveAttribute("src", doodleAlternative);
+
+    rerender(<EventCover event={event} onEventCoverUpdated={vi.fn()} />);
+    expect(screen.getByAltText("")).toHaveAttribute("src", doodleAlternative);
+  });
+
+  test("con una imagen como portada, no se muestra ningún doodle", () => {
+    render(
+      <EventCover
+        event={{ ...event, cover_kind: "image", cover_value: "https://example.com/foto.jpg" }}
+        eventTypeName="Boda"
+        onEventCoverUpdated={vi.fn()}
+      />
+    );
+    expect(screen.queryByAltText("")).not.toBeInTheDocument();
   });
 
   test("con cover_kind/cover_value ya guardados (ej. tras recargar), los pinta directamente", () => {

@@ -6,7 +6,7 @@
 // El toggle de completar lo controla el padre (ver handleToggleComplete en
 // homepage.tsx, con actualización optimista y reversión si falla el PATCH).
 
-import { Check, Pencil, Trash2 } from "lucide-react";
+import { Calendar, Check, Pencil, Trash2 } from "lucide-react";
 import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
 import {
   categoryChipStyle,
@@ -29,6 +29,8 @@ interface SubtaskDetailModalProps {
   onEdit: (subtask: Subtask) => void;
   onDelete: (subtask: Subtask) => void;
   onToggleComplete: (subtask: Subtask) => void;
+  /** Sprint 3 / C1: abre el popup de reprogramación (ver ReprogramModal). */
+  onReprogram: (subtask: Subtask) => void;
   /** Deshabilita el botón mientras el PATCH está en curso, para evitar dobles clics. */
   togglePending?: boolean;
   /** Error del último intento de completar/despausar, con su acción de reintento. */
@@ -41,6 +43,7 @@ export function SubtaskDetailModal({
   onEdit,
   onDelete,
   onToggleComplete,
+  onReprogram,
   togglePending = false,
   toggleError = null,
 }: SubtaskDetailModalProps) {
@@ -70,6 +73,14 @@ export function SubtaskDetailModal({
           >
             <Check aria-hidden="true" size={16} />
             {isDone ? "Marcar como pendiente" : "Marcar como completada"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onReprogram(subtask)}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a]"
+          >
+            <Calendar aria-hidden="true" size={16} />
+            Reprogramar
           </button>
           <div className="flex w-full gap-3">
             <button
