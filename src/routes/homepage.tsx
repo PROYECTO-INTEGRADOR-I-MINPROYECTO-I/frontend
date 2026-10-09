@@ -691,28 +691,29 @@ export function HomePage() {
         {todayStatus === "ready" && (
           <section className="task-columns" aria-label="Gestiones del día">
             <TaskColumn
-              title="Próximos 7 días"
-              countClass="count--blue"
-              count={String(sortedUpcoming.length)}
+              title="Vencidas"
+              countClass="count--red"
+              count={String(sortedOverdue.length)}
               showClock
-              orderHint="En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
+              orderHint="En el grupo de gestiones vencidas se muestran primero las gestiones con fecha más antigua. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
             >
-              {sortedUpcoming.length > 0 && (
+              {sortedOverdue.length > 0 && (
                 <div className="column-list">
-                  {sortedUpcoming.map((subtask) => (
+                  {sortedOverdue.map((subtask) => (
                     <SubtaskCard
                       key={subtask.subtask_id}
                       subtask={subtask}
                       onOpen={setDetailSubtask}
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
+                      overdue
                       eventName={subtask.event_name}
                     />
                   ))}
                 </div>
               )}
-              {totalCount > 0 && sortedUpcoming.length === 0 && (
-                <p className="column-empty-hint">Sin gestiones en los próximos 7 días.</p>
+              {totalCount > 0 && sortedOverdue.length === 0 && (
+                <p className="column-empty-hint">Sin gestiones vencidas.</p>
               )}
             </TaskColumn>
 
@@ -799,29 +800,28 @@ export function HomePage() {
             </TaskColumn>
 
             <TaskColumn
-              title="Vencidas"
-              countClass="count--red"
-              count={String(sortedOverdue.length)}
+              title="Próximos 7 días"
+              countClass="count--blue"
+              count={String(sortedUpcoming.length)}
               showClock
-              orderHint="En el grupo de gestiones vencidas se muestran primero las gestiones con fecha más antigua. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
+              orderHint="En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
             >
-              {sortedOverdue.length > 0 && (
+              {sortedUpcoming.length > 0 && (
                 <div className="column-list">
-                  {sortedOverdue.map((subtask) => (
+                  {sortedUpcoming.map((subtask) => (
                     <SubtaskCard
                       key={subtask.subtask_id}
                       subtask={subtask}
                       onOpen={setDetailSubtask}
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
-                      overdue
                       eventName={subtask.event_name}
                     />
                   ))}
                 </div>
               )}
-              {totalCount > 0 && sortedOverdue.length === 0 && (
-                <p className="column-empty-hint">Sin gestiones vencidas.</p>
+              {totalCount > 0 && sortedUpcoming.length === 0 && (
+                <p className="column-empty-hint">Sin gestiones en los próximos 7 días.</p>
               )}
             </TaskColumn>
           </section>
