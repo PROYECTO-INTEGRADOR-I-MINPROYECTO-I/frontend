@@ -80,7 +80,10 @@
 }
 
 .planner-intro { padding: 28px 32px 20px; }
-.intro-row { justify-content: center; }
+/* El selector de evento vive en la misma fila que el heading, justo a su
+   derecha (antes en su propia fila debajo): gap chico + centrado del
+   conjunto para que se lea como una sola frase. */
+.intro-row { justify-content: center; gap: 10px; padding-bottom: 16px; }
 .intro-row h1 {
   margin: 0;
   font-size: 32px;
@@ -89,17 +92,9 @@
   text-align: center;
 }
 
-.event-selector-row {
-  display: flex;
-  justify-content: center;
-  padding: 4px 32px 20px;
-}
-
 /* "Crear gestión" vive debajo del selector (no arriba a la derecha, como
-   antes): así queda claro para qué evento se crea. margin-top negativo
-   compensa el padding-bottom de .event-selector-row para no duplicar el
-   espacio entre el selector y el botón. */
-.create-task-below-selector { display: flex; justify-content: center; margin-top: -12px; padding-bottom: 20px; }
+   antes): así queda claro para qué evento se crea. */
+.create-task-below-selector { display: flex; justify-content: center; padding-bottom: 20px; }
 
 .event-button,
 .create-task-button,
@@ -305,6 +300,7 @@
     justify-content: center;
   }
   .planner-intro { padding: 24px 18px 20px; }
+  .intro-row { flex-wrap: wrap; row-gap: 4px; }
   .intro-row h1 { white-space: nowrap; }
   .task-columns { grid-template-columns: 1fr; gap: 18px; padding: 0 18px 24px; }
   .task-column { min-height: 120px; }

@@ -138,10 +138,10 @@ export function EventMenu({
             return next;
           })
         }
-        className="inline-flex items-center justify-center gap-2 rounded-full border border-[#8b1a1a]/30 bg-white px-5 py-[10px] font-jost text-[15px] leading-5 text-[#8b1a1a] shadow-sm hover:bg-[#fff0f0]"
+        className="inline-flex items-center gap-1.5 font-jost text-[32px] font-normal tracking-[-0.6px] text-[#8b1a1a] underline decoration-2 underline-offset-4 hover:decoration-[#5c1717] hover:text-[#5c1717]"
       >
         {selectedEvent?.name ?? "Todos los eventos"}
-        <ChevronDown size={18} aria-hidden="true" />
+        <ChevronDown size={22} aria-hidden="true" />
       </button>
 
       {open && (
