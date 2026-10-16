@@ -4,7 +4,10 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { HomePage } from "./homepage";
 import { AuthProvider } from "../lib/auth";
+import { playSound } from "../lib/sounds";
 import type { Event, Subtask, TodaySummary } from "../lib/types";
+
+vi.mock("../lib/sounds", () => ({ playSound: vi.fn() }));
 
 const TODAY = "2026-09-20";
 
@@ -357,6 +360,126 @@ describe("HomePage", () => {
           .filter((label): label is string => label !== null)
       ).toContain("Hoy A")
     );
+  });
+
+  describe("drag & drop", () => {
+    const patches = (fetchMock: ReturnType<typeof stubHomepageFetchWithPatch>) =>
+      fetchMock.mock.calls.filter(([, options]) => options?.method === "PATCH");
+
+    async function dragTo(title: string, targetLabel: string, targetSelector: string) {
+      const data: Record<string, string> = {};
+      const dataTransfer = {
+        setData: (k: string, v: string) => (data[k] = v),
+        getData: (k: string) => data[k],
+        get types() {
+          return Object.keys(data);
+        },
+        effectAllowed: "",
+        dropEffect: "",
+      };
+      fireEvent.dragStart(screen.getByRole("button", { name: title }), { dataTransfer });
+      fireEvent.drop(screen.getByText(targetLabel).closest(targetSelector) as HTMLElement, { dataTransfer });
+    }
+
+    function renderHome(items: Subtask[] = subtasks) {
+      const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+        const href = String(url);
+        if (options?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ ...items[0], status: JSON.parse(String(options.body)).status }, 200));
+        }
+        if (href.includes("/hoy/")) return Promise.resolve(jsonResponse(buildTodaySummary(items, eventIdFromHoyUrl(href)), 200));
+        if (href.includes("/eventos/1/subtareas/")) return Promise.resolve(jsonResponse(items, 200));
+        return Promise.resolve(jsonResponse([event], 200));
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      render(
+        <MemoryRouter initialEntries={["/?evento=1"]}>
+          <AuthProvider><HomePage /></AuthProvider>
+        </MemoryRouter>
+      );
+      return fetchMock;
+    }
+
+    test("soltar una pendiente en Completadas envía el PATCH {status: 'done'}", async () => {
+      const fetchMock = renderHome();
+      await screen.findByText("Hoy A");
+
+      await dragTo("Hoy A", "Completadas", ".today-panel");
+
+      await waitFor(() =>
+        expect(patches(fetchMock).some(([url, o]) => String(url).includes("/subtareas/4/") && JSON.parse(String(o.body)).status === "done")).toBe(true)
+      );
+    });
+
+    test("soltar una de hoy en Próximos 7 días abre Reprogramar y no hace PATCH", async () => {
+      const fetchMock = renderHome();
+      await screen.findByText("Hoy A");
+
+      await dragTo("Hoy A", "Próximos 7 días", ".task-column");
+
+      expect(await screen.findByText("Reprogramar gestión")).toBeInTheDocument();
+      expect(patches(fetchMock)).toHaveLength(0);
+    });
+
+    test("soltar una próxima en Pendientes abre Reprogramar con la fecha de hoy", async () => {
+      const fetchMock = renderHome();
+      await screen.findByText("Próxima A");
+
+      await dragTo("Próxima A", "Pendientes", ".today-panel");
+
+      expect(await screen.findByText("Reprogramar gestión")).toBeInTheDocument();
+      expect(screen.getByLabelText("Nueva fecha")).toHaveValue(TODAY);
+      expect(patches(fetchMock)).toHaveLength(0);
+    });
+
+    test("soltar una de hoy en Próximos 7 días propone la fecha de mañana", async () => {
+      renderHome();
+      await screen.findByText("Hoy A");
+
+      await dragTo("Hoy A", "Próximos 7 días", ".task-column");
+
+      expect(await screen.findByLabelText("Nueva fecha")).toHaveValue("2026-09-21");
+    });
+
+    test("soltar una vencida en Pendientes propone la fecha de hoy", async () => {
+      renderHome();
+      await screen.findByText("Vencida A");
+
+      await dragTo("Vencida A", "Pendientes", ".today-panel");
+
+      expect(await screen.findByLabelText("Nueva fecha")).toHaveValue(TODAY);
+    });
+
+    test("completar suena 'complete' y posponer suena 'postpone'", async () => {
+      renderHome();
+      await screen.findByText("Hoy A");
+
+      await dragTo("Hoy A", "Completadas", ".today-panel");
+      await waitFor(() => expect(playSound).toHaveBeenCalledWith("complete"));
+
+      await dragTo("Hoy B", "Pospuestas", ".today-panel");
+      await waitFor(() => expect(playSound).toHaveBeenCalledWith("postpone"));
+    });
+
+    test("soltar una pospuesta en Pendientes la reactiva (PATCH pending)", async () => {
+      const fetchMock = renderHome([...subtasks, subtask({ subtask_id: 9, title: "Hoy Pospuesta", status: "postponed" })]);
+      await screen.findByText("Hoy Pospuesta");
+
+      await dragTo("Hoy Pospuesta", "Pendientes", ".today-panel");
+
+      await waitFor(() =>
+        expect(patches(fetchMock).some(([url, o]) => String(url).includes("/subtareas/9/") && JSON.parse(String(o.body)).status === "pending")).toBe(true)
+      );
+    });
+
+    test("soltar una ya completada en Completadas no hace nada", async () => {
+      const fetchMock = renderHome();
+      await screen.findByText("Hoy Hecha");
+
+      await dragTo("Hoy Hecha", "Completadas", ".today-panel");
+
+      expect(patches(fetchMock)).toHaveLength(0);
+    });
   });
 
   describe("pospuestas", () => {

@@ -309,3 +309,6 @@
   .task-column--today .column-body { min-height: 215px; }
   .empty-state p { font-size: 26px; }
 }
+.drop-over {
+  box-shadow: 0 0 0 2px rgb(139 26 26 / 0.3);
+}
