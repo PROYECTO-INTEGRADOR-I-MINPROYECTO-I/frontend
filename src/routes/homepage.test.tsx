@@ -526,12 +526,12 @@ describe("HomePage", () => {
       expect(link.closest("p")).toHaveTextContent("1 gestión pospuesta de otros días más del evento");
     });
 
-    test("sin evento seleccionado el link va a la vista de eventos", async () => {
+    test("sin evento seleccionado el link va al progreso global", async () => {
       stubWith(withPostponed);
       renderAt("/");
 
       const link = await screen.findByRole("link", { name: "eventos" });
-      expect(link).toHaveAttribute("href", "/?vista=eventos");
+      expect(link).toHaveAttribute("href", "/progreso#pospuestas");
       expect(link.closest("p")).toHaveTextContent("1 gestión pospuesta de otros días en los eventos");
     });
 
@@ -1488,6 +1488,73 @@ describe("HomePage", () => {
     expect(screen.queryByRole("button", { name: "Volver a Eventos" })).not.toBeInTheDocument();
   });
 
+  test("/progreso muestra las gestiones de todos los eventos con columna Evento y barra global", async () => {
+    const event2: Event = { ...event, eid: 2, name: "Cumpleaños Ana" };
+    const byEvent: Record<number, Subtask[]> = {
+      1: [
+        subtask({ subtask_id: 1, eid: 1, title: "Gestión uno", status: "done" }),
+        subtask({ subtask_id: 2, eid: 1, title: "Gestión dos", status: "pending", scheduled_date: "2026-12-01" }),
+      ],
+      2: [
+        subtask({ subtask_id: 3, eid: 2, title: "Gestión tres", status: "done" }),
+        subtask({ subtask_id: 4, eid: 2, title: "Gestión cuatro", status: "postponed" }),
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        const href = String(url);
+        const match = href.match(/\/eventos\/(\d+)\/subtareas\//);
+        if (match) return Promise.resolve(jsonResponse(byEvent[Number(match[1])], 200));
+        if (href.includes("/hoy/")) return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, null), 200));
+        if (href.includes("/eventos/")) return Promise.resolve(jsonResponse([event, event2], 200));
+        return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/progreso"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("heading", { name: "Progreso de todos los eventos" })).toBeInTheDocument();
+    expect(await screen.findByText("Gestión cuatro")).toBeInTheDocument();
+    expect(screen.getByText("Gestión uno")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: "Evento" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Cumpleaños Ana" })[0]).toHaveAttribute("href", "/progreso/2");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "2 de 4 gestiones completadas");
+    expect(screen.queryByRole("button", { name: /Crear gestión/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/progreso puede estar incompleto/)).not.toBeInTheDocument();
+
+    // El link del evento navega sin abrir el modal de la gestión.
+    await userEvent.setup().click(screen.getAllByRole("link", { name: "Cumpleaños Ana" })[0]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("/progreso avisa si no se pudieron cargar las gestiones de algún evento", async () => {
+    const event2: Event = { ...event, eid: 2, name: "Cumpleaños Ana", total_subtasks: 3, completed_subtasks: 0 };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        const href = String(url);
+        if (href.includes("/eventos/1/subtareas/")) return Promise.resolve(jsonResponse(subtasks, 200));
+        if (href.includes("/eventos/2/subtareas/")) return Promise.reject(new Error("sin red"));
+        if (href.includes("/hoy/")) return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, null), 200));
+        if (href.includes("/eventos/")) return Promise.resolve(jsonResponse([event, event2], 200));
+        return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/progreso"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/progreso puede estar incompleto/)).toBeInTheDocument();
+  });
+
   test("abrir una tarjeta lleva a /progreso/<eid>, volver a /?vista=eventos e ir a Hoy conserva ?evento", async () => {
     const user = userEvent.setup();
     stubHomepageFetch();
@@ -1507,6 +1574,11 @@ describe("HomePage", () => {
     await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
     expect(loc()).toBe("/progreso/1");
 
+    await user.click(await screen.findByRole("button", { name: "Volver a Eventos" }));
+    expect(loc()).toBe("/?vista=eventos");
+
+    await user.click(await screen.findByRole("button", { name: "Ver progreso general" }));
+    expect(loc()).toBe("/progreso");
     await user.click(await screen.findByRole("button", { name: "Volver a Eventos" }));
     expect(loc()).toBe("/?vista=eventos");
 

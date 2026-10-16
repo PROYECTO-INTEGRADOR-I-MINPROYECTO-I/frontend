@@ -7,6 +7,7 @@
 // event-wizard.tsx).
 
 import { Plus } from "lucide-react";
+import { Link } from "react-router-dom";
 import { formatShortDateEs } from "../lib/dates";
 import type { Subtask } from "../lib/types";
 
@@ -23,6 +24,8 @@ interface GestionTableProps {
   onAddNew?: () => void;
   addNewLabel?: string;
   emptyHint?: string;
+  /** Si viene, agrega la columna Evento (vista de progreso global). */
+  eventNameById?: Record<number, string>;
 }
 
 export function GestionTable({
@@ -31,24 +34,29 @@ export function GestionTable({
   onAddNew,
   addNewLabel = "Agregar gestión",
   emptyHint = "Sin gestiones todavía.",
+  eventNameById,
 }: GestionTableProps) {
   if (items.length === 0 && !onAddNew) {
     return <p className="font-source text-[13px] text-[#99a1af]">{emptyHint}</p>;
   }
 
+  const withEvent = Boolean(eventNameById);
+
   return (
     <table className="w-full table-fixed border-collapse text-left">
       <colgroup>
-        <col className="w-[28%]" />
-        <col className="w-[16%]" />
-        <col className="w-[12%]" />
-        <col className="w-[10%]" />
-        <col className="hidden w-[20%] sm:table-column" />
-        <col className="w-[14%]" />
+        <col className={withEvent ? "w-[18%]" : "w-[28%]"} />
+        {withEvent && <col className="w-[20%]" />}
+        <col className={withEvent ? "w-[14%]" : "w-[16%]"} />
+        <col className={withEvent ? "w-[10%]" : "w-[12%]"} />
+        <col className={withEvent ? "w-[7%]" : "w-[10%]"} />
+        <col className={withEvent ? "hidden w-[16%] sm:table-column" : "hidden w-[20%] sm:table-column"} />
+        <col className={withEvent ? "w-[15%]" : "w-[14%]"} />
       </colgroup>
       <thead>
         <tr className="border-b border-[#f3f4f6] font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">
           <th className="py-2 pr-2 font-normal">Nombre</th>
+          {withEvent && <th className="py-2 pr-2 font-normal">Evento</th>}
           <th className="py-2 pr-2 font-normal">Tipo</th>
           <th className="py-2 pr-2 font-normal">Fecha</th>
           <th className="py-2 pr-2 font-normal">Horas</th>
@@ -59,7 +67,7 @@ export function GestionTable({
       <tbody>
         {onAddNew && (
           <tr className="border-b border-[#f3f4f6] last:border-0">
-            <td colSpan={6} className="py-2 pr-2">
+            <td colSpan={withEvent ? 7 : 6} className="py-2 pr-2">
               <button
                 type="button"
                 onClick={onAddNew}
@@ -102,7 +110,20 @@ export function GestionTable({
               <td className="truncate py-2 pr-2 font-source text-[13px] text-[#1e2939]">
                 {subtask.title}
               </td>
-              <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">{subtask.category}</td>
+              {withEvent && (
+                <td className="py-2 pr-2 font-source text-[13px]">
+                  <Link
+                    to={`/progreso/${subtask.eid}`}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    title={eventNameById?.[subtask.eid]}
+                    className="block truncate whitespace-nowrap text-[#8b1a1a] hover:underline"
+                  >
+                    {eventNameById?.[subtask.eid] ?? "—"}
+                  </Link>
+                </td>
+              )}
+              <td className="whitespace-nowrap py-2 pr-2 font-source text-[13px] text-[#4a5565]">{subtask.category}</td>
               <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">
                 {formatShortDateEs(subtask.scheduled_date)}
               </td>

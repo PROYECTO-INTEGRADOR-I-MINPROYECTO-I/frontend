@@ -9,7 +9,7 @@ type Metric = "gestiones" | "horas";
 
 const COLORS = { done: "#10b981", postponed: "#a1a1aa", pending: "#fcd34d" };
 
-export function EventProgressBar({ subtasks }: { subtasks: Subtask[] }) {
+export function EventProgressBar({ subtasks, label = "Progreso del evento" }: { subtasks: Subtask[]; label?: string }) {
   const [metric, setMetric] = useState<Metric>("gestiones");
   const labelId = useId();
   const isHoras = metric === "horas";
@@ -35,7 +35,7 @@ export function EventProgressBar({ subtasks }: { subtasks: Subtask[] }) {
         <div className="flex flex-1 flex-col gap-1.5">
           <div
             role="progressbar"
-            aria-label="Progreso del evento"
+            aria-label={label}
             aria-valuenow={percentage}
             aria-valuemin={0}
             aria-valuemax={100}
