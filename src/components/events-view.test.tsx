@@ -53,6 +53,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
     expect(screen.getByText("Cargando eventos…")).toBeInTheDocument();
@@ -75,6 +77,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -100,6 +104,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -125,6 +131,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -163,6 +171,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -188,6 +198,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -211,6 +223,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -244,6 +258,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -277,6 +293,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -296,6 +314,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -325,6 +345,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -350,6 +372,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -387,6 +411,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 

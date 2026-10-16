@@ -31,12 +31,21 @@ export function GestionTable({
   }
 
   return (
-    <table className="w-full border-collapse text-left">
+    <table className="w-full table-fixed border-collapse text-left">
+      <colgroup>
+        <col className="w-[28%]" />
+        <col className="w-[16%]" />
+        <col className="w-[12%]" />
+        <col className="w-[10%]" />
+        <col className="hidden w-[20%] sm:table-column" />
+        <col className="w-[14%]" />
+      </colgroup>
       <thead>
         <tr className="border-b border-[#f3f4f6] font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">
           <th className="py-2 pr-2 font-normal">Nombre</th>
           <th className="py-2 pr-2 font-normal">Tipo</th>
           <th className="py-2 pr-2 font-normal">Fecha</th>
+          <th className="py-2 pr-2 font-normal">Horas</th>
           <th className="hidden py-2 pr-2 font-normal sm:table-cell">Descripción</th>
           <th className="py-2 font-normal">Estado</th>
         </tr>
@@ -44,7 +53,7 @@ export function GestionTable({
       <tbody>
         {onAddNew && (
           <tr className="border-b border-[#f3f4f6] last:border-0">
-            <td colSpan={5} className="py-2 pr-2">
+            <td colSpan={6} className="py-2 pr-2">
               <button
                 type="button"
                 onClick={onAddNew}
@@ -84,14 +93,15 @@ export function GestionTable({
                   : "border-b border-[#f3f4f6] last:border-0"
               }
             >
-              <td className="max-w-[160px] truncate py-2 pr-2 font-source text-[13px] text-[#1e2939]">
+              <td className="truncate py-2 pr-2 font-source text-[13px] text-[#1e2939]">
                 {subtask.title}
               </td>
               <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">{subtask.category}</td>
               <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">
                 {formatShortDateEs(subtask.scheduled_date)}
               </td>
-              <td className="hidden max-w-[220px] truncate py-2 pr-2 font-source text-[13px] text-[#99a1af] sm:table-cell">
+              <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">{Number(subtask.estimated_hours) || 0} h</td>
+              <td className="hidden truncate py-2 pr-2 font-source text-[13px] text-[#99a1af] sm:table-cell">
                 {subtask.description || "—"}
               </td>
               <td className="py-2 font-source text-[13px] text-[#4a5565]">

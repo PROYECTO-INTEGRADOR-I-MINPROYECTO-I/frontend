@@ -59,6 +59,8 @@ interface EventsViewProps {
    * forzar la expansión de otro evento.
    */
   initialExpandedEventId: number | null;
+  onOpenEvent: (eid: number) => void;
+  onBackFromEvent: () => void;
 }
 
 export function EventsView({
@@ -74,10 +76,19 @@ export function EventsView({
   onEventCoverUpdated,
   onCreateSubtask,
   initialExpandedEventId,
+  onOpenEvent,
+  onBackFromEvent,
 }: EventsViewProps) {
   const [progressByEvent, setProgressByEvent] = useState<Record<number, EventProgress>>({});
   const [eventTypeNames, setEventTypeNames] = useState<Record<number, string>>({});
   const [expandedEventId, setExpandedEventId] = useState<number | null>(initialExpandedEventId);
+
+  // Sigue a la URL (atrás/adelante del navegador).
+  const [prevInitialId, setPrevInitialId] = useState(initialExpandedEventId);
+  if (prevInitialId !== initialExpandedEventId) {
+    setPrevInitialId(initialExpandedEventId);
+    setExpandedEventId(initialExpandedEventId);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -191,7 +202,10 @@ export function EventsView({
         eventTypeName={eventTypeNameFor(expandedEvent)}
         subtasks={expandedProgress?.all ?? []}
         subtasksLoading={!expandedProgress}
-        onBack={() => setExpandedEventId(null)}
+        onBack={() => {
+          setExpandedEventId(null);
+          onBackFromEvent();
+        }}
         onEdit={() => onEditEvent(expandedEvent)}
         onDelete={() => onDeleteEvent(expandedEvent)}
         onOpenSubtask={onOpenSubtask}
@@ -254,7 +268,10 @@ export function EventsView({
             previewSubtasks={progress?.preview ?? []}
             previewMoreCount={progress?.previewMoreCount ?? 0}
             loading={!progress && event.total_subtasks === undefined}
-            onOpen={() => setExpandedEventId(event.eid)}
+            onOpen={() => {
+              setExpandedEventId(event.eid);
+              onOpenEvent(event.eid);
+            }}
             onEventCoverUpdated={onEventCoverUpdated}
           />
         );
