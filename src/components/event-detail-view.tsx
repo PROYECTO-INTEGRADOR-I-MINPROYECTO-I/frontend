@@ -14,9 +14,16 @@
 import { useState } from "react";
 import { ArrowLeft, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { EventCover } from "./event-cover";
+import { EventProgressBar } from "./event-progress-bar";
 import { GestionTable } from "./gestion-table";
 import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
-import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours, subtaskTimeStatus } from "../lib/subtask-display";
+import {
+  sortCompletedSubtasksByDateDesc,
+  sortSubtasksByDateThenHours,
+  subtaskTimeStatus,
+  TIME_STATUS_STYLES,
+  type SubtaskTimeStatus,
+} from "../lib/subtask-display";
 import type { Event, Subtask } from "../lib/types";
 
 interface EventDetailViewProps {
@@ -131,6 +138,8 @@ export function EventDetailView({
             {event.description && (
               <p className="font-source text-[14px] leading-[22.75px] text-[#4a5565]">{event.description}</p>
             )}
+
+            {!subtasksLoading && <EventProgressBar subtasks={subtasks} />}
           </div>
         </div>
 
@@ -149,10 +158,11 @@ export function EventDetailView({
             <p className="font-source text-[13px] text-[#99a1af]">Cargando gestiones…</p>
           ) : (
             <>
-              <GestionGroup label="Para hoy" items={paraHoy} emptyHint="Sin gestiones para hoy." onOpenSubtask={onOpenSubtask} />
-              <GestionGroup label="Vencidas" items={vencidas} emptyHint="Sin gestiones vencidas." onOpenSubtask={onOpenSubtask} />
-              <GestionGroup label="Próximas" items={proximas} emptyHint="Sin gestiones próximas." onOpenSubtask={onOpenSubtask} />
+              <GestionGroup status="today" label="Para hoy" items={paraHoy} emptyHint="Sin gestiones para hoy." onOpenSubtask={onOpenSubtask} />
+              <GestionGroup status="overdue" label="Vencidas" items={vencidas} emptyHint="Sin gestiones vencidas." onOpenSubtask={onOpenSubtask} />
+              <GestionGroup status="upcoming" label="Próximas" items={proximas} emptyHint="Sin gestiones próximas." onOpenSubtask={onOpenSubtask} />
               <GestionGroup
+                status="done"
                 label="Completadas"
                 items={completadas}
                 emptyHint="Sin gestiones completadas."
@@ -167,13 +177,14 @@ export function EventDetailView({
 }
 
 interface GestionGroupProps {
+  status: SubtaskTimeStatus;
   label: string;
   items: Subtask[];
   emptyHint: string;
   onOpenSubtask: (subtask: Subtask) => void;
 }
 
-function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupProps) {
+function GestionGroup({ status, label, items, emptyHint, onOpenSubtask }: GestionGroupProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -192,7 +203,8 @@ function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupPr
     <details
       open={isOpen}
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      className="rounded-lg border border-[#f3f4f6] bg-white"
+      style={{ backgroundColor: TIME_STATUS_STYLES[status].bg }}
+      className="rounded-lg border border-black/10"
     >
       <summary className="flex cursor-pointer items-center justify-between px-4 py-3 font-jost text-[13px] tracking-[0.5px] text-[#101828] uppercase">
         <span className="flex items-center gap-2">
@@ -205,7 +217,7 @@ function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupPr
         </span>
         <span className="font-source text-[11px] normal-case text-[#99a1af]">- {visibleItems.length} GESTIONES</span>
       </summary>
-      <div className="border-t border-[#f3f4f6] px-4 py-3">
+      <div className="border-t border-black/10 px-4 py-3">
         {items.length === 0 ? (
           <p className="font-source text-[13px] text-[#99a1af]">{emptyHint}</p>
         ) : (

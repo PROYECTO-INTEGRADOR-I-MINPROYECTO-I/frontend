@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Plus } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
@@ -62,6 +62,9 @@ function subtaskDeleteDescription(subtask: Subtask): string {
 export function HomePage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const isProgressRoute = useLocation().pathname.startsWith("/progreso");
+  const progressEid = useMatch("/progreso/:eid")?.params.eid;
 
   const [events, setEvents] = useState<Event[]>([]);
   const [eventsStatus, setEventsStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -160,7 +163,7 @@ export function HomePage() {
   // una petición ya descartada siga ocupando ancho de banda/backend.
   const todayAbortRef = useRef<AbortController | null>(null);
 
-  const eventoParam = searchParams.get("evento");
+  const eventoParam = isProgressRoute ? (progressEid ?? null) : searchParams.get("evento");
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
   // PIM1-117: SubtaskFormModal (isSubtaskFormOpen) ahora es solo edición (la
@@ -182,7 +185,7 @@ export function HomePage() {
   // (cualquier otro valor que no sea "eventos" cae en "hoy") — PIM1-11: esta
   // vista siempre fue la de "Hoy", así que es la que debe verse sin tocar nada.
   const vistaParam = searchParams.get("vista");
-  const currentView: ViewSwitcherValue = vistaParam === "eventos" ? "eventos" : "hoy";
+  const currentView: ViewSwitcherValue = isProgressRoute || vistaParam === "eventos" ? "eventos" : "hoy";
 
   useEffect(() => {
     return () => {
@@ -247,6 +250,10 @@ export function HomePage() {
   }
 
   function handleSelectEvent(event: Event | null) {
+    if (isProgressRoute) {
+      navigate(event ? `/progreso/${event.eid}` : "/?vista=eventos", { replace: true });
+      return;
+    }
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -261,6 +268,10 @@ export function HomePage() {
   // Conserva ?evento= al cambiar de vista, así volver a "Hoy" mantiene el
   // mismo evento seleccionado.
   function handleSelectView(view: ViewSwitcherValue) {
+    if (isProgressRoute) {
+      if (view === "hoy") navigate(selectedEventId != null ? `/?evento=${selectedEventId}` : "/");
+      return;
+    }
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -857,6 +868,8 @@ export function HomePage() {
             onEventCoverUpdated={handleEventCoverUpdated}
             onCreateSubtask={openSubtaskForm}
             initialExpandedEventId={selectedEventId}
+            onOpenEvent={(eid) => navigate(`/progreso/${eid}`)}
+            onBackFromEvent={() => isProgressRoute && navigate("/?vista=eventos", { replace: true })}
           />
         )}
       </div>

@@ -403,4 +403,23 @@ describe("EventDetailView", () => {
 
     expect(onOpenSubtask).toHaveBeenCalledTimes(2);
   });
+
+  test("la tabla muestra la columna Horas", () => {
+    render(
+      <EventDetailView
+        event={event}
+        subtasks={[subtask({ subtask_id: 1, scheduled_date: "2026-09-18", estimated_hours: "1.50" })]}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
+      />
+    );
+
+    expect(within(groupPanel("Vencidas")).getByRole("columnheader", { name: "Horas" })).toBeInTheDocument();
+    expect(within(groupPanel("Vencidas")).getByText("1.5 h")).toBeInTheDocument();
+  });
 });

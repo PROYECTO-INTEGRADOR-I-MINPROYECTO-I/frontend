@@ -1255,4 +1255,52 @@ describe("HomePage", () => {
     // pero sobre todo NO debe abrir el popup de detalle de la gestión.
     expect(screen.queryByRole("dialog", { name: "Vencida A" })).not.toBeInTheDocument();
   });
+
+  test("/progreso/:eid abre el detalle del evento y un eid inexistente cae en la lista", async () => {
+    stubHomepageFetch();
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/progreso/1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    expect(await screen.findByRole("button", { name: "Volver a Eventos" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={["/progreso/99"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findAllByText("Boda Luisa & Carlos");
+    expect(screen.queryByRole("button", { name: "Volver a Eventos" })).not.toBeInTheDocument();
+  });
+
+  test("abrir una tarjeta lleva a /progreso/<eid>, volver a /?vista=eventos e ir a Hoy conserva ?evento", async () => {
+    const user = userEvent.setup();
+    stubHomepageFetch();
+    function LocationProbe() {
+      const { pathname, search } = useLocation();
+      return <output data-testid="loc">{pathname + search}</output>;
+    }
+    const loc = () => screen.getByTestId("loc").textContent;
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+    expect(loc()).toBe("/progreso/1");
+
+    await user.click(await screen.findByRole("button", { name: "Volver a Eventos" }));
+    expect(loc()).toBe("/?vista=eventos");
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+    expect(loc()).toBe("/?evento=1");
+  });
 });
