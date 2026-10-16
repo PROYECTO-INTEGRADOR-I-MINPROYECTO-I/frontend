@@ -902,7 +902,7 @@ export function HomePage() {
                   ) : (
                     <>
                       {postponedElsewhere === 1 ? "gestión pospuesta" : "gestiones pospuestas"} de otros días en los{" "}
-                      <Link to="/?vista=eventos" className={POSTPONED_LINK}>
+                      <Link to="/progreso#pospuestas" className={POSTPONED_LINK}>
                         eventos
                       </Link>
                     </>
@@ -981,6 +981,8 @@ export function HomePage() {
             initialExpandedEventId={selectedEventId}
             onOpenEvent={(eid) => navigate(`/progreso/${eid}`)}
             onBackFromEvent={() => isProgressRoute && navigate("/?vista=eventos", { replace: true })}
+            showAll={isProgressRoute && !progressEid}
+            onOpenAllProgress={() => navigate("/progreso")}
           />
         )}
       </div>

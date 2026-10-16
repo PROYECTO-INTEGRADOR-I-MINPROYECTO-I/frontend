@@ -27,24 +27,28 @@ import {
 import type { Event, Subtask } from "../lib/types";
 
 interface EventDetailViewProps {
-  event: Event;
+  /** Sin evento: vista global con las gestiones de todos los eventos. */
+  event?: Event;
+  /** Nombres por eid para la columna Evento (solo vista global). */
+  eventNameById?: Record<number, string>;
   eventTypeName?: string;
   subtasks: Subtask[];
   subtasksLoading: boolean;
   onBack: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
   onOpenSubtask: (subtask: Subtask) => void;
   /** Ver EventCover: el PATCH de portada devuelve el evento completo para que el padre actualice su lista. */
-  onEventCoverUpdated: (event: Event) => void;
+  onEventCoverUpdated?: (event: Event) => void;
   /** Abre el wizard de creación de gestión (ver SubtaskWizard) para este evento. */
-  onCreateSubtask: () => void;
+  onCreateSubtask?: () => void;
   /** Hash de la URL (ej. "#pospuestas"): al terminar de cargar, lleva a ese grupo. */
   scrollHash?: string;
 }
 
 export function EventDetailView({
   event,
+  eventNameById,
   eventTypeName,
   subtasks,
   subtasksLoading,
@@ -56,7 +60,7 @@ export function EventDetailView({
   onCreateSubtask,
   scrollHash,
 }: EventDetailViewProps) {
-  const dateLabel = formatShortDateEs(isoDateTimeToLocalDateString(event.due_date));
+  const dateLabel = event ? formatShortDateEs(isoDateTimeToLocalDateString(event.due_date)) : "";
   const today = todayLocalDateString();
 
   useEffect(() => {
@@ -99,16 +103,21 @@ export function EventDetailView({
         </button>
 
         <div className="overflow-hidden rounded-lg border border-[#f3f4f6] bg-white">
-          <EventCover
-            event={event}
-            eventTypeName={eventTypeName}
-            onEventCoverUpdated={onEventCoverUpdated}
-            className="aspect-video w-full"
-          />
+          {event && onEventCoverUpdated && (
+            <EventCover
+              event={event}
+              eventTypeName={eventTypeName}
+              onEventCoverUpdated={onEventCoverUpdated}
+              className="aspect-video w-full"
+            />
+          )}
 
           <div className="flex flex-col gap-4 p-6">
             <div className="flex flex-col gap-2">
-              <h1 className="font-jost text-[24px] leading-[30px] text-[#101828]">{event.name}</h1>
+              <h1 className="font-jost text-[24px] leading-[30px] text-[#101828]">
+                {event ? event.name : "Progreso de todos los eventos"}
+              </h1>
+              {event && (
               <div className="flex gap-4">
                 <button
                   type="button"
@@ -127,32 +136,35 @@ export function EventDetailView({
                   Borrar
                 </button>
               </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {eventTypeName && (
-                <span className="shrink-0 rounded px-[6px] py-0.5 font-jost text-[10px] text-[#4a5565] bg-[#f3f4f6]">
-                  {eventTypeName}
-                </span>
               )}
-              <span className="font-source text-[13px] text-[#99a1af]">{dateLabel}</span>
             </div>
 
-            {event.place && (
+            {event && (
+              <div className="flex flex-wrap items-center gap-2">
+                {eventTypeName && (
+                  <span className="shrink-0 rounded px-[6px] py-0.5 font-jost text-[10px] text-[#4a5565] bg-[#f3f4f6]">
+                    {eventTypeName}
+                  </span>
+                )}
+                <span className="font-source text-[13px] text-[#99a1af]">{dateLabel}</span>
+              </div>
+            )}
+
+            {event?.place && (
               <p className="font-source text-[14px] text-[#4a5565]">
                 <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Lugar: </span>
                 {event.place}
               </p>
             )}
 
-            {event.client_contact && (
+            {event?.client_contact && (
               <p className="font-source text-[14px] text-[#4a5565]">
                 <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Contacto: </span>
                 {event.client_contact}
               </p>
             )}
 
-            {event.description && (
+            {event?.description && (
               <p className="font-source text-[14px] leading-[22.75px] text-[#4a5565]">{event.description}</p>
             )}
 
@@ -160,30 +172,33 @@ export function EventDetailView({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-center">
-          <button
-            type="button"
-            onClick={onCreateSubtask}
-            className="inline-flex h-[34px] items-center justify-center gap-1.5 rounded-full bg-[#8b1a1a] px-4 font-jost text-[14px] text-white"
-          >
-            Crear gestión <Plus aria-hidden="true" size={16} />
-          </button>
-        </div>
+        {event && (
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={onCreateSubtask}
+              className="inline-flex h-[34px] items-center justify-center gap-1.5 rounded-full bg-[#8b1a1a] px-4 font-jost text-[14px] text-white"
+            >
+              Crear gestión <Plus aria-hidden="true" size={16} />
+            </button>
+          </div>
+        )}
 
         <div className="mt-4 flex flex-col gap-3">
           {subtasksLoading ? (
             <p className="font-source text-[13px] text-[#99a1af]">Cargando gestiones…</p>
           ) : (
             <>
-              <GestionGroup status="today" label="Para hoy" items={paraHoy} emptyHint="Sin gestiones para hoy." onOpenSubtask={onOpenSubtask} />
-              <GestionGroup status="overdue" label="Vencidas" items={vencidas} emptyHint="Sin gestiones vencidas." onOpenSubtask={onOpenSubtask} />
-              <GestionGroup status="upcoming" label="Próximas" items={proximas} emptyHint="Sin gestiones próximas." onOpenSubtask={onOpenSubtask} />
+              <GestionGroup status="today" label="Para hoy" items={paraHoy} emptyHint="Sin gestiones para hoy." onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
+              <GestionGroup status="overdue" label="Vencidas" items={vencidas} emptyHint="Sin gestiones vencidas." onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
+              <GestionGroup status="upcoming" label="Próximas" items={proximas} emptyHint="Sin gestiones próximas." onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
               <GestionGroup
                 status="done"
                 label="Completadas"
                 items={completadas}
                 emptyHint="Sin gestiones completadas."
                 onOpenSubtask={onOpenSubtask}
+                eventNameById={eventNameById}
               />
               <GestionGroup
                 id="pospuestas"
@@ -192,6 +207,7 @@ export function EventDetailView({
                 items={pospuestas}
                 emptyHint="Sin gestiones pospuestas."
                 onOpenSubtask={onOpenSubtask}
+                eventNameById={eventNameById}
               />
             </>
           )}
@@ -208,9 +224,10 @@ interface GestionGroupProps {
   items: Subtask[];
   emptyHint: string;
   onOpenSubtask: (subtask: Subtask) => void;
+  eventNameById?: Record<number, string>;
 }
 
-function GestionGroup({ id, status, label, items, emptyHint, onOpenSubtask }: GestionGroupProps) {
+function GestionGroup({ id, status, label, items, emptyHint, onOpenSubtask, eventNameById }: GestionGroupProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -267,7 +284,7 @@ function GestionGroup({ id, status, label, items, emptyHint, onOpenSubtask }: Ge
                 ))}
               </select>
             </div>
-            <GestionTable items={visibleItems} onOpenSubtask={onOpenSubtask} />
+            <GestionTable items={visibleItems} onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
           </>
         )}
       </div>

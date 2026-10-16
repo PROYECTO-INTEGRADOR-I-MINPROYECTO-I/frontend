@@ -63,6 +63,10 @@ interface EventsViewProps {
   initialExpandedEventId: number | null;
   onOpenEvent: (eid: number) => void;
   onBackFromEvent: () => void;
+  /** Vista global (/progreso): gestiones de todos los eventos con columna Evento. */
+  showAll?: boolean;
+  /** Si viene, la lista muestra el botón "Ver progreso general". */
+  onOpenAllProgress?: () => void;
 }
 
 export function EventsView({
@@ -81,6 +85,8 @@ export function EventsView({
   initialExpandedEventId,
   onOpenEvent,
   onBackFromEvent,
+  showAll,
+  onOpenAllProgress,
 }: EventsViewProps) {
   const [progressByEvent, setProgressByEvent] = useState<Record<number, EventProgress>>({});
   const [eventTypeNames, setEventTypeNames] = useState<Record<number, string>>({});
@@ -219,6 +225,19 @@ export function EventsView({
     );
   }
 
+  if (showAll && events.length > 0) {
+    return (
+      <EventDetailView
+        eventNameById={Object.fromEntries(events.map((item) => [item.eid, item.name]))}
+        subtasks={events.flatMap((item) => progressByEvent[item.eid]?.all ?? [])}
+        subtasksLoading={events.some((item) => !progressByEvent[item.eid])}
+        onBack={onBackFromEvent}
+        onOpenSubtask={onOpenSubtask}
+        scrollHash={scrollHash}
+      />
+    );
+  }
+
   if (events.length === 0) {
     // Corrección del profesor (clínica de Sprint 1): sin eventos, ocultar
     // todo y dejar solo el mensaje + un único botón de crear.
@@ -254,6 +273,18 @@ export function EventsView({
     // con Claude in Chrome) toma el alto real que le da eventos-panel
     // (flex flex-col flex-1 sobre planner-shell, ver homepage.tsx/css), así
     // que el centrado es contra el alto real de la pantalla, no solo 420px.
+    <>
+    {onOpenAllProgress && (
+      <div className="flex justify-end px-8 pb-2">
+        <button
+          type="button"
+          onClick={onOpenAllProgress}
+          className="inline-flex h-[34px] items-center justify-center rounded-full bg-[#8b1a1a] px-4 font-jost text-[14px] text-white"
+        >
+          Ver progreso general
+        </button>
+      </div>
+    )}
     <div
       className="flex flex-1 min-h-[420px] items-center gap-4 overflow-x-auto px-8 pb-8"
       style={{ justifyContent: "safe center" }}
@@ -281,5 +312,6 @@ export function EventsView({
         );
       })}
     </div>
+    </>
   );
 }
