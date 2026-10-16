@@ -126,6 +126,13 @@ export function EventMenu({
 
   return (
     <div ref={rootRef} className="relative" onBlur={handleBlur}>
+      {/* Corrección de la clínica más reciente: antes era un pill con fondo
+          propio en su propia fila, debajo del heading "Viendo gestiones
+          de:" — quedaba mal justo encima de "Crear gestión". Ahora vive en
+          la misma fila que el heading (ver .intro-row en homepage.css) y se
+          lee como parte de la misma frase: mismo tamaño/fuente que el <h1>,
+          sin fondo ni borde, solo subrayado + flecha para marcar que es
+          clickeable, con más peso al pasar el mouse. */}
       <button
         ref={triggerRef}
         type="button"
@@ -138,10 +145,10 @@ export function EventMenu({
             return next;
           })
         }
-        className="inline-flex items-center justify-center gap-2 rounded-full border border-[#8b1a1a]/30 bg-white px-5 py-[10px] font-jost text-[15px] leading-5 text-[#8b1a1a] shadow-sm hover:bg-[#fff0f0]"
+        className="inline-flex items-center gap-1 font-jost text-[32px] leading-none font-normal tracking-[-0.6px] text-[#101828] underline decoration-1 underline-offset-[6px] hover:font-semibold"
       >
         {selectedEvent?.name ?? "Todos los eventos"}
-        <ChevronDown size={18} aria-hidden="true" />
+        <ChevronDown size={26} aria-hidden="true" className="shrink-0" />
       </button>
 
       {open && (

@@ -242,7 +242,7 @@ describe("HomePage", () => {
     ).toBeDefined();
   });
 
-  test("'Crear gestión' aparece debajo del selector de evento, no arriba a la derecha", async () => {
+  test("el selector de evento vive junto al heading 'Viendo gestiones de:', y 'Crear gestión' aparece debajo de esa fila", async () => {
     stubHomepageFetch();
 
     render(
@@ -254,12 +254,16 @@ describe("HomePage", () => {
 
     const button = screen.getByRole("button", { name: /Crear gestión/ });
     const selectorTrigger = screen.getByRole("button", { name: /Boda Luisa & Carlos/, expanded: false });
-    const selectorRow = selectorTrigger.closest(".event-selector-row");
-    expect(selectorRow).not.toBeNull();
-    // El botón debe ser el siguiente hermano de la fila del selector (debajo de ella en el DOM/visualmente),
-    // no vivir dentro de .intro-row (arriba, junto al heading).
+    // Corrección de la clínica más reciente: el selector ya no vive en su
+    // propia fila (.event-selector-row, eliminada); ahora es parte de
+    // .intro-row, junto al <h1>.
+    const introRow = selectorTrigger.closest(".intro-row");
+    expect(introRow).not.toBeNull();
+    expect(within(introRow as HTMLElement).getByText("Viendo gestiones de:")).toBeInTheDocument();
+    // El botón de crear gestión sigue sin vivir dentro de esa fila: es el
+    // siguiente hermano, debajo de ella.
     expect(button.closest(".intro-row")).toBeNull();
-    expect(selectorRow?.nextElementSibling).toContainElement(button);
+    expect(introRow?.nextElementSibling).toContainElement(button);
   });
 
   test("la barra de progreso del día usa progreso_dia de /api/hoy/, y el toggle cambia a horas sin volver a pedir datos", async () => {

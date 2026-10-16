@@ -622,20 +622,17 @@ export function HomePage() {
         ) : (
           <>
         <section className="planner-intro" aria-labelledby="hoy-heading">
+          {/* PIM1-12: este heading reemplaza al antiguo "Plan inicial <icono>"
+              (el profesor lo señaló como redundante: la pestaña ya indica en
+              qué vista se está). Texto fijo: el selector de al lado ("Todos
+              los eventos" o el nombre del evento) ya completa la oración.
+              Corrección de la clínica más reciente: el selector vivía en su
+              propia fila debajo del heading, justo encima de "Crear gestión"
+              — quedaba mal ahí. Ahora es parte de la misma frase, restyleado
+              para leerse como texto subrayado (ver EventMenu) en vez de un
+              botón con su propio fondo. */}
           <div className="intro-row">
-            {/* PIM1-12: este heading reemplaza al antiguo "Plan inicial <icono>"
-                (el profesor lo señaló como redundante: la pestaña ya indica en
-                qué vista se está). Texto fijo: el selector de abajo ("Todos
-                los eventos" o el nombre del evento) ya completa la oración. */}
-            <h1 id="hoy-heading">Viendo gestiones de:</h1>
-          </div>
-
-          {/* PIM1-12: selector de evento grande y centrado, en vez del menú
-              desplegable chico en la esquina que confundió al profesor en la
-              clínica de Sprint 1 (pensó que las gestiones eran los eventos).
-              El nombre del evento ya se lee en el propio selector, así que el
-              heading de arriba no lo repite. */}
-          <div className="event-selector-row">
+            <h1 id="hoy-heading">Viendo gestiones de</h1>
             <EventMenu
               events={events}
               status={eventsStatus}

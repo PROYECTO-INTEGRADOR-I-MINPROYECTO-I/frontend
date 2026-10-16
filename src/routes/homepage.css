@@ -80,7 +80,13 @@
 }
 
 .planner-intro { padding: 28px 32px 20px; }
-.intro-row { justify-content: center; }
+/* Corrección de la clínica más reciente: el selector de evento (EventMenu)
+   ahora vive en la misma fila que el heading, no debajo en su propia fila.
+   flex-wrap + gap: con un nombre de evento largo, el selector puede bajar a
+   su propia línea en vez de desbordar — justify-content:center sigue
+   centrando el combo completo (heading + selector) como un solo bloque,
+   sin importar el ancho variable del nombre. */
+.intro-row { justify-content: center; flex-wrap: wrap; row-gap: 4px; column-gap: 14px; }
 .intro-row h1 {
   margin: 0;
   font-size: 32px;
@@ -89,17 +95,9 @@
   text-align: center;
 }
 
-.event-selector-row {
-  display: flex;
-  justify-content: center;
-  padding: 4px 32px 20px;
-}
-
-/* "Crear gestión" vive debajo del selector (no arriba a la derecha, como
-   antes): así queda claro para qué evento se crea. margin-top negativo
-   compensa el padding-bottom de .event-selector-row para no duplicar el
-   espacio entre el selector y el botón. */
-.create-task-below-selector { display: flex; justify-content: center; margin-top: -12px; padding-bottom: 20px; }
+/* "Crear gestión" vive debajo del heading+selector (no arriba a la
+   derecha, como antes): así queda claro para qué evento se crea. */
+.create-task-below-selector { display: flex; justify-content: center; margin-top: 12px; padding-bottom: 20px; }
 
 .event-button,
 .create-task-button,
