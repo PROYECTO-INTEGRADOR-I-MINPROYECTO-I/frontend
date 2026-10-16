@@ -129,17 +129,32 @@ export function EventsView({
             },
           ] as const;
         } catch {
-          // Progreso no disponible para este evento puntual: se muestra como
-          // "sin gestiones" en vez de tumbar toda la vista por un solo fetch fallido.
-          return [
-            event.eid,
-            { completed: 0, total: 0, today: 0, preview: [], previewMoreCount: 0, all: [] },
-          ] as const;
+          // Fetch fallido: null para conservar el progreso previo o caer al conteo del backend.
+          return [event.eid, null] as const;
         }
       })
     ).then((entries) => {
       if (cancelled) return;
-      setProgressByEvent(Object.fromEntries(entries));
+      setProgressByEvent((prev) =>
+        Object.fromEntries(
+          entries.map(([eid, value]) => {
+            if (value) return [eid, value];
+            if (prev[eid]) return [eid, prev[eid]];
+            const event = events.find((item) => item.eid === eid);
+            return [
+              eid,
+              {
+                completed: event?.completed_subtasks ?? 0,
+                total: event?.total_subtasks ?? 0,
+                today: 0,
+                preview: [],
+                previewMoreCount: 0,
+                all: [],
+              },
+            ];
+          })
+        )
+      );
     });
 
     return () => {
@@ -233,12 +248,12 @@ export function EventsView({
             key={event.eid}
             event={event}
             eventTypeName={eventTypeNameFor(event)}
-            completed={progress?.completed ?? 0}
-            total={progress?.total ?? 0}
+            completed={progress?.completed ?? event.completed_subtasks ?? 0}
+            total={progress?.total ?? event.total_subtasks ?? 0}
             todayCount={progress?.today ?? 0}
             previewSubtasks={progress?.preview ?? []}
             previewMoreCount={progress?.previewMoreCount ?? 0}
-            loading={!progress}
+            loading={!progress && event.total_subtasks === undefined}
             onOpen={() => setExpandedEventId(event.eid)}
             onEventCoverUpdated={onEventCoverUpdated}
           />
