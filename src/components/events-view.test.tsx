@@ -171,6 +171,85 @@ describe("EventsView", () => {
     expect(screen.getByText("Confirmar catering")).toBeInTheDocument();
   });
 
+  test("sin subtareas cargadas, la card muestra el conteo del backend", () => {
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise(() => {})));
+
+    render(
+      <EventsView
+        events={[{ ...event, total_subtasks: 4, completed_subtasks: 3 }]}
+        status="ready"
+        errorMessage=""
+        onRetry={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
+      />
+    );
+
+    expect(screen.getByText("3 de 4 gestiones completadas")).toBeInTheDocument();
+  });
+
+  test("si falla el fetch de subtareas, se mantiene el conteo del backend", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("sin red")));
+
+    render(
+      <EventsView
+        events={[{ ...event, total_subtasks: 4, completed_subtasks: 3 }]}
+        status="ready"
+        errorMessage=""
+        onRetry={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
+      />
+    );
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(await screen.findByText("3 de 4 gestiones completadas")).toBeInTheDocument();
+  });
+
+  test("el cálculo de subtareas prevalece sobre el conteo del backend", async () => {
+    const subtasks = [
+      subtask({ subtask_id: 1, status: "done" }),
+      subtask({ subtask_id: 2, status: "pending" }),
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(jsonResponse(String(url).includes("/subtareas/") ? subtasks : []))
+      )
+    );
+
+    render(
+      <EventsView
+        events={[{ ...event, total_subtasks: 4, completed_subtasks: 3 }]}
+        status="ready"
+        errorMessage=""
+        onRetry={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
+      />
+    );
+
+    expect(await screen.findByText("1 de 2 gestiones completadas")).toBeInTheDocument();
+  });
+
   test("al cambiar refreshToken, vuelve a pedir las gestiones (refleja ediciones/borrados hechos fuera de esta vista)", async () => {
     const before = [subtask({ subtask_id: 1, title: "Reservar salón", status: "pending" })];
     const after = [subtask({ subtask_id: 1, title: "Reservar salón", status: "done" })];

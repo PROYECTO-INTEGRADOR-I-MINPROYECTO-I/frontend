@@ -84,7 +84,7 @@ function route(db: MockDb, path: string, method: string, body: Record<string, un
   if (path.startsWith("/auth/")) return routeAuth(db, path, method, body);
 
   if (EVENTOS_RE.test(path)) {
-    if (method === "GET") return jsonResponse(sortByCreatedAtDesc(db.events), 200);
+    if (method === "GET") return jsonResponse(sortByCreatedAtDesc(db.events).map((event) => withCounts(db, event)), 200);
     if (method === "POST") return createEvent(db, body);
   }
 
@@ -317,6 +317,17 @@ function normalize(value: string): string {
 
 function isSubtaskStatus(value: unknown): value is SubtaskStatus {
   return value === "pending" || value === "done" || value === "postponed";
+}
+
+function withCounts(db: MockDb, event: Event): Event {
+  const own = db.subtasks.filter((subtask) => subtask.eid === event.eid);
+  const completed = own.filter((subtask) => subtask.status === "done").length;
+  const total = own.length;
+  return {
+    ...event,
+    total_subtasks: total,
+    completed_subtasks: completed,
+  };
 }
 
 function sortByCreatedAtDesc(events: Event[]): Event[] {

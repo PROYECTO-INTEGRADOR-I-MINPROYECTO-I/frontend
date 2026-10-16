@@ -18,10 +18,10 @@ export interface Event {
   description: string;
   due_date: string;
   status: string;
-  // TODO(backend): Events todavía devuelve `progress_percentage`. No se
-  // muestra en la UI; se deja tipado por si algún consumidor lo necesita
-  // mientras backend no lo elimina del modelo.
   progress_percentage: number;
+  // Conteos del backend; la UI los usa solo hasta que llegan las subtareas.
+  total_subtasks?: number;
+  completed_subtasks?: number;
   created_at: string;
   event_type?: number | null;
   place?: string | null;
