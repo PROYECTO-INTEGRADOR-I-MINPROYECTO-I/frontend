@@ -41,6 +41,30 @@ describe("SubtaskDetailModal", () => {
     expect(screen.queryByRole("button", { name: "Marcar como pendiente" })).not.toBeInTheDocument();
   });
 
+  test("Posponer llama a onPostpone y, si está pospuesta, Reactivar a onReactivate", async () => {
+    const user = userEvent.setup();
+    const onPostpone = vi.fn();
+    const onReactivate = vi.fn();
+    const props = {
+      onClose: vi.fn(),
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+      onToggleComplete: vi.fn(),
+      onReprogram: vi.fn(),
+      onPostpone,
+      onReactivate,
+    };
+    const { unmount } = render(<SubtaskDetailModal subtask={subtask} {...props} />);
+    await user.click(screen.getByRole("button", { name: "Posponer" }));
+    expect(onPostpone).toHaveBeenCalledWith(subtask);
+    unmount();
+
+    const postponed = { ...subtask, status: "postponed" as const };
+    render(<SubtaskDetailModal subtask={postponed} {...props} />);
+    await user.click(screen.getByRole("button", { name: "Reactivar" }));
+    expect(onReactivate).toHaveBeenCalledWith(postponed);
+  });
+
   test("gestión completada muestra el botón 'Marcar como pendiente'", () => {
     render(
       <SubtaskDetailModal

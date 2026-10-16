@@ -6,7 +6,7 @@
 // El toggle de completar lo controla el padre (ver handleToggleComplete en
 // homepage.tsx, con actualización optimista y reversión si falla el PATCH).
 
-import { Calendar, Check, Pencil, Trash2 } from "lucide-react";
+import { Calendar, Check, Clock, Pencil, Play, Trash2 } from "lucide-react";
 import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
 import {
   categoryChipStyle,
@@ -31,6 +31,8 @@ interface SubtaskDetailModalProps {
   onToggleComplete: (subtask: Subtask) => void;
   /** Sprint 3 / C1: abre el popup de reprogramación (ver ReprogramModal). */
   onReprogram: (subtask: Subtask) => void;
+  onPostpone?: (subtask: Subtask) => void;
+  onReactivate?: (subtask: Subtask) => void;
   /** Deshabilita el botón mientras el PATCH está en curso, para evitar dobles clics. */
   togglePending?: boolean;
   /** Error del último intento de completar/despausar, con su acción de reintento. */
@@ -44,6 +46,8 @@ export function SubtaskDetailModal({
   onDelete,
   onToggleComplete,
   onReprogram,
+  onPostpone,
+  onReactivate,
   togglePending = false,
   toggleError = null,
 }: SubtaskDetailModalProps) {
@@ -52,6 +56,8 @@ export function SubtaskDetailModal({
   const categoryStyle = categoryChipStyle(subtask.category);
   const hoursLabel = formatDuration(subtask.estimated_hours);
   const isDone = subtask.status === "done";
+  const isPostponed = subtask.status === "postponed";
+  const action = isPostponed ? onReactivate : onPostpone;
 
   return (
     <Modal
@@ -82,6 +88,17 @@ export function SubtaskDetailModal({
             <Calendar aria-hidden="true" size={16} />
             Reprogramar
           </button>
+          {!isDone && action && (
+            <button
+              type="button"
+              onClick={() => action(subtask)}
+              disabled={togglePending}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a] disabled:opacity-60"
+            >
+              {isPostponed ? <Play aria-hidden="true" size={16} /> : <Clock aria-hidden="true" size={16} />}
+              {isPostponed ? "Reactivar" : "Posponer"}
+            </button>
+          )}
           <div className="flex w-full gap-3">
             <button
               type="button"

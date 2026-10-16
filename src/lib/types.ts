@@ -112,7 +112,8 @@ export interface TodaySummary {
   fecha: string;
   metrica: "gestiones" | "horas";
   vencidas: Subtask[];
-  para_hoy: { pendientes: Subtask[]; completadas: Subtask[] };
+  para_hoy: { pendientes: Subtask[]; completadas: Subtask[]; pospuestas?: Subtask[] };
+  pospuestas_otros_dias?: number;
   proximas: Subtask[];
   progreso_dia: DayProgress;
   filtros: { event_id: number | null; status: string | null };

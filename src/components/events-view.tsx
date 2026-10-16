@@ -29,6 +29,8 @@ interface EventProgress {
 }
 
 interface EventsViewProps {
+  /** Hash de la URL, para que el detalle del evento lleve a un grupo (ej. "#pospuestas"). */
+  scrollHash?: string;
   events: Event[];
   status: "loading" | "ready" | "error";
   errorMessage: string;
@@ -64,6 +66,7 @@ interface EventsViewProps {
 }
 
 export function EventsView({
+  scrollHash,
   events,
   status,
   errorMessage,
@@ -125,9 +128,9 @@ export function EventsView({
           const subtasks = await apiFetch<Subtask[]>(`/eventos/${event.eid}/subtareas/`);
           const completed = subtasks.filter((subtask) => subtask.status === "done").length;
           const todayCount = subtasks.filter(
-            (subtask) => subtask.status !== "done" && subtask.scheduled_date === today
+            (subtask) => subtask.status === "pending" && subtask.scheduled_date === today
           ).length;
-          const pending = sortSubtasksByDateThenHours(subtasks.filter((subtask) => subtask.status !== "done"));
+          const pending = sortSubtasksByDateThenHours(subtasks.filter((subtask) => subtask.status === "pending"));
           return [
             event.eid,
             {
@@ -211,6 +214,7 @@ export function EventsView({
         onOpenSubtask={onOpenSubtask}
         onEventCoverUpdated={onEventCoverUpdated}
         onCreateSubtask={() => onCreateSubtask(expandedEvent)}
+        scrollHash={scrollHash}
       />
     );
   }

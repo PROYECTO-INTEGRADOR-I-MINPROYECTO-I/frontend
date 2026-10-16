@@ -126,6 +126,54 @@ describe("EventDetailView", () => {
     expect(within(groupPanel("Vencidas")).queryByText("Hoy A")).not.toBeInTheDocument();
   });
 
+  test("una pospuesta va al grupo Pospuestas (sin importar la fecha) y su Estado dice 'Pospuesta'", () => {
+    const subtasks = [
+      subtask({ subtask_id: 1, title: "Pospuesta A", scheduled_date: "2026-09-18", status: "postponed" }),
+    ];
+
+    render(
+      <EventDetailView
+        event={event}
+        subtasks={subtasks}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
+      />
+    );
+
+    const panel = groupPanel("Pospuestas");
+    expect(within(panel).getByText("Pospuesta A")).toBeInTheDocument();
+    expect(within(panel).getByText("Pospuesta")).toBeInTheDocument();
+    expect(within(groupPanel("Vencidas")).queryByText("Pospuesta A")).not.toBeInTheDocument();
+  });
+
+  test("con scrollHash #pospuestas, abre el grupo y lo lleva a la vista", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(
+      <EventDetailView
+        event={event}
+        subtasks={[subtask({ subtask_id: 1, title: "Pospuesta A", status: "postponed" })]}
+        subtasksLoading={false}
+        onBack={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
+        scrollHash="#pospuestas"
+      />
+    );
+
+    expect(groupPanel("Pospuestas")).toHaveAttribute("id", "pospuestas");
+    expect(scrollIntoView).toHaveBeenCalled();
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+  });
+
   test('el contador "- X GESTIONES" refleja cuántas hay en cada grupo', () => {
     const subtasks = [
       subtask({ subtask_id: 1, scheduled_date: "2026-09-18" }),

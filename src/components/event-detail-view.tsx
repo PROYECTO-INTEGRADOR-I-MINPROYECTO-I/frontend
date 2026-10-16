@@ -11,7 +11,7 @@
 // Clickear una fila abre el mismo SubtaskDetailModal global que ya usa la
 // vista Hoy (onOpenSubtask, ver homepage.tsx/events-view.tsx).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { EventCover } from "./event-cover";
 import { EventProgressBar } from "./event-progress-bar";
@@ -39,6 +39,8 @@ interface EventDetailViewProps {
   onEventCoverUpdated: (event: Event) => void;
   /** Abre el wizard de creación de gestión (ver SubtaskWizard) para este evento. */
   onCreateSubtask: () => void;
+  /** Hash de la URL (ej. "#pospuestas"): al terminar de cargar, lleva a ese grupo. */
+  scrollHash?: string;
 }
 
 export function EventDetailView({
@@ -52,9 +54,21 @@ export function EventDetailView({
   onOpenSubtask,
   onEventCoverUpdated,
   onCreateSubtask,
+  scrollHash,
 }: EventDetailViewProps) {
   const dateLabel = formatShortDateEs(isoDateTimeToLocalDateString(event.due_date));
   const today = todayLocalDateString();
+
+  useEffect(() => {
+    if (subtasksLoading) return;
+    const group = scrollHash === "#pospuestas" ? document.getElementById("pospuestas") : null;
+    if (group instanceof HTMLDetailsElement) {
+      group.open = true;
+      group.scrollIntoView?.();
+    } else {
+      window.scrollTo?.(0, 0);
+    }
+  }, [subtasksLoading, scrollHash]);
 
   const vencidas = sortSubtasksByDateThenHours(
     subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "overdue")
@@ -67,6 +81,9 @@ export function EventDetailView({
   );
   const completadas = sortCompletedSubtasksByDateDesc(
     subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "done")
+  );
+  const pospuestas = sortSubtasksByDateThenHours(
+    subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "postponed")
   );
 
   return (
@@ -168,6 +185,14 @@ export function EventDetailView({
                 emptyHint="Sin gestiones completadas."
                 onOpenSubtask={onOpenSubtask}
               />
+              <GestionGroup
+                id="pospuestas"
+                status="postponed"
+                label="Pospuestas"
+                items={pospuestas}
+                emptyHint="Sin gestiones pospuestas."
+                onOpenSubtask={onOpenSubtask}
+              />
             </>
           )}
         </div>
@@ -177,6 +202,7 @@ export function EventDetailView({
 }
 
 interface GestionGroupProps {
+  id?: string;
   status: SubtaskTimeStatus;
   label: string;
   items: Subtask[];
@@ -184,7 +210,7 @@ interface GestionGroupProps {
   onOpenSubtask: (subtask: Subtask) => void;
 }
 
-function GestionGroup({ status, label, items, emptyHint, onOpenSubtask }: GestionGroupProps) {
+function GestionGroup({ id, status, label, items, emptyHint, onOpenSubtask }: GestionGroupProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -201,6 +227,7 @@ function GestionGroup({ status, label, items, emptyHint, onOpenSubtask }: Gestio
 
   return (
     <details
+      id={id}
       open={isOpen}
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
       style={{ backgroundColor: TIME_STATUS_STYLES[status].bg }}
