@@ -25,7 +25,7 @@ export function categoryChipStyle(name: string): { bg: string; text: string } {
   return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
 }
 
-export type SubtaskTimeStatus = "overdue" | "today" | "upcoming" | "done";
+export type SubtaskTimeStatus = "overdue" | "today" | "upcoming" | "done" | "postponed";
 
 export function subtaskTimeStatus(
   status: SubtaskStatus,
@@ -33,6 +33,7 @@ export function subtaskTimeStatus(
   todayDate: string
 ): SubtaskTimeStatus {
   if (status === "done") return "done";
+  if (status === "postponed") return "postponed";
   if (scheduledDate < todayDate) return "overdue";
   if (scheduledDate > todayDate) return "upcoming";
   return "today";
@@ -43,6 +44,7 @@ export const TIME_STATUS_LABELS: Record<SubtaskTimeStatus, string> = {
   today: "Pendiente hoy",
   upcoming: "Próxima",
   done: "Completada",
+  postponed: "Pospuesta",
 };
 
 export const TIME_STATUS_STYLES: Record<SubtaskTimeStatus, { bg: string; text: string }> = {
@@ -50,6 +52,7 @@ export const TIME_STATUS_STYLES: Record<SubtaskTimeStatus, { bg: string; text: s
   today: { bg: "#fffbeb", text: "#bb4d00" },
   upcoming: { bg: "#eff6ff", text: "#1447e6" },
   done: { bg: "#ecfdf5", text: "#007a55" },
+  postponed: { bg: "#f4f4f5", text: "#52525b" },
 };
 
 // Minutos mínimos/máximos permitidos en HoursPicker: 5 min (backend exige

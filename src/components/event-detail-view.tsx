@@ -11,43 +11,73 @@
 // Clickear una fila abre el mismo SubtaskDetailModal global que ya usa la
 // vista Hoy (onOpenSubtask, ver homepage.tsx/events-view.tsx).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { EventCover } from "./event-cover";
+import { EventProgressBar } from "./event-progress-bar";
 import { GestionTable } from "./gestion-table";
 import { formatShortDateEs, isoDateTimeToLocalDateString, todayLocalDateString } from "../lib/dates";
-import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours, subtaskTimeStatus } from "../lib/subtask-display";
+import {
+  sortCompletedSubtasksByDateDesc,
+  sortSubtasksByDateThenHours,
+  subtaskTimeStatus,
+  TIME_STATUS_STYLES,
+  type SubtaskTimeStatus,
+} from "../lib/subtask-display";
 import type { Event, Subtask } from "../lib/types";
 
-interface EventDetailViewProps {
-  event: Event;
+interface CommonProps {
   eventTypeName?: string;
   subtasks: Subtask[];
   subtasksLoading: boolean;
   onBack: () => void;
+  onOpenSubtask: (subtask: Subtask) => void;
+  /** Hash de la URL (ej. "#pospuestas"): al terminar de cargar, lleva a ese grupo. */
+  scrollHash?: string;
+}
+
+interface SingleEventProps extends CommonProps {
+  event: Event;
   onEdit: () => void;
   onDelete: () => void;
-  onOpenSubtask: (subtask: Subtask) => void;
   /** Ver EventCover: el PATCH de portada devuelve el evento completo para que el padre actualice su lista. */
   onEventCoverUpdated: (event: Event) => void;
   /** Abre el wizard de creación de gestión (ver SubtaskWizard) para este evento. */
   onCreateSubtask: () => void;
+  eventNameById?: undefined;
+  incompleteWarning?: undefined;
 }
 
-export function EventDetailView({
-  event,
-  eventTypeName,
-  subtasks,
-  subtasksLoading,
-  onBack,
-  onEdit,
-  onDelete,
-  onOpenSubtask,
-  onEventCoverUpdated,
-  onCreateSubtask,
-}: EventDetailViewProps) {
-  const dateLabel = formatShortDateEs(isoDateTimeToLocalDateString(event.due_date));
+// Sin `event`: vista global con las gestiones de todos los eventos.
+interface AllEventsProps extends CommonProps {
+  event?: undefined;
+  /** Nombres por eid para la columna Evento. */
+  eventNameById: Record<number, string>;
+  /** Algún evento no pudo cargar sus gestiones: el progreso puede estar incompleto. */
+  incompleteWarning?: boolean;
+  onEdit?: undefined;
+  onDelete?: undefined;
+  onEventCoverUpdated?: undefined;
+  onCreateSubtask?: undefined;
+}
+
+type EventDetailViewProps = SingleEventProps | AllEventsProps;
+
+export function EventDetailView(props: EventDetailViewProps) {
+  const { eventTypeName, subtasks, subtasksLoading, onBack, onOpenSubtask, scrollHash, eventNameById } = props;
+  const dateLabel = props.event ? formatShortDateEs(isoDateTimeToLocalDateString(props.event.due_date)) : "";
   const today = todayLocalDateString();
+
+  useEffect(() => {
+    if (subtasksLoading) return;
+    const group = scrollHash === "#pospuestas" ? document.getElementById("pospuestas") : null;
+    if (group instanceof HTMLDetailsElement) {
+      group.open = true;
+      group.scrollIntoView?.();
+    } else {
+      window.scrollTo?.(0, 0);
+    }
+  }, [subtasksLoading, scrollHash]);
 
   const vencidas = sortSubtasksByDateThenHours(
     subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "overdue")
@@ -61,10 +91,13 @@ export function EventDetailView({
   const completadas = sortCompletedSubtasksByDateDesc(
     subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "done")
   );
+  const pospuestas = sortSubtasksByDateThenHours(
+    subtasks.filter((subtask) => subtaskTimeStatus(subtask.status, subtask.scheduled_date, today) === "postponed")
+  );
 
   return (
     <div className="px-8 pb-8">
-      <div className="mx-auto max-w-2xl">
+      <div className={`mx-auto ${props.event ? "max-w-2xl" : "max-w-5xl"}`}>
         <button
           type="button"
           onClick={onBack}
@@ -75,88 +108,121 @@ export function EventDetailView({
         </button>
 
         <div className="overflow-hidden rounded-lg border border-[#f3f4f6] bg-white">
-          <EventCover
-            event={event}
-            eventTypeName={eventTypeName}
-            onEventCoverUpdated={onEventCoverUpdated}
-            className="aspect-video w-full"
-          />
+          {props.event && (
+            <EventCover
+              event={props.event}
+              eventTypeName={eventTypeName}
+              onEventCoverUpdated={props.onEventCoverUpdated}
+              className="aspect-video w-full"
+            />
+          )}
 
           <div className="flex flex-col gap-4 p-6">
             <div className="flex flex-col gap-2">
-              <h1 className="font-jost text-[24px] leading-[30px] text-[#101828]">{event.name}</h1>
-              <div className="flex gap-4">
-                <button
-                  type="button"
-                  onClick={onEdit}
-                  className="inline-flex items-center gap-1 font-jost text-[13px] text-[#4a5565] hover:text-[#101828]"
-                >
-                  <Pencil aria-hidden="true" size={14} />
-                  Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  className="inline-flex items-center gap-1 font-jost text-[13px] text-[#8b1a1a] hover:text-[#6f1515]"
-                >
-                  <Trash2 aria-hidden="true" size={14} />
-                  Borrar
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {eventTypeName && (
-                <span className="shrink-0 rounded px-[6px] py-0.5 font-jost text-[10px] text-[#4a5565] bg-[#f3f4f6]">
-                  {eventTypeName}
-                </span>
+              <h1 className="font-jost text-[24px] leading-[30px] text-[#101828]">
+                {props.event ? props.event.name : "Progreso de todos los eventos"}
+              </h1>
+              {props.event && (
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={props.onEdit}
+                    className="inline-flex items-center gap-1 font-jost text-[13px] text-[#4a5565] hover:text-[#101828]"
+                  >
+                    <Pencil aria-hidden="true" size={14} />
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={props.onDelete}
+                    className="inline-flex items-center gap-1 font-jost text-[13px] text-[#8b1a1a] hover:text-[#6f1515]"
+                  >
+                    <Trash2 aria-hidden="true" size={14} />
+                    Borrar
+                  </button>
+                </div>
               )}
-              <span className="font-source text-[13px] text-[#99a1af]">{dateLabel}</span>
             </div>
 
-            {event.place && (
+            {props.event && (
+              <div className="flex flex-wrap items-center gap-2">
+                {eventTypeName && (
+                  <span className="shrink-0 rounded px-[6px] py-0.5 font-jost text-[10px] text-[#4a5565] bg-[#f3f4f6]">
+                    {eventTypeName}
+                  </span>
+                )}
+                <span className="font-source text-[13px] text-[#99a1af]">{dateLabel}</span>
+              </div>
+            )}
+
+            {props.event?.place && (
               <p className="font-source text-[14px] text-[#4a5565]">
                 <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Lugar: </span>
-                {event.place}
+                {props.event.place}
               </p>
             )}
 
-            {event.client_contact && (
+            {props.event?.client_contact && (
               <p className="font-source text-[14px] text-[#4a5565]">
                 <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Contacto: </span>
-                {event.client_contact}
+                {props.event.client_contact}
               </p>
             )}
 
-            {event.description && (
-              <p className="font-source text-[14px] leading-[22.75px] text-[#4a5565]">{event.description}</p>
+            {props.event?.description && (
+              <p className="font-source text-[14px] leading-[22.75px] text-[#4a5565]">{props.event.description}</p>
+            )}
+
+            {!subtasksLoading && (
+              <EventProgressBar
+                subtasks={subtasks}
+                label={props.event ? "Progreso del evento" : "Progreso de todos los eventos"}
+              />
+            )}
+            {!subtasksLoading && props.incompleteWarning && (
+              <p role="alert" className="font-source text-[12px] text-[#8b1a1a]">
+                No se pudieron cargar las gestiones de algunos eventos; el progreso puede estar incompleto.
+              </p>
             )}
           </div>
         </div>
 
-        <div className="mt-6 flex justify-center">
-          <button
-            type="button"
-            onClick={onCreateSubtask}
-            className="inline-flex h-[34px] items-center justify-center gap-1.5 rounded-full bg-[#8b1a1a] px-4 font-jost text-[14px] text-white"
-          >
-            Crear gestión <Plus aria-hidden="true" size={16} />
-          </button>
-        </div>
+        {props.event && (
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={props.onCreateSubtask}
+              className="inline-flex h-[34px] items-center justify-center gap-1.5 rounded-full bg-[#8b1a1a] px-4 font-jost text-[14px] text-white"
+            >
+              Crear gestión <Plus aria-hidden="true" size={16} />
+            </button>
+          </div>
+        )}
 
         <div className="mt-4 flex flex-col gap-3">
           {subtasksLoading ? (
             <p className="font-source text-[13px] text-[#99a1af]">Cargando gestiones…</p>
           ) : (
             <>
-              <GestionGroup label="Para hoy" items={paraHoy} emptyHint="Sin gestiones para hoy." onOpenSubtask={onOpenSubtask} />
-              <GestionGroup label="Vencidas" items={vencidas} emptyHint="Sin gestiones vencidas." onOpenSubtask={onOpenSubtask} />
-              <GestionGroup label="Próximas" items={proximas} emptyHint="Sin gestiones próximas." onOpenSubtask={onOpenSubtask} />
+              <GestionGroup status="today" label="Para hoy" items={paraHoy} emptyHint="Sin gestiones para hoy." onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
+              <GestionGroup status="overdue" label="Vencidas" items={vencidas} emptyHint="Sin gestiones vencidas." onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
+              <GestionGroup status="upcoming" label="Próximas" items={proximas} emptyHint="Sin gestiones próximas." onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
               <GestionGroup
+                status="done"
                 label="Completadas"
                 items={completadas}
                 emptyHint="Sin gestiones completadas."
                 onOpenSubtask={onOpenSubtask}
+                eventNameById={eventNameById}
+              />
+              <GestionGroup
+                id="pospuestas"
+                status="postponed"
+                label="Pospuestas"
+                items={pospuestas}
+                emptyHint="Sin gestiones pospuestas."
+                onOpenSubtask={onOpenSubtask}
+                eventNameById={eventNameById}
               />
             </>
           )}
@@ -167,13 +233,16 @@ export function EventDetailView({
 }
 
 interface GestionGroupProps {
+  id?: string;
+  status: SubtaskTimeStatus;
   label: string;
   items: Subtask[];
   emptyHint: string;
   onOpenSubtask: (subtask: Subtask) => void;
+  eventNameById?: Record<number, string>;
 }
 
-function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupProps) {
+function GestionGroup({ id, status, label, items, emptyHint, onOpenSubtask, eventNameById }: GestionGroupProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -190,9 +259,11 @@ function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupPr
 
   return (
     <details
+      id={id}
       open={isOpen}
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      className="rounded-lg border border-[#f3f4f6] bg-white"
+      style={{ backgroundColor: TIME_STATUS_STYLES[status].bg }}
+      className="rounded-lg border border-black/10"
     >
       <summary className="flex cursor-pointer items-center justify-between px-4 py-3 font-jost text-[13px] tracking-[0.5px] text-[#101828] uppercase">
         <span className="flex items-center gap-2">
@@ -205,7 +276,7 @@ function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupPr
         </span>
         <span className="font-source text-[11px] normal-case text-[#99a1af]">- {visibleItems.length} GESTIONES</span>
       </summary>
-      <div className="border-t border-[#f3f4f6] px-4 py-3">
+      <div className="border-t border-black/10 px-4 py-3">
         {items.length === 0 ? (
           <p className="font-source text-[13px] text-[#99a1af]">{emptyHint}</p>
         ) : (
@@ -228,7 +299,7 @@ function GestionGroup({ label, items, emptyHint, onOpenSubtask }: GestionGroupPr
                 ))}
               </select>
             </div>
-            <GestionTable items={visibleItems} onOpenSubtask={onOpenSubtask} />
+            <GestionTable items={visibleItems} onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
           </>
         )}
       </div>

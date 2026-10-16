@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useLocation, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Plus } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
@@ -13,11 +13,13 @@ import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskWizard } from "../components/subtask-wizard";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
 import { ReprogramModal } from "../components/reprogram-modal";
-import { SubtaskCard } from "../components/subtask-card";
+import { DRAG_TYPE, SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { ViewSwitcher, type ViewSwitcherValue } from "../components/view-switcher";
 import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { playSound } from "../lib/sounds";
+import { addDaysToLocalDate } from "../lib/dates";
 import { creationMessage } from "../lib/success-messages";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { describeSaveError } from "../lib/subtask-errors";
@@ -26,6 +28,8 @@ import "./homepage.css";
 
 // Solo un entero positivo es un eid válido; cualquier otro valor de
 // ?evento= (vacío, texto, decimales) se trata como "sin selección".
+const POSTPONED_LINK = "text-[#8b1a1a] underline";
+
 const EVENT_ID_PATTERN = /^\d+$/;
 
 function findSubtaskInToday(summary: TodaySummary | null, subtaskId: number): Subtask | undefined {
@@ -34,6 +38,7 @@ function findSubtaskInToday(summary: TodaySummary | null, subtaskId: number): Su
     summary.vencidas.find((item) => item.subtask_id === subtaskId) ??
     summary.para_hoy.pendientes.find((item) => item.subtask_id === subtaskId) ??
     summary.para_hoy.completadas.find((item) => item.subtask_id === subtaskId) ??
+    summary.para_hoy.pospuestas?.find((item) => item.subtask_id === subtaskId) ??
     summary.proximas.find((item) => item.subtask_id === subtaskId)
   );
 }
@@ -62,6 +67,10 @@ function subtaskDeleteDescription(subtask: Subtask): string {
 export function HomePage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isProgressRoute = location.pathname.startsWith("/progreso");
+  const progressEid = useMatch("/progreso/:eid")?.params.eid;
 
   const [events, setEvents] = useState<Event[]>([]);
   const [eventsStatus, setEventsStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -91,6 +100,7 @@ export function HomePage() {
   // popup más chico (solo fecha y duración) y reutiliza los campos del
   // Wizard de creación en vez del formulario completo.
   const [reprogrammingSubtask, setReprogrammingSubtask] = useState<Subtask | null>(null);
+  const [reprogramInitialDate, setReprogramInitialDate] = useState<string | undefined>();
 
   const [isSubtaskWizardOpen, setIsSubtaskWizardOpen] = useState(false);
   const [subtaskWizardKey, setSubtaskWizardKey] = useState(0);
@@ -160,7 +170,7 @@ export function HomePage() {
   // una petición ya descartada siga ocupando ancho de banda/backend.
   const todayAbortRef = useRef<AbortController | null>(null);
 
-  const eventoParam = searchParams.get("evento");
+  const eventoParam = isProgressRoute ? (progressEid ?? null) : searchParams.get("evento");
   const selectedEventId = eventoParam && EVENT_ID_PATTERN.test(eventoParam) ? Number(eventoParam) : null;
   const selectedEvent = events.find((event) => event.eid === selectedEventId) ?? null;
   // PIM1-117: SubtaskFormModal (isSubtaskFormOpen) ahora es solo edición (la
@@ -182,7 +192,7 @@ export function HomePage() {
   // (cualquier otro valor que no sea "eventos" cae en "hoy") — PIM1-11: esta
   // vista siempre fue la de "Hoy", así que es la que debe verse sin tocar nada.
   const vistaParam = searchParams.get("vista");
-  const currentView: ViewSwitcherValue = vistaParam === "eventos" ? "eventos" : "hoy";
+  const currentView: ViewSwitcherValue = isProgressRoute || vistaParam === "eventos" ? "eventos" : "hoy";
 
   useEffect(() => {
     return () => {
@@ -247,6 +257,10 @@ export function HomePage() {
   }
 
   function handleSelectEvent(event: Event | null) {
+    if (isProgressRoute) {
+      navigate(event ? `/progreso/${event.eid}` : "/?vista=eventos", { replace: true });
+      return;
+    }
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -261,6 +275,10 @@ export function HomePage() {
   // Conserva ?evento= al cambiar de vista, así volver a "Hoy" mantiene el
   // mismo evento seleccionado.
   function handleSelectView(view: ViewSwitcherValue) {
+    if (isProgressRoute) {
+      if (view === "hoy") navigate(selectedEventId != null ? `/?evento=${selectedEventId}` : "/");
+      return;
+    }
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -311,13 +329,20 @@ export function HomePage() {
     setIsSubtaskFormOpen(true);
   }
 
-  function openReprogramSubtask(subtask: Subtask) {
+  function openReprogramSubtask(subtask: Subtask, initialDate?: string) {
     setDetailSubtask(null);
+    setReprogramInitialDate(initialDate);
     setReprogrammingSubtask(subtask);
   }
 
-  function handleSubtaskReprogrammed() {
+  function closeReprogram() {
     setReprogrammingSubtask(null);
+    setReprogramInitialDate(undefined);
+  }
+
+  function handleSubtaskReprogrammed() {
+    closeReprogram();
+    playSound("reprogram");
     loadToday(selectedEventId);
     setSubtasksVersion((version) => version + 1);
     showSuccess("Gestión reprogramada");
@@ -427,15 +452,64 @@ export function HomePage() {
   // checkbox (pendingToggleIds) mientras se resuelve el PATCH y recargar
   // /api/hoy/ al terminar.
   async function handleToggleComplete(subtask: Subtask) {
+    // Se lee del espejo mutable (no del `subtask` recibido, que puede ser una
+    // foto vieja si esta llamada viene de un cierre de "Reintentar") para
+    // partir siempre del estado real vigente.
+    const current = findSubtaskInToday(todayRef.current, subtask.subtask_id) ?? subtask;
+    await changeStatus(subtask, current.status === "done" ? "pending" : "done", undefined, () =>
+      handleToggleComplete(subtask)
+    );
+  }
+
+  // Soltar despacha a los handlers existentes; el origen sale del estado real, no del payload.
+  function handleDrop(id: number, to: string) {
+    const subtask = findSubtaskInToday(todayRef.current, id);
+    if (!subtask || !todayRef.current) return;
+    const date = subtask.scheduled_date;
+    const fecha = todayRef.current.fecha;
+    const from =
+      subtask.status === "postponed"
+        ? "pospuestas"
+        : subtask.status === "done"
+          ? "completadas"
+          : date < fecha
+            ? "vencidas"
+            : date === fecha
+              ? "hoy"
+              : "proximas";
+    const toTomorrow = (s: Subtask) => openReprogramSubtask(s, addDaysToLocalDate(fecha, 1));
+    const toToday = (s: Subtask) => openReprogramSubtask(s, fecha);
+    const actions: Record<string, (s: Subtask) => void> = {
+      "hoy>proximas": toTomorrow,
+      "vencidas>proximas": toTomorrow,
+      "pospuestas>proximas": toTomorrow,
+      "proximas>hoy": toToday,
+      "vencidas>hoy": toToday,
+      "hoy>completadas": handleToggleComplete,
+      "vencidas>completadas": handleToggleComplete,
+      "completadas>hoy": handleToggleComplete,
+      "hoy>pospuestas": handlePostpone,
+      "vencidas>pospuestas": handlePostpone,
+      "proximas>pospuestas": handlePostpone,
+      "pospuestas>hoy": handleReactivate,
+    };
+    const action = actions[`${from}>${to}`];
+    if (!action) return;
+    playSound("drop");
+    action(subtask);
+  }
+
+  const handlePostpone = (subtask: Subtask) => changeStatus(subtask, "postponed", "Gestión pospuesta");
+  const handleReactivate = (subtask: Subtask) => changeStatus(subtask, "pending", "Gestión reactivada");
+
+  async function changeStatus(
+    subtask: Subtask,
+    nextStatus: SubtaskStatus,
+    successText?: string,
+    retry: () => void = () => changeStatus(subtask, nextStatus, successText)
+  ) {
     const subtaskId = subtask.subtask_id;
     if (pendingToggleIds.has(subtaskId)) return; // ya hay un cambio en curso para esta gestión: evita dobles clics
-
-    // Se lee del espejo mutable (no del `subtask` recibido, que puede ser una
-    // foto vieja si esta llamada viene de un cierre de "Reintentar" creado
-    // antes de otros cambios) para partir siempre del estado real vigente.
-    const current = findSubtaskInToday(todayRef.current, subtaskId) ?? subtask;
-    const previousStatus = current.status;
-    const nextStatus: SubtaskStatus = previousStatus === "done" ? "pending" : "done";
 
     setToggleError((prev) => (prev && prev.subtaskId === subtaskId ? null : prev));
     addPendingToggle(subtaskId);
@@ -443,13 +517,17 @@ export function HomePage() {
     try {
       const updated = await setSubtaskStatus(subtaskId, nextStatus);
       setDetailSubtask((prev) => (prev && prev.subtask_id === subtaskId ? updated : prev));
+      playSound(
+        nextStatus === "done" ? "complete" : nextStatus === "postponed" ? "postpone" : subtask.status === "postponed" ? "reactivate" : "uncomplete"
+      );
       await loadToday(selectedEventId);
       setSubtasksVersion((version) => version + 1);
+      if (successText) showSuccess(successText);
     } catch (err) {
       setToggleError({
         subtaskId,
         message: describeSaveError(err),
-        retry: () => handleToggleComplete(subtask),
+        retry,
       });
     } finally {
       removePendingToggle(subtaskId);
@@ -531,13 +609,15 @@ export function HomePage() {
   // cualquier fecha — backend tiene en desarrollo un parámetro para
   // recuperar el comportamiento original.
   const sortedDone = today ? sortCompletedSubtasksByDateDesc(today.para_hoy.completadas) : [];
+  const sortedPostponed = today ? sortSubtasksByDateThenHours(today.para_hoy.pospuestas ?? []) : [];
+  const postponedElsewhere = today?.pospuestas_otros_dias ?? 0;
   // `proximas` solo cubre hasta hoy + dias_proximos (7 por defecto, ver
   // planning/views.py): una gestión agendada más adelante no aparece acá
   // aunque sí exista (se ve completa, sin ese recorte, en la vista expandida
   // de Eventos). La columna dice "Próximos 7 días" para que esto sea visible
   // en la UI en vez de parecer que la gestión "se perdió".
   const sortedUpcoming = today ? sortSubtasksByDateThenHours(today.proximas) : [];
-  const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedUpcoming.length;
+  const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedPostponed.length + sortedUpcoming.length;
 
   // Corrección del profesor (clínica de Sprint 1): sin eventos, ocultar todo
   // (selector, filtros, barra de progreso, columnas) y dejar solo un botón de
@@ -698,8 +778,10 @@ export function HomePage() {
                       subtask={subtask}
                       onOpen={setDetailSubtask}
                       onToggleComplete={handleToggleComplete}
+                      onPostpone={handlePostpone}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
                       overdue
+                      draggable
                       eventName={subtask.event_name}
                     />
                   ))}
@@ -750,7 +832,7 @@ export function HomePage() {
                     </div>
                   </div>
                 )
-              ) : sortedTodayPending.length === 0 && sortedDone.length === 0 ? (
+              ) : sortedTodayPending.length === 0 && sortedDone.length === 0 && sortedPostponed.length === 0 ? (
                 // Hay gestiones (vencidas o próximas), pero ninguna agendada
                 // para hoy puntualmente: antes esto se indicaba con un texto
                 // chico en el lugar de la barra de progreso (DayProgressBar),
@@ -767,6 +849,7 @@ export function HomePage() {
                 <div className="today-panels">
                   <TodayPanel
                     label="Pendientes"
+                    onDropSubtask={(id) => handleDrop(id, "hoy")}
                     dotColor="#ffb900"
                     countBg="#fffbeb"
                     countText="#bb4d00"
@@ -774,10 +857,12 @@ export function HomePage() {
                     emptyHint="Sin pendientes para hoy."
                     onOpen={setDetailSubtask}
                     onToggleComplete={handleToggleComplete}
+                    onPostpone={handlePostpone}
                     pendingToggleIds={pendingToggleIds}
                   />
                   <TodayPanel
                     label="Completadas"
+                    onDropSubtask={(id) => handleDrop(id, "completadas")}
                     dotColor="#00d492"
                     countBg="#ecfdf5"
                     countText="#007a55"
@@ -788,7 +873,41 @@ export function HomePage() {
                     pendingToggleIds={pendingToggleIds}
                     completed
                   />
+                  <TodayPanel
+                    label="Pospuestas"
+                    onDropSubtask={(id) => handleDrop(id, "pospuestas")}
+                    dotColor="#a1a1aa"
+                    countBg="#f4f4f5"
+                    countText="#52525b"
+                    items={sortedPostponed}
+                    emptyHint="Sin gestiones pospuestas."
+                    onOpen={setDetailSubtask}
+                    onToggleComplete={handleToggleComplete}
+                    onReactivate={handleReactivate}
+                    pendingToggleIds={pendingToggleIds}
+                    postponed
+                  />
                 </div>
+              )}
+              {postponedElsewhere > 0 && (
+                <p className="mt-3 font-source text-sm text-[#52525b]">
+                  {postponedElsewhere}{" "}
+                  {selectedEventId != null ? (
+                    <>
+                      <Link to={`/progreso/${selectedEventId}#pospuestas`} className={POSTPONED_LINK}>
+                        {postponedElsewhere === 1 ? "gestión pospuesta" : "gestiones pospuestas"}
+                      </Link>{" "}
+                      de otros días más del evento
+                    </>
+                  ) : (
+                    <>
+                      {postponedElsewhere === 1 ? "gestión pospuesta" : "gestiones pospuestas"} de otros días en los{" "}
+                      <Link to="/progreso#pospuestas" className={POSTPONED_LINK}>
+                        eventos
+                      </Link>
+                    </>
+                  )}
+                </p>
               )}
             </TaskColumn>
 
@@ -797,6 +916,7 @@ export function HomePage() {
               countClass="count--blue"
               count={String(sortedUpcoming.length)}
               showClock
+              onDropSubtask={(id) => handleDrop(id, "proximas")}
               orderHint="En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
             >
               {sortedUpcoming.length > 0 && (
@@ -808,6 +928,7 @@ export function HomePage() {
                       onOpen={setDetailSubtask}
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
+                      draggable
                       eventName={subtask.event_name}
                     />
                   ))}
@@ -845,6 +966,7 @@ export function HomePage() {
       >
         {currentView === "eventos" && (
           <EventsView
+            scrollHash={location.hash}
             events={events}
             status={eventsStatus}
             errorMessage={eventsError}
@@ -857,6 +979,10 @@ export function HomePage() {
             onEventCoverUpdated={handleEventCoverUpdated}
             onCreateSubtask={openSubtaskForm}
             initialExpandedEventId={selectedEventId}
+            onOpenEvent={(eid) => navigate(`/progreso/${eid}`)}
+            onBackFromEvent={() => isProgressRoute && navigate("/?vista=eventos", { replace: true })}
+            showAll={isProgressRoute && !progressEid}
+            onOpenAllProgress={() => navigate("/progreso")}
           />
         )}
       </div>
@@ -911,7 +1037,8 @@ export function HomePage() {
           eventName={reprogramEvent.name}
           eventDueDate={reprogramEvent.due_date}
           maxDailyHours={user?.max_daily_hours}
-          onClose={() => setReprogrammingSubtask(null)}
+          initialDate={reprogramInitialDate}
+          onClose={closeReprogram}
           onReprogrammed={handleSubtaskReprogrammed}
         />
       )}
@@ -936,6 +1063,8 @@ export function HomePage() {
           onDelete={requestDeleteSubtask}
           onReprogram={openReprogramSubtask}
           onToggleComplete={handleToggleComplete}
+          onPostpone={handlePostpone}
+          onReactivate={handleReactivate}
           togglePending={pendingToggleIds.has(detailSubtask.subtask_id)}
           toggleError={
             toggleError && toggleError.subtaskId === detailSubtask.subtask_id
@@ -972,6 +1101,34 @@ export function HomePage() {
   );
 }
 
+// Resaltado mínimo + handlers de zona de destino para HTML5 drag & drop.
+const isSubtaskDrag = (e: React.DragEvent) => e.dataTransfer.types.includes(DRAG_TYPE);
+
+function useDropZone(onDropSubtask?: (id: number) => void) {
+  const [over, setOver] = useState(false);
+  if (!onDropSubtask) return { over: false, props: {} };
+  return {
+    over,
+    props: {
+      onDragOver: (e: React.DragEvent) => {
+        if (!isSubtaskDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+      },
+      onDragEnter: (e: React.DragEvent) => isSubtaskDrag(e) && setOver(true),
+      onDragLeave: (e: React.DragEvent) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        setOver(false);
+        const id = Number(e.dataTransfer.getData(DRAG_TYPE));
+        if (Number.isInteger(id)) onDropSubtask(id);
+      },
+    },
+  };
+}
+
 function TaskColumn({
   title,
   count,
@@ -979,6 +1136,7 @@ function TaskColumn({
   showClock = false,
   headingRef,
   orderHint,
+  onDropSubtask,
   children,
 }: {
   title: string;
@@ -995,10 +1153,15 @@ function TaskColumn({
    * para los errores de validación) para no sumarle ruido permanente a la
    * columna. */
   orderHint?: string;
+  onDropSubtask?: (id: number) => void;
   children?: React.ReactNode;
 }) {
+  const drop = useDropZone(onDropSubtask);
   return (
-    <article className={`task-column${title === "Para Hoy" ? " task-column--today" : ""}`}>
+    <article
+      className={`task-column${title === "Para Hoy" ? " task-column--today" : ""}${drop.over ? " drop-over" : ""}`}
+      {...drop.props}
+    >
       <div className="column-heading">
         <div className="column-title">
           <h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>
@@ -1031,6 +1194,10 @@ function TodayPanel({
   onToggleComplete,
   pendingToggleIds,
   completed = false,
+  postponed = false,
+  onPostpone,
+  onReactivate,
+  onDropSubtask,
 }: {
   label: string;
   dotColor: string;
@@ -1042,9 +1209,14 @@ function TodayPanel({
   onToggleComplete: (subtask: Subtask) => void;
   pendingToggleIds: Set<number>;
   completed?: boolean;
+  postponed?: boolean;
+  onPostpone?: (subtask: Subtask) => void;
+  onReactivate?: (subtask: Subtask) => void;
+  onDropSubtask?: (id: number) => void;
 }) {
+  const drop = useDropZone(onDropSubtask);
   return (
-    <div className="today-panel">
+    <div className={`today-panel${drop.over ? " drop-over" : ""}`} {...drop.props}>
       <div className="today-panel-header">
         <div className="today-panel-title">
           <span aria-hidden="true" className="today-panel-dot" style={{ backgroundColor: dotColor }} />
@@ -1066,6 +1238,10 @@ function TodayPanel({
               onToggleComplete={onToggleComplete}
               pending={pendingToggleIds.has(subtask.subtask_id)}
               completed={completed}
+              postponed={postponed}
+              onPostpone={onPostpone}
+              onReactivate={onReactivate}
+              draggable
               eventName={subtask.event_name}
             />
           ))
