@@ -13,7 +13,7 @@ import { SubtaskFormModal } from "../components/subtask-form-modal";
 import { SubtaskWizard } from "../components/subtask-wizard";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
 import { ReprogramModal } from "../components/reprogram-modal";
-import { SubtaskCard } from "../components/subtask-card";
+import { DRAG_TYPE, SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { ViewSwitcher, type ViewSwitcherValue } from "../components/view-switcher";
 import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
@@ -451,6 +451,41 @@ export function HomePage() {
     );
   }
 
+  // Soltar despacha a los handlers existentes; el origen sale del estado real, no del payload.
+  function handleDrop(id: number, to: string) {
+    const subtask = findSubtaskInToday(todayRef.current, id);
+    if (!subtask || !todayRef.current) return;
+    const date = subtask.scheduled_date;
+    const fecha = todayRef.current.fecha;
+    const from =
+      subtask.status === "postponed"
+        ? "pospuestas"
+        : subtask.status === "done"
+          ? "completadas"
+          : date < fecha
+            ? "vencidas"
+            : date === fecha
+              ? "hoy"
+              : "proximas";
+    const actions: Record<string, (s: Subtask) => void> = {
+      "hoy>proximas": openReprogramSubtask,
+      "vencidas>proximas": openReprogramSubtask,
+      "pospuestas>proximas": openReprogramSubtask,
+      "proximas>hoy": openReprogramSubtask,
+      "hoy>completadas": handleToggleComplete,
+      "vencidas>completadas": handleToggleComplete,
+      "completadas>hoy": handleToggleComplete,
+      "hoy>pospuestas": handlePostpone,
+      "vencidas>pospuestas": handlePostpone,
+      "proximas>pospuestas": handlePostpone,
+      "pospuestas>hoy": handleReactivate,
+    };
+    const action = actions[`${from}>${to}`];
+    if (!action) return;
+    playDropSound();
+    action(subtask);
+  }
+
   const handlePostpone = (subtask: Subtask) => changeStatus(subtask, "postponed", "Gestión pospuesta");
   const handleReactivate = (subtask: Subtask) => changeStatus(subtask, "pending", "Gestión reactivada");
 
@@ -730,6 +765,7 @@ export function HomePage() {
                       onPostpone={handlePostpone}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
                       overdue
+                      draggable
                       eventName={subtask.event_name}
                     />
                   ))}
@@ -797,6 +833,7 @@ export function HomePage() {
                 <div className="today-panels">
                   <TodayPanel
                     label="Pendientes"
+                    onDropSubtask={(id) => handleDrop(id, "hoy")}
                     dotColor="#ffb900"
                     countBg="#fffbeb"
                     countText="#bb4d00"
@@ -809,6 +846,7 @@ export function HomePage() {
                   />
                   <TodayPanel
                     label="Completadas"
+                    onDropSubtask={(id) => handleDrop(id, "completadas")}
                     dotColor="#00d492"
                     countBg="#ecfdf5"
                     countText="#007a55"
@@ -821,6 +859,7 @@ export function HomePage() {
                   />
                   <TodayPanel
                     label="Pospuestas"
+                    onDropSubtask={(id) => handleDrop(id, "pospuestas")}
                     dotColor="#a1a1aa"
                     countBg="#f4f4f5"
                     countText="#52525b"
@@ -861,6 +900,7 @@ export function HomePage() {
               countClass="count--blue"
               count={String(sortedUpcoming.length)}
               showClock
+              onDropSubtask={(id) => handleDrop(id, "proximas")}
               orderHint="En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
             >
               {sortedUpcoming.length > 0 && (
@@ -872,6 +912,7 @@ export function HomePage() {
                       onOpen={setDetailSubtask}
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
+                      draggable
                       eventName={subtask.event_name}
                     />
                   ))}
@@ -1041,6 +1082,57 @@ export function HomePage() {
   );
 }
 
+// Resaltado mínimo + handlers de zona de destino para HTML5 drag & drop.
+let audioCtx: AudioContext | undefined;
+
+// Pop suave al soltar en zona válida; nunca debe romper el drop.
+function playDropSound() {
+  try {
+    if (!window.AudioContext) return;
+    audioCtx ??= new window.AudioContext();
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.frequency.setValueAtTime(660, t);
+    osc.frequency.exponentialRampToValueAtTime(440, t + 0.12);
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.12);
+  } catch {
+    // sin audio disponible: se ignora
+  }
+}
+
+const isSubtaskDrag = (e: React.DragEvent) => e.dataTransfer.types.includes(DRAG_TYPE);
+
+function useDropZone(onDropSubtask?: (id: number) => void) {
+  const [over, setOver] = useState(false);
+  if (!onDropSubtask) return { over: false, props: {} };
+  return {
+    over,
+    props: {
+      onDragOver: (e: React.DragEvent) => {
+        if (!isSubtaskDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+      },
+      onDragEnter: (e: React.DragEvent) => isSubtaskDrag(e) && setOver(true),
+      onDragLeave: (e: React.DragEvent) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        setOver(false);
+        const id = Number(e.dataTransfer.getData(DRAG_TYPE));
+        if (Number.isInteger(id)) onDropSubtask(id);
+      },
+    },
+  };
+}
+
 function TaskColumn({
   title,
   count,
@@ -1048,6 +1140,7 @@ function TaskColumn({
   showClock = false,
   headingRef,
   orderHint,
+  onDropSubtask,
   children,
 }: {
   title: string;
@@ -1064,10 +1157,15 @@ function TaskColumn({
    * para los errores de validación) para no sumarle ruido permanente a la
    * columna. */
   orderHint?: string;
+  onDropSubtask?: (id: number) => void;
   children?: React.ReactNode;
 }) {
+  const drop = useDropZone(onDropSubtask);
   return (
-    <article className={`task-column${title === "Para Hoy" ? " task-column--today" : ""}`}>
+    <article
+      className={`task-column${title === "Para Hoy" ? " task-column--today" : ""}${drop.over ? " drop-over" : ""}`}
+      {...drop.props}
+    >
       <div className="column-heading">
         <div className="column-title">
           <h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined}>
@@ -1103,6 +1201,7 @@ function TodayPanel({
   postponed = false,
   onPostpone,
   onReactivate,
+  onDropSubtask,
 }: {
   label: string;
   dotColor: string;
@@ -1117,9 +1216,11 @@ function TodayPanel({
   postponed?: boolean;
   onPostpone?: (subtask: Subtask) => void;
   onReactivate?: (subtask: Subtask) => void;
+  onDropSubtask?: (id: number) => void;
 }) {
+  const drop = useDropZone(onDropSubtask);
   return (
-    <div className="today-panel">
+    <div className={`today-panel${drop.over ? " drop-over" : ""}`} {...drop.props}>
       <div className="today-panel-header">
         <div className="today-panel-title">
           <span aria-hidden="true" className="today-panel-dot" style={{ backgroundColor: dotColor }} />
@@ -1144,6 +1245,7 @@ function TodayPanel({
               postponed={postponed}
               onPostpone={onPostpone}
               onReactivate={onReactivate}
+              draggable
               eventName={subtask.event_name}
             />
           ))

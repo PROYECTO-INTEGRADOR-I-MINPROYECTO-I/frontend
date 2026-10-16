@@ -16,6 +16,8 @@ import { categoryChipStyle, formatDuration } from "../lib/subtask-display";
 import { formatShortDateEs } from "../lib/dates";
 import { cn } from "../lib/utils";
 
+export const DRAG_TYPE = "application/x-subtask";
+
 interface SubtaskCardProps {
   subtask: Subtask;
   onOpen: (subtask: Subtask) => void;
@@ -46,6 +48,8 @@ interface SubtaskCardProps {
    * nada hasta que se conecte esta prop.
    */
   onEventClick?: () => void;
+  /** Permite arrastrar la tarjeta a otro grupo (se bloquea mientras `pending`). */
+  draggable?: boolean;
 }
 
 export function SubtaskCard({
@@ -60,10 +64,12 @@ export function SubtaskCard({
   onReactivate,
   eventName,
   onEventClick,
+  draggable = false,
 }: SubtaskCardProps) {
   const categoryStyle = categoryChipStyle(subtask.category);
   const hoursLabel = formatDuration(subtask.estimated_hours);
   const isDone = subtask.status === "done";
+  const canDrag = draggable && !pending;
   const action = postponed ? onReactivate : onPostpone;
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -84,11 +90,21 @@ export function SubtaskCard({
       tabIndex={0}
       onClick={() => onOpen(subtask)}
       onKeyDown={handleKeyDown}
+      draggable={canDrag || undefined}
+      onDragStart={
+        canDrag
+          ? (e) => {
+              e.dataTransfer.setData(DRAG_TYPE, String(subtask.subtask_id));
+              e.dataTransfer.effectAllowed = "move";
+            }
+          : undefined
+      }
       aria-label={subtask.title}
       className={cn(
         "flex w-full items-start gap-3 rounded-lg border bg-white p-4 text-left transition-colors hover:border-[#d4d5d7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]",
         overdue ? "border-[rgba(139,26,26,0.1)]" : "border-[#f3f4f6]",
-        (completed || postponed) && "opacity-60"
+        (completed || postponed) && "opacity-60",
+        canDrag && "cursor-grab"
       )}
     >
       {onToggleComplete && (
