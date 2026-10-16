@@ -63,6 +63,10 @@ function buildTodaySummary(items: Subtask[], eventId: number | null = null): Tod
   const pendientes = withEventName.filter((item) => item.status === "pending" && item.scheduled_date === TODAY);
   const completadas = withEventName.filter((item) => item.status === "done" && item.scheduled_date === TODAY);
   const proximas = withEventName.filter((item) => item.status === "pending" && item.scheduled_date > TODAY);
+  const pospuestas = withEventName.filter((item) => item.status === "postponed" && item.scheduled_date === TODAY);
+  const pospuestasOtrosDias = withEventName.filter(
+    (item) => item.status === "postponed" && item.scheduled_date !== TODAY
+  ).length;
   const horasCompletadas = completadas.reduce((sum, item) => sum + Number(item.estimated_hours), 0);
   const horasTotales = horasCompletadas + pendientes.reduce((sum, item) => sum + Number(item.estimated_hours), 0);
 
@@ -70,7 +74,8 @@ function buildTodaySummary(items: Subtask[], eventId: number | null = null): Tod
     fecha: TODAY,
     metrica: "gestiones",
     vencidas,
-    para_hoy: { pendientes, completadas },
+    para_hoy: { pendientes, completadas, pospuestas },
+    pospuestas_otros_dias: pospuestasOtrosDias,
     proximas,
     progreso_dia: {
       completadas: completadas.length,
@@ -154,7 +159,7 @@ function columnCardTitles(headingName: string): string[] {
   return within(column)
     .getAllByRole("button")
     .map((button) => button.getAttribute("aria-label"))
-    .filter((label): label is string => label !== null);
+    .filter((label): label is string => label !== null && label !== "Posponer");
 }
 
 beforeEach(() => {
@@ -189,7 +194,7 @@ describe("HomePage", () => {
     const pendingTitles = within(pendingSection as HTMLElement)
       .getAllByRole("button")
       .map((button) => button.getAttribute("aria-label"))
-      .filter((label): label is string => label !== null);
+      .filter((label): label is string => label !== null && label !== "Posponer");
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
@@ -352,6 +357,89 @@ describe("HomePage", () => {
           .filter((label): label is string => label !== null)
       ).toContain("Hoy A")
     );
+  });
+
+  describe("pospuestas", () => {
+    const withPostponed = [
+      ...subtasks,
+      subtask({ subtask_id: 9, title: "Hoy Pospuesta", status: "postponed" }),
+      subtask({ subtask_id: 10, title: "Otro día pospuesta", scheduled_date: "2026-09-27", status: "postponed" }),
+    ];
+
+    function stubWith(items: Subtask[]) {
+      const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+        const href = String(url);
+        if (options?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ ...items[3], status: JSON.parse(String(options.body)).status }, 200));
+        }
+        if (href.includes("/hoy/")) {
+          return Promise.resolve(jsonResponse(buildTodaySummary(items, eventIdFromHoyUrl(href)), 200));
+        }
+        if (href.includes("/eventos/1/subtareas/")) return Promise.resolve(jsonResponse(items, 200));
+        return Promise.resolve(jsonResponse([event], 200));
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    function renderAt(path: string) {
+      render(
+        <MemoryRouter initialEntries={[path]}>
+          <AuthProvider><HomePage /></AuthProvider>
+        </MemoryRouter>
+      );
+    }
+
+    test("la box Pospuestas lista las de hoy y avisa de las de otros días con link al evento", async () => {
+      stubWith(withPostponed);
+      renderAt("/?evento=1");
+
+      const panel = (await screen.findByText("Pospuestas")).closest(".today-panel") as HTMLElement;
+      expect(within(panel).getByRole("button", { name: "Hoy Pospuesta" })).toBeInTheDocument();
+      expect(within(panel).getByRole("button", { name: "Reactivar" })).toBeInTheDocument();
+
+      const link = screen.getByRole("link", { name: "gestión pospuesta" });
+      expect(link).toHaveAttribute("href", "/progreso/1#pospuestas");
+      expect(link.closest("p")).toHaveTextContent("1 gestión pospuesta de otros días más del evento");
+    });
+
+    test("sin evento seleccionado el link va a la vista de eventos", async () => {
+      stubWith(withPostponed);
+      renderAt("/");
+
+      const link = await screen.findByRole("link", { name: "eventos" });
+      expect(link).toHaveAttribute("href", "/?vista=eventos");
+      expect(link.closest("p")).toHaveTextContent("1 gestión pospuesta de otros días en los eventos");
+    });
+
+    test("el aviso de otros días aparece aunque no haya otras gestiones", async () => {
+      stubWith([subtask({ subtask_id: 10, title: "Lejana", scheduled_date: "2026-09-27", status: "postponed" })]);
+      renderAt("/?evento=1");
+
+      expect(await screen.findByRole("link", { name: "gestión pospuesta" })).toBeInTheDocument();
+      expect(screen.getByText(/No hay tareas asignadas para hoy|no tiene gestiones/)).toBeInTheDocument();
+    });
+
+    test("Posponer envía el PATCH {status: 'postponed'}", async () => {
+      const fetchMock = stubWith(subtasks);
+      const user = userEvent.setup();
+      renderAt("/?evento=1");
+
+      const card = await screen.findByRole("button", { name: "Hoy A" });
+      await user.click(within(card).getByRole("button", { name: "Posponer" }));
+
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.some(
+            ([url, options]) =>
+              String(url).includes("/subtareas/4/") &&
+              options?.method === "PATCH" &&
+              JSON.parse(String(options.body)).status === "postponed"
+          )
+        ).toBe(true)
+      );
+      expect(await screen.findByText("Gestión pospuesta")).toBeInTheDocument();
+    });
   });
 
   test("desmarcar una gestión completada envía el PATCH {status: 'pending'}", async () => {

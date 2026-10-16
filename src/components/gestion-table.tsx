@@ -10,6 +10,12 @@ import { Plus } from "lucide-react";
 import { formatShortDateEs } from "../lib/dates";
 import type { Subtask } from "../lib/types";
 
+const STATUS_LABELS: Record<Subtask["status"], string> = {
+  pending: "Pendiente",
+  done: "Completada",
+  postponed: "Pospuesta",
+};
+
 interface GestionTableProps {
   /** Ya ordenadas por el caller (ver sortSubtasksByDateThenHours). */
   items: Subtask[];
@@ -105,7 +111,7 @@ export function GestionTable({
                 {subtask.description || "—"}
               </td>
               <td className="py-2 font-source text-[13px] text-[#4a5565]">
-                {subtask.status === "done" ? "Completada" : "Pendiente"}
+                {STATUS_LABELS[subtask.status]}
               </td>
             </tr>
           );

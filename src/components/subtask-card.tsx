@@ -10,7 +10,7 @@
 // manejo de teclado (Enter/Espacio), que conserva el mismo comportamiento
 // accesible que tenía el <button> original.
 
-import { Check, CheckSquare } from "lucide-react";
+import { Check, CheckSquare, Clock, Play } from "lucide-react";
 import type { Subtask } from "../lib/types";
 import { categoryChipStyle, formatDuration } from "../lib/subtask-display";
 import { formatShortDateEs } from "../lib/dates";
@@ -27,6 +27,10 @@ interface SubtaskCardProps {
   onToggleComplete?: (subtask: Subtask) => void;
   /** Deshabilita el checkbox mientras el cambio está en curso, para evitar dobles clics. */
   pending?: boolean;
+  /** Pospuesta: tarjeta atenuada y el botón pasa a "Reactivar". */
+  postponed?: boolean;
+  onPostpone?: (subtask: Subtask) => void;
+  onReactivate?: (subtask: Subtask) => void;
   /**
    * PIM1-11 (corrección del profesor): nombre del evento al que pertenece la
    * gestión, para distinguirla cuando la vista no está filtrada por un solo
@@ -51,12 +55,16 @@ export function SubtaskCard({
   completed = false,
   onToggleComplete,
   pending = false,
+  postponed = false,
+  onPostpone,
+  onReactivate,
   eventName,
   onEventClick,
 }: SubtaskCardProps) {
   const categoryStyle = categoryChipStyle(subtask.category);
   const hoursLabel = formatDuration(subtask.estimated_hours);
   const isDone = subtask.status === "done";
+  const action = postponed ? onReactivate : onPostpone;
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     // El keydown de un control anidado (el checkbox) también burbujea hasta
@@ -80,7 +88,7 @@ export function SubtaskCard({
       className={cn(
         "flex w-full items-start gap-3 rounded-lg border bg-white p-4 text-left transition-colors hover:border-[#d4d5d7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]",
         overdue ? "border-[rgba(139,26,26,0.1)]" : "border-[#f3f4f6]",
-        completed && "opacity-60"
+        (completed || postponed) && "opacity-60"
       )}
     >
       {onToggleComplete && (
@@ -106,9 +114,26 @@ export function SubtaskCard({
       <div className="flex w-full flex-col">
         <div className="flex w-full items-start justify-between gap-2">
           <p className="font-jost text-[14px] leading-[17.5px] text-[#101828]">{subtask.title}</p>
-          <span className="shrink-0 rounded-full bg-[#f3f4f6] px-2 py-0.5 font-jost text-[10px] tracking-[0.25px] text-[#4a5565] uppercase">
-            {hoursLabel}
-          </span>
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="rounded-full bg-[#f3f4f6] px-2 py-0.5 font-jost text-[10px] tracking-[0.25px] text-[#4a5565] uppercase">
+              {hoursLabel}
+            </span>
+            {action && !isDone && (
+              <button
+                type="button"
+                aria-label={postponed ? "Reactivar" : "Posponer"}
+                title={postponed ? "Reactivar" : "Posponer"}
+                disabled={pending}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  action(subtask);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#99a1af] transition-colors hover:bg-[#f4f4f5] hover:text-[#52525b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a] disabled:opacity-50"
+              >
+                {postponed ? <Play aria-hidden="true" size={13} /> : <Clock aria-hidden="true" size={13} />}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex w-full items-center gap-3 pt-2">

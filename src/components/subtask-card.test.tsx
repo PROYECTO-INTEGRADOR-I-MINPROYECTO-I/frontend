@@ -39,6 +39,29 @@ describe("SubtaskCard", () => {
     expect(screen.getByText("Completada")).toBeInTheDocument();
   });
 
+  test("el botón Posponer llama a onPostpone sin abrir el detalle", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const onPostpone = vi.fn();
+    render(<SubtaskCard subtask={subtask} onOpen={onOpen} onPostpone={onPostpone} />);
+
+    await user.click(screen.getByRole("button", { name: "Posponer" }));
+
+    expect(onPostpone).toHaveBeenCalledWith(subtask);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  test("pospuesta muestra Reactivar y llama a onReactivate", async () => {
+    const user = userEvent.setup();
+    const onReactivate = vi.fn();
+    render(<SubtaskCard subtask={subtask} onOpen={vi.fn()} postponed onPostpone={vi.fn()} onReactivate={onReactivate} />);
+
+    expect(screen.queryByRole("button", { name: "Posponer" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reactivar" }));
+
+    expect(onReactivate).toHaveBeenCalledWith(subtask);
+  });
+
   test("sin onToggleComplete no se pinta el checkbox", () => {
     render(<SubtaskCard subtask={subtask} onOpen={vi.fn()} />);
 

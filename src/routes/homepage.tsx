@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useMatch, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Plus } from "lucide-react";
 import calendarIcon from "../assets/calendar-icon.svg";
 import helpRing from "../assets/help-ring.svg";
@@ -26,6 +26,8 @@ import "./homepage.css";
 
 // Solo un entero positivo es un eid válido; cualquier otro valor de
 // ?evento= (vacío, texto, decimales) se trata como "sin selección".
+const POSTPONED_LINK = "text-[#8b1a1a] underline";
+
 const EVENT_ID_PATTERN = /^\d+$/;
 
 function findSubtaskInToday(summary: TodaySummary | null, subtaskId: number): Subtask | undefined {
@@ -34,6 +36,7 @@ function findSubtaskInToday(summary: TodaySummary | null, subtaskId: number): Su
     summary.vencidas.find((item) => item.subtask_id === subtaskId) ??
     summary.para_hoy.pendientes.find((item) => item.subtask_id === subtaskId) ??
     summary.para_hoy.completadas.find((item) => item.subtask_id === subtaskId) ??
+    summary.para_hoy.pospuestas?.find((item) => item.subtask_id === subtaskId) ??
     summary.proximas.find((item) => item.subtask_id === subtaskId)
   );
 }
@@ -63,7 +66,8 @@ export function HomePage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const isProgressRoute = useLocation().pathname.startsWith("/progreso");
+  const location = useLocation();
+  const isProgressRoute = location.pathname.startsWith("/progreso");
   const progressEid = useMatch("/progreso/:eid")?.params.eid;
 
   const [events, setEvents] = useState<Event[]>([]);
@@ -438,15 +442,26 @@ export function HomePage() {
   // checkbox (pendingToggleIds) mientras se resuelve el PATCH y recargar
   // /api/hoy/ al terminar.
   async function handleToggleComplete(subtask: Subtask) {
+    // Se lee del espejo mutable (no del `subtask` recibido, que puede ser una
+    // foto vieja si esta llamada viene de un cierre de "Reintentar") para
+    // partir siempre del estado real vigente.
+    const current = findSubtaskInToday(todayRef.current, subtask.subtask_id) ?? subtask;
+    await changeStatus(subtask, current.status === "done" ? "pending" : "done", undefined, () =>
+      handleToggleComplete(subtask)
+    );
+  }
+
+  const handlePostpone = (subtask: Subtask) => changeStatus(subtask, "postponed", "Gestión pospuesta");
+  const handleReactivate = (subtask: Subtask) => changeStatus(subtask, "pending", "Gestión reactivada");
+
+  async function changeStatus(
+    subtask: Subtask,
+    nextStatus: SubtaskStatus,
+    successText?: string,
+    retry: () => void = () => changeStatus(subtask, nextStatus, successText)
+  ) {
     const subtaskId = subtask.subtask_id;
     if (pendingToggleIds.has(subtaskId)) return; // ya hay un cambio en curso para esta gestión: evita dobles clics
-
-    // Se lee del espejo mutable (no del `subtask` recibido, que puede ser una
-    // foto vieja si esta llamada viene de un cierre de "Reintentar" creado
-    // antes de otros cambios) para partir siempre del estado real vigente.
-    const current = findSubtaskInToday(todayRef.current, subtaskId) ?? subtask;
-    const previousStatus = current.status;
-    const nextStatus: SubtaskStatus = previousStatus === "done" ? "pending" : "done";
 
     setToggleError((prev) => (prev && prev.subtaskId === subtaskId ? null : prev));
     addPendingToggle(subtaskId);
@@ -456,11 +471,12 @@ export function HomePage() {
       setDetailSubtask((prev) => (prev && prev.subtask_id === subtaskId ? updated : prev));
       await loadToday(selectedEventId);
       setSubtasksVersion((version) => version + 1);
+      if (successText) showSuccess(successText);
     } catch (err) {
       setToggleError({
         subtaskId,
         message: describeSaveError(err),
-        retry: () => handleToggleComplete(subtask),
+        retry,
       });
     } finally {
       removePendingToggle(subtaskId);
@@ -542,13 +558,15 @@ export function HomePage() {
   // cualquier fecha — backend tiene en desarrollo un parámetro para
   // recuperar el comportamiento original.
   const sortedDone = today ? sortCompletedSubtasksByDateDesc(today.para_hoy.completadas) : [];
+  const sortedPostponed = today ? sortSubtasksByDateThenHours(today.para_hoy.pospuestas ?? []) : [];
+  const postponedElsewhere = today?.pospuestas_otros_dias ?? 0;
   // `proximas` solo cubre hasta hoy + dias_proximos (7 por defecto, ver
   // planning/views.py): una gestión agendada más adelante no aparece acá
   // aunque sí exista (se ve completa, sin ese recorte, en la vista expandida
   // de Eventos). La columna dice "Próximos 7 días" para que esto sea visible
   // en la UI en vez de parecer que la gestión "se perdió".
   const sortedUpcoming = today ? sortSubtasksByDateThenHours(today.proximas) : [];
-  const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedUpcoming.length;
+  const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedPostponed.length + sortedUpcoming.length;
 
   // Corrección del profesor (clínica de Sprint 1): sin eventos, ocultar todo
   // (selector, filtros, barra de progreso, columnas) y dejar solo un botón de
@@ -709,6 +727,7 @@ export function HomePage() {
                       subtask={subtask}
                       onOpen={setDetailSubtask}
                       onToggleComplete={handleToggleComplete}
+                      onPostpone={handlePostpone}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
                       overdue
                       eventName={subtask.event_name}
@@ -761,7 +780,7 @@ export function HomePage() {
                     </div>
                   </div>
                 )
-              ) : sortedTodayPending.length === 0 && sortedDone.length === 0 ? (
+              ) : sortedTodayPending.length === 0 && sortedDone.length === 0 && sortedPostponed.length === 0 ? (
                 // Hay gestiones (vencidas o próximas), pero ninguna agendada
                 // para hoy puntualmente: antes esto se indicaba con un texto
                 // chico en el lugar de la barra de progreso (DayProgressBar),
@@ -785,6 +804,7 @@ export function HomePage() {
                     emptyHint="Sin pendientes para hoy."
                     onOpen={setDetailSubtask}
                     onToggleComplete={handleToggleComplete}
+                    onPostpone={handlePostpone}
                     pendingToggleIds={pendingToggleIds}
                   />
                   <TodayPanel
@@ -799,7 +819,40 @@ export function HomePage() {
                     pendingToggleIds={pendingToggleIds}
                     completed
                   />
+                  <TodayPanel
+                    label="Pospuestas"
+                    dotColor="#a1a1aa"
+                    countBg="#f4f4f5"
+                    countText="#52525b"
+                    items={sortedPostponed}
+                    emptyHint="Sin gestiones pospuestas."
+                    onOpen={setDetailSubtask}
+                    onToggleComplete={handleToggleComplete}
+                    onReactivate={handleReactivate}
+                    pendingToggleIds={pendingToggleIds}
+                    postponed
+                  />
                 </div>
+              )}
+              {postponedElsewhere > 0 && (
+                <p className="mt-3 font-source text-sm text-[#52525b]">
+                  {postponedElsewhere}{" "}
+                  {selectedEventId != null ? (
+                    <>
+                      <Link to={`/progreso/${selectedEventId}#pospuestas`} className={POSTPONED_LINK}>
+                        {postponedElsewhere === 1 ? "gestión pospuesta" : "gestiones pospuestas"}
+                      </Link>{" "}
+                      de otros días más del evento
+                    </>
+                  ) : (
+                    <>
+                      {postponedElsewhere === 1 ? "gestión pospuesta" : "gestiones pospuestas"} de otros días en los{" "}
+                      <Link to="/?vista=eventos" className={POSTPONED_LINK}>
+                        eventos
+                      </Link>
+                    </>
+                  )}
+                </p>
               )}
             </TaskColumn>
 
@@ -856,6 +909,7 @@ export function HomePage() {
       >
         {currentView === "eventos" && (
           <EventsView
+            scrollHash={location.hash}
             events={events}
             status={eventsStatus}
             errorMessage={eventsError}
@@ -949,6 +1003,8 @@ export function HomePage() {
           onDelete={requestDeleteSubtask}
           onReprogram={openReprogramSubtask}
           onToggleComplete={handleToggleComplete}
+          onPostpone={handlePostpone}
+          onReactivate={handleReactivate}
           togglePending={pendingToggleIds.has(detailSubtask.subtask_id)}
           toggleError={
             toggleError && toggleError.subtaskId === detailSubtask.subtask_id
@@ -1044,6 +1100,9 @@ function TodayPanel({
   onToggleComplete,
   pendingToggleIds,
   completed = false,
+  postponed = false,
+  onPostpone,
+  onReactivate,
 }: {
   label: string;
   dotColor: string;
@@ -1055,6 +1114,9 @@ function TodayPanel({
   onToggleComplete: (subtask: Subtask) => void;
   pendingToggleIds: Set<number>;
   completed?: boolean;
+  postponed?: boolean;
+  onPostpone?: (subtask: Subtask) => void;
+  onReactivate?: (subtask: Subtask) => void;
 }) {
   return (
     <div className="today-panel">
@@ -1079,6 +1141,9 @@ function TodayPanel({
               onToggleComplete={onToggleComplete}
               pending={pendingToggleIds.has(subtask.subtask_id)}
               completed={completed}
+              postponed={postponed}
+              onPostpone={onPostpone}
+              onReactivate={onReactivate}
               eventName={subtask.event_name}
             />
           ))
