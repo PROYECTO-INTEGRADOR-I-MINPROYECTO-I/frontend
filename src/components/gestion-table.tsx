@@ -45,13 +45,13 @@ export function GestionTable({
   return (
     <table className="w-full table-fixed border-collapse text-left">
       <colgroup>
-        <col className={withEvent ? "w-[22%]" : "w-[28%]"} />
-        {withEvent && <col className="w-[16%]" />}
-        <col className={withEvent ? "w-[12%]" : "w-[16%]"} />
+        <col className={withEvent ? "w-[18%]" : "w-[28%]"} />
+        {withEvent && <col className="w-[20%]" />}
+        <col className={withEvent ? "w-[14%]" : "w-[16%]"} />
         <col className={withEvent ? "w-[10%]" : "w-[12%]"} />
-        <col className={withEvent ? "w-[8%]" : "w-[10%]"} />
-        <col className={withEvent ? "hidden w-[18%] sm:table-column" : "hidden w-[20%] sm:table-column"} />
-        <col className="w-[14%]" />
+        <col className={withEvent ? "w-[7%]" : "w-[10%]"} />
+        <col className={withEvent ? "hidden w-[16%] sm:table-column" : "hidden w-[20%] sm:table-column"} />
+        <col className={withEvent ? "w-[15%]" : "w-[14%]"} />
       </colgroup>
       <thead>
         <tr className="border-b border-[#f3f4f6] font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">
@@ -111,18 +111,19 @@ export function GestionTable({
                 {subtask.title}
               </td>
               {withEvent && (
-                <td className="truncate py-2 pr-2 font-source text-[13px] text-[#4a5565]">
+                <td className="py-2 pr-2 font-source text-[13px]">
                   <Link
                     to={`/progreso/${subtask.eid}`}
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
-                    className="hover:text-[#101828] hover:underline"
+                    title={eventNameById?.[subtask.eid]}
+                    className="block truncate whitespace-nowrap text-[#8b1a1a] hover:underline"
                   >
                     {eventNameById?.[subtask.eid] ?? "—"}
                   </Link>
                 </td>
               )}
-              <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">{subtask.category}</td>
+              <td className="whitespace-nowrap py-2 pr-2 font-source text-[13px] text-[#4a5565]">{subtask.category}</td>
               <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">
                 {formatShortDateEs(subtask.scheduled_date)}
               </td>
