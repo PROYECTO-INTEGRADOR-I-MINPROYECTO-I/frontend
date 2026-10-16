@@ -29,6 +29,8 @@ interface ReprogramModalProps {
   eventDueDate?: string;
   /** Límite diario del organizador (`User.max_daily_hours`): sin esto no hay cómo predecir conflicto. */
   maxDailyHours?: string;
+  /** Fecha propuesta que pisa la actual (ej. al soltar en otra columna). */
+  initialDate?: string;
   onClose: () => void;
   onReprogrammed: (subtask: Subtask) => void;
 }
@@ -43,6 +45,7 @@ export function ReprogramModal({
   eventName,
   eventDueDate,
   maxDailyHours,
+  initialDate,
   onClose,
   onReprogrammed,
 }: ReprogramModalProps) {
@@ -62,7 +65,7 @@ export function ReprogramModal({
     formState: { isSubmitting, errors },
   } = useForm<ReprogramFormValues>({
     defaultValues: {
-      scheduled_date: subtask.scheduled_date,
+      scheduled_date: initialDate ?? subtask.scheduled_date,
       estimated_hours: subtask.estimated_hours,
     },
   });

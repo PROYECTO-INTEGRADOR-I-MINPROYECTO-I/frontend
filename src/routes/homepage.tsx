@@ -18,6 +18,8 @@ import { ConfirmDialog } from "../components/confirm-dialog";
 import { ViewSwitcher, type ViewSwitcherValue } from "../components/view-switcher";
 import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { playSound } from "../lib/sounds";
+import { addDaysToLocalDate } from "../lib/dates";
 import { creationMessage } from "../lib/success-messages";
 import { sortCompletedSubtasksByDateDesc, sortSubtasksByDateThenHours } from "../lib/subtask-display";
 import { describeSaveError } from "../lib/subtask-errors";
@@ -98,6 +100,7 @@ export function HomePage() {
   // popup más chico (solo fecha y duración) y reutiliza los campos del
   // Wizard de creación en vez del formulario completo.
   const [reprogrammingSubtask, setReprogrammingSubtask] = useState<Subtask | null>(null);
+  const [reprogramInitialDate, setReprogramInitialDate] = useState<string | undefined>();
 
   const [isSubtaskWizardOpen, setIsSubtaskWizardOpen] = useState(false);
   const [subtaskWizardKey, setSubtaskWizardKey] = useState(0);
@@ -326,13 +329,20 @@ export function HomePage() {
     setIsSubtaskFormOpen(true);
   }
 
-  function openReprogramSubtask(subtask: Subtask) {
+  function openReprogramSubtask(subtask: Subtask, initialDate?: string) {
     setDetailSubtask(null);
+    setReprogramInitialDate(initialDate);
     setReprogrammingSubtask(subtask);
   }
 
-  function handleSubtaskReprogrammed() {
+  function closeReprogram() {
     setReprogrammingSubtask(null);
+    setReprogramInitialDate(undefined);
+  }
+
+  function handleSubtaskReprogrammed() {
+    closeReprogram();
+    playSound("reprogram");
     loadToday(selectedEventId);
     setSubtasksVersion((version) => version + 1);
     showSuccess("Gestión reprogramada");
@@ -467,11 +477,14 @@ export function HomePage() {
             : date === fecha
               ? "hoy"
               : "proximas";
+    const toTomorrow = (s: Subtask) => openReprogramSubtask(s, addDaysToLocalDate(fecha, 1));
+    const toToday = (s: Subtask) => openReprogramSubtask(s, fecha);
     const actions: Record<string, (s: Subtask) => void> = {
-      "hoy>proximas": openReprogramSubtask,
-      "vencidas>proximas": openReprogramSubtask,
-      "pospuestas>proximas": openReprogramSubtask,
-      "proximas>hoy": openReprogramSubtask,
+      "hoy>proximas": toTomorrow,
+      "vencidas>proximas": toTomorrow,
+      "pospuestas>proximas": toTomorrow,
+      "proximas>hoy": toToday,
+      "vencidas>hoy": toToday,
       "hoy>completadas": handleToggleComplete,
       "vencidas>completadas": handleToggleComplete,
       "completadas>hoy": handleToggleComplete,
@@ -482,7 +495,7 @@ export function HomePage() {
     };
     const action = actions[`${from}>${to}`];
     if (!action) return;
-    playDropSound();
+    playSound("drop");
     action(subtask);
   }
 
@@ -504,6 +517,9 @@ export function HomePage() {
     try {
       const updated = await setSubtaskStatus(subtaskId, nextStatus);
       setDetailSubtask((prev) => (prev && prev.subtask_id === subtaskId ? updated : prev));
+      playSound(
+        nextStatus === "done" ? "complete" : nextStatus === "postponed" ? "postpone" : subtask.status === "postponed" ? "reactivate" : "uncomplete"
+      );
       await loadToday(selectedEventId);
       setSubtasksVersion((version) => version + 1);
       if (successText) showSuccess(successText);
@@ -1019,7 +1035,8 @@ export function HomePage() {
           eventName={reprogramEvent.name}
           eventDueDate={reprogramEvent.due_date}
           maxDailyHours={user?.max_daily_hours}
-          onClose={() => setReprogrammingSubtask(null)}
+          initialDate={reprogramInitialDate}
+          onClose={closeReprogram}
           onReprogrammed={handleSubtaskReprogrammed}
         />
       )}
@@ -1083,29 +1100,6 @@ export function HomePage() {
 }
 
 // Resaltado mínimo + handlers de zona de destino para HTML5 drag & drop.
-let audioCtx: AudioContext | undefined;
-
-// Pop suave al soltar en zona válida; nunca debe romper el drop.
-function playDropSound() {
-  try {
-    if (!window.AudioContext) return;
-    audioCtx ??= new window.AudioContext();
-    if (audioCtx.state === "suspended") void audioCtx.resume();
-    const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.frequency.setValueAtTime(660, t);
-    osc.frequency.exponentialRampToValueAtTime(440, t + 0.12);
-    gain.gain.setValueAtTime(0.08, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + 0.12);
-  } catch {
-    // sin audio disponible: se ignora
-  }
-}
-
 const isSubtaskDrag = (e: React.DragEvent) => e.dataTransfer.types.includes(DRAG_TYPE);
 
 function useDropZone(onDropSubtask?: (id: number) => void) {
