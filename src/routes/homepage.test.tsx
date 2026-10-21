@@ -4,7 +4,10 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { HomePage } from "./homepage";
 import { AuthProvider } from "../lib/auth";
+import { playSound } from "../lib/sounds";
 import type { Event, Subtask, TodaySummary } from "../lib/types";
+
+vi.mock("../lib/sounds", () => ({ playSound: vi.fn() }));
 
 const TODAY = "2026-09-20";
 
@@ -63,6 +66,10 @@ function buildTodaySummary(items: Subtask[], eventId: number | null = null): Tod
   const pendientes = withEventName.filter((item) => item.status === "pending" && item.scheduled_date === TODAY);
   const completadas = withEventName.filter((item) => item.status === "done" && item.scheduled_date === TODAY);
   const proximas = withEventName.filter((item) => item.status === "pending" && item.scheduled_date > TODAY);
+  const pospuestas = withEventName.filter((item) => item.status === "postponed" && item.scheduled_date === TODAY);
+  const pospuestasOtrosDias = withEventName.filter(
+    (item) => item.status === "postponed" && item.scheduled_date !== TODAY
+  ).length;
   const horasCompletadas = completadas.reduce((sum, item) => sum + Number(item.estimated_hours), 0);
   const horasTotales = horasCompletadas + pendientes.reduce((sum, item) => sum + Number(item.estimated_hours), 0);
 
@@ -70,7 +77,8 @@ function buildTodaySummary(items: Subtask[], eventId: number | null = null): Tod
     fecha: TODAY,
     metrica: "gestiones",
     vencidas,
-    para_hoy: { pendientes, completadas },
+    para_hoy: { pendientes, completadas, pospuestas },
+    pospuestas_otros_dias: pospuestasOtrosDias,
     proximas,
     progreso_dia: {
       completadas: completadas.length,
@@ -154,7 +162,7 @@ function columnCardTitles(headingName: string): string[] {
   return within(column)
     .getAllByRole("button")
     .map((button) => button.getAttribute("aria-label"))
-    .filter((label): label is string => label !== null);
+    .filter((label): label is string => label !== null && label !== "Posponer");
 }
 
 beforeEach(() => {
@@ -189,7 +197,7 @@ describe("HomePage", () => {
     const pendingTitles = within(pendingSection as HTMLElement)
       .getAllByRole("button")
       .map((button) => button.getAttribute("aria-label"))
-      .filter((label): label is string => label !== null);
+      .filter((label): label is string => label !== null && label !== "Posponer");
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
@@ -352,6 +360,209 @@ describe("HomePage", () => {
           .filter((label): label is string => label !== null)
       ).toContain("Hoy A")
     );
+  });
+
+  describe("drag & drop", () => {
+    const patches = (fetchMock: ReturnType<typeof stubHomepageFetchWithPatch>) =>
+      fetchMock.mock.calls.filter(([, options]) => options?.method === "PATCH");
+
+    async function dragTo(title: string, targetLabel: string, targetSelector: string) {
+      const data: Record<string, string> = {};
+      const dataTransfer = {
+        setData: (k: string, v: string) => (data[k] = v),
+        getData: (k: string) => data[k],
+        get types() {
+          return Object.keys(data);
+        },
+        effectAllowed: "",
+        dropEffect: "",
+      };
+      fireEvent.dragStart(screen.getByRole("button", { name: title }), { dataTransfer });
+      fireEvent.drop(screen.getByText(targetLabel).closest(targetSelector) as HTMLElement, { dataTransfer });
+    }
+
+    function renderHome(items: Subtask[] = subtasks) {
+      const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+        const href = String(url);
+        if (options?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ ...items[0], status: JSON.parse(String(options.body)).status }, 200));
+        }
+        if (href.includes("/hoy/")) return Promise.resolve(jsonResponse(buildTodaySummary(items, eventIdFromHoyUrl(href)), 200));
+        if (href.includes("/eventos/1/subtareas/")) return Promise.resolve(jsonResponse(items, 200));
+        return Promise.resolve(jsonResponse([event], 200));
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      render(
+        <MemoryRouter initialEntries={["/?evento=1"]}>
+          <AuthProvider><HomePage /></AuthProvider>
+        </MemoryRouter>
+      );
+      return fetchMock;
+    }
+
+    test("soltar una pendiente en Completadas envía el PATCH {status: 'done'}", async () => {
+      const fetchMock = renderHome();
+      await screen.findByText("Hoy A");
+
+      await dragTo("Hoy A", "Completadas", ".today-panel");
+
+      await waitFor(() =>
+        expect(patches(fetchMock).some(([url, o]) => String(url).includes("/subtareas/4/") && JSON.parse(String(o.body)).status === "done")).toBe(true)
+      );
+    });
+
+    test("soltar una de hoy en Próximos 7 días abre Reprogramar y no hace PATCH", async () => {
+      const fetchMock = renderHome();
+      await screen.findByText("Hoy A");
+
+      await dragTo("Hoy A", "Próximos 7 días", ".task-column");
+
+      expect(await screen.findByText("Reprogramar gestión")).toBeInTheDocument();
+      expect(patches(fetchMock)).toHaveLength(0);
+    });
+
+    test("soltar una próxima en Pendientes abre Reprogramar con la fecha de hoy", async () => {
+      const fetchMock = renderHome();
+      await screen.findByText("Próxima A");
+
+      await dragTo("Próxima A", "Pendientes", ".today-panel");
+
+      expect(await screen.findByText("Reprogramar gestión")).toBeInTheDocument();
+      expect(screen.getByLabelText("Nueva fecha")).toHaveValue(TODAY);
+      expect(patches(fetchMock)).toHaveLength(0);
+    });
+
+    test("soltar una de hoy en Próximos 7 días propone la fecha de mañana", async () => {
+      renderHome();
+      await screen.findByText("Hoy A");
+
+      await dragTo("Hoy A", "Próximos 7 días", ".task-column");
+
+      expect(await screen.findByLabelText("Nueva fecha")).toHaveValue("2026-09-21");
+    });
+
+    test("soltar una vencida en Pendientes propone la fecha de hoy", async () => {
+      renderHome();
+      await screen.findByText("Vencida A");
+
+      await dragTo("Vencida A", "Pendientes", ".today-panel");
+
+      expect(await screen.findByLabelText("Nueva fecha")).toHaveValue(TODAY);
+    });
+
+    test("completar suena 'complete' y posponer suena 'postpone'", async () => {
+      renderHome();
+      await screen.findByText("Hoy A");
+
+      await dragTo("Hoy A", "Completadas", ".today-panel");
+      await waitFor(() => expect(playSound).toHaveBeenCalledWith("complete"));
+
+      await dragTo("Hoy B", "Pospuestas", ".today-panel");
+      await waitFor(() => expect(playSound).toHaveBeenCalledWith("postpone"));
+    });
+
+    test("soltar una pospuesta en Pendientes la reactiva (PATCH pending)", async () => {
+      const fetchMock = renderHome([...subtasks, subtask({ subtask_id: 9, title: "Hoy Pospuesta", status: "postponed" })]);
+      await screen.findByText("Hoy Pospuesta");
+
+      await dragTo("Hoy Pospuesta", "Pendientes", ".today-panel");
+
+      await waitFor(() =>
+        expect(patches(fetchMock).some(([url, o]) => String(url).includes("/subtareas/9/") && JSON.parse(String(o.body)).status === "pending")).toBe(true)
+      );
+    });
+
+    test("soltar una ya completada en Completadas no hace nada", async () => {
+      const fetchMock = renderHome();
+      await screen.findByText("Hoy Hecha");
+
+      await dragTo("Hoy Hecha", "Completadas", ".today-panel");
+
+      expect(patches(fetchMock)).toHaveLength(0);
+    });
+  });
+
+  describe("pospuestas", () => {
+    const withPostponed = [
+      ...subtasks,
+      subtask({ subtask_id: 9, title: "Hoy Pospuesta", status: "postponed" }),
+      subtask({ subtask_id: 10, title: "Otro día pospuesta", scheduled_date: "2026-09-27", status: "postponed" }),
+    ];
+
+    function stubWith(items: Subtask[]) {
+      const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+        const href = String(url);
+        if (options?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ ...items[3], status: JSON.parse(String(options.body)).status }, 200));
+        }
+        if (href.includes("/hoy/")) {
+          return Promise.resolve(jsonResponse(buildTodaySummary(items, eventIdFromHoyUrl(href)), 200));
+        }
+        if (href.includes("/eventos/1/subtareas/")) return Promise.resolve(jsonResponse(items, 200));
+        return Promise.resolve(jsonResponse([event], 200));
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    function renderAt(path: string) {
+      render(
+        <MemoryRouter initialEntries={[path]}>
+          <AuthProvider><HomePage /></AuthProvider>
+        </MemoryRouter>
+      );
+    }
+
+    test("la box Pospuestas lista las de hoy y avisa de las de otros días con link al evento", async () => {
+      stubWith(withPostponed);
+      renderAt("/?evento=1");
+
+      const panel = (await screen.findByText("Pospuestas")).closest(".today-panel") as HTMLElement;
+      expect(within(panel).getByRole("button", { name: "Hoy Pospuesta" })).toBeInTheDocument();
+      expect(within(panel).getByRole("button", { name: "Reactivar" })).toBeInTheDocument();
+
+      const link = screen.getByRole("link", { name: "gestión pospuesta" });
+      expect(link).toHaveAttribute("href", "/progreso/1#pospuestas");
+      expect(link.closest("p")).toHaveTextContent("1 gestión pospuesta de otros días más del evento");
+    });
+
+    test("sin evento seleccionado el link va al progreso global", async () => {
+      stubWith(withPostponed);
+      renderAt("/");
+
+      const link = await screen.findByRole("link", { name: "eventos" });
+      expect(link).toHaveAttribute("href", "/progreso#pospuestas");
+      expect(link.closest("p")).toHaveTextContent("1 gestión pospuesta de otros días en los eventos");
+    });
+
+    test("el aviso de otros días aparece aunque no haya otras gestiones", async () => {
+      stubWith([subtask({ subtask_id: 10, title: "Lejana", scheduled_date: "2026-09-27", status: "postponed" })]);
+      renderAt("/?evento=1");
+
+      expect(await screen.findByRole("link", { name: "gestión pospuesta" })).toBeInTheDocument();
+      expect(screen.getByText(/No hay tareas asignadas para hoy|no tiene gestiones/)).toBeInTheDocument();
+    });
+
+    test("Posponer envía el PATCH {status: 'postponed'}", async () => {
+      const fetchMock = stubWith(subtasks);
+      const user = userEvent.setup();
+      renderAt("/?evento=1");
+
+      const card = await screen.findByRole("button", { name: "Hoy A" });
+      await user.click(within(card).getByRole("button", { name: "Posponer" }));
+
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.some(
+            ([url, options]) =>
+              String(url).includes("/subtareas/4/") &&
+              options?.method === "PATCH" &&
+              JSON.parse(String(options.body)).status === "postponed"
+          )
+        ).toBe(true)
+      );
+      expect(await screen.findByText("Gestión pospuesta")).toBeInTheDocument();
+    });
   });
 
   test("desmarcar una gestión completada envía el PATCH {status: 'pending'}", async () => {
@@ -1254,5 +1465,125 @@ describe("HomePage", () => {
     // Sin destino todavía (HU-13 no existe): el click no hace nada visible,
     // pero sobre todo NO debe abrir el popup de detalle de la gestión.
     expect(screen.queryByRole("dialog", { name: "Vencida A" })).not.toBeInTheDocument();
+  });
+
+  test("/progreso/:eid abre el detalle del evento y un eid inexistente cae en la lista", async () => {
+    stubHomepageFetch();
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/progreso/1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    expect(await screen.findByRole("button", { name: "Volver a Eventos" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Boda Luisa & Carlos" })).toBeInTheDocument();
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={["/progreso/99"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+    await screen.findAllByText("Boda Luisa & Carlos");
+    expect(screen.queryByRole("button", { name: "Volver a Eventos" })).not.toBeInTheDocument();
+  });
+
+  test("/progreso muestra las gestiones de todos los eventos con columna Evento y barra global", async () => {
+    const event2: Event = { ...event, eid: 2, name: "Cumpleaños Ana" };
+    const byEvent: Record<number, Subtask[]> = {
+      1: [
+        subtask({ subtask_id: 1, eid: 1, title: "Gestión uno", status: "done" }),
+        subtask({ subtask_id: 2, eid: 1, title: "Gestión dos", status: "pending", scheduled_date: "2026-12-01" }),
+      ],
+      2: [
+        subtask({ subtask_id: 3, eid: 2, title: "Gestión tres", status: "done" }),
+        subtask({ subtask_id: 4, eid: 2, title: "Gestión cuatro", status: "postponed" }),
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        const href = String(url);
+        const match = href.match(/\/eventos\/(\d+)\/subtareas\//);
+        if (match) return Promise.resolve(jsonResponse(byEvent[Number(match[1])], 200));
+        if (href.includes("/hoy/")) return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, null), 200));
+        if (href.includes("/eventos/")) return Promise.resolve(jsonResponse([event, event2], 200));
+        return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/progreso"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("heading", { name: "Progreso de todos los eventos" })).toBeInTheDocument();
+    expect(await screen.findByText("Gestión cuatro")).toBeInTheDocument();
+    expect(screen.getByText("Gestión uno")).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: "Evento" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Cumpleaños Ana" })[0]).toHaveAttribute("href", "/progreso/2");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "2 de 4 gestiones completadas");
+    expect(screen.queryByRole("button", { name: /Crear gestión/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/progreso puede estar incompleto/)).not.toBeInTheDocument();
+
+    // El link del evento navega sin abrir el modal de la gestión.
+    await userEvent.setup().click(screen.getAllByRole("link", { name: "Cumpleaños Ana" })[0]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("/progreso avisa si no se pudieron cargar las gestiones de algún evento", async () => {
+    const event2: Event = { ...event, eid: 2, name: "Cumpleaños Ana", total_subtasks: 3, completed_subtasks: 0 };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        const href = String(url);
+        if (href.includes("/eventos/1/subtareas/")) return Promise.resolve(jsonResponse(subtasks, 200));
+        if (href.includes("/eventos/2/subtareas/")) return Promise.reject(new Error("sin red"));
+        if (href.includes("/hoy/")) return Promise.resolve(jsonResponse(buildTodaySummary(subtasks, null), 200));
+        if (href.includes("/eventos/")) return Promise.resolve(jsonResponse([event, event2], 200));
+        return Promise.reject(new Error(`fetch no manejado en el test: ${href}`));
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/progreso"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/progreso puede estar incompleto/)).toBeInTheDocument();
+  });
+
+  test("abrir una tarjeta lleva a /progreso/<eid>, volver a /?vista=eventos e ir a Hoy conserva ?evento", async () => {
+    const user = userEvent.setup();
+    stubHomepageFetch();
+    function LocationProbe() {
+      const { pathname, search } = useLocation();
+      return <output data-testid="loc">{pathname + search}</output>;
+    }
+    const loc = () => screen.getByTestId("loc").textContent;
+
+    render(
+      <MemoryRouter initialEntries={["/?vista=eventos"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+    expect(loc()).toBe("/progreso/1");
+
+    await user.click(await screen.findByRole("button", { name: "Volver a Eventos" }));
+    expect(loc()).toBe("/?vista=eventos");
+
+    await user.click(await screen.findByRole("button", { name: "Ver progreso general" }));
+    expect(loc()).toBe("/progreso");
+    await user.click(await screen.findByRole("button", { name: "Volver a Eventos" }));
+    expect(loc()).toBe("/?vista=eventos");
+
+    await user.click(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ }));
+    await user.click(screen.getByRole("tab", { name: "Hoy" }));
+    expect(loc()).toBe("/?evento=1");
   });
 });

@@ -53,6 +53,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
     expect(screen.getByText("Cargando eventos…")).toBeInTheDocument();
@@ -75,6 +77,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -100,6 +104,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -125,6 +131,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -163,12 +171,51 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
     await waitFor(() => expect(screen.getByText("1 de 2 gestiones completadas")).toBeInTheDocument());
     expect(screen.getByText("Boda")).toBeInTheDocument();
     expect(screen.getByText("Confirmar catering")).toBeInTheDocument();
+  });
+
+  test("la preview de la card no incluye gestiones pospuestas", async () => {
+    const subtasks = [
+      subtask({ subtask_id: 1, title: "Pendiente visible" }),
+      subtask({ subtask_id: 2, title: "Pospuesta oculta", status: "postponed" }),
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) =>
+        String(url).includes("/eventos/1/subtareas/")
+          ? Promise.resolve(jsonResponse(subtasks))
+          : Promise.resolve(jsonResponse([]))
+      )
+    );
+
+    render(
+      <EventsView
+        events={[event]}
+        status="ready"
+        errorMessage=""
+        onRetry={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEditEvent={vi.fn()}
+        onDeleteEvent={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        refreshToken={0}
+        onEventCoverUpdated={vi.fn()}
+        onCreateSubtask={vi.fn()}
+        initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByText("Pendiente visible")).toBeInTheDocument();
+    expect(screen.queryByText("Pospuesta oculta")).not.toBeInTheDocument();
   });
 
   test("sin subtareas cargadas, la card muestra el conteo del backend", () => {
@@ -188,6 +235,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -211,6 +260,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -244,6 +295,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -277,6 +330,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -296,6 +351,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -325,6 +382,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -350,6 +409,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 
@@ -387,6 +448,8 @@ describe("EventsView", () => {
         onEventCoverUpdated={vi.fn()}
         onCreateSubtask={vi.fn()}
         initialExpandedEventId={null}
+        onOpenEvent={vi.fn()}
+        onBackFromEvent={vi.fn()}
       />
     );
 

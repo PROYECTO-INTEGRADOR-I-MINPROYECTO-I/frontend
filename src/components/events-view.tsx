@@ -29,6 +29,8 @@ interface EventProgress {
 }
 
 interface EventsViewProps {
+  /** Hash de la URL, para que el detalle del evento lleve a un grupo (ej. "#pospuestas"). */
+  scrollHash?: string;
   events: Event[];
   status: "loading" | "ready" | "error";
   errorMessage: string;
@@ -59,9 +61,16 @@ interface EventsViewProps {
    * forzar la expansión de otro evento.
    */
   initialExpandedEventId: number | null;
+  onOpenEvent: (eid: number) => void;
+  onBackFromEvent: () => void;
+  /** Vista global (/progreso): gestiones de todos los eventos con columna Evento. */
+  showAll?: boolean;
+  /** Si viene, la lista muestra el botón "Ver progreso general". */
+  onOpenAllProgress?: () => void;
 }
 
 export function EventsView({
+  scrollHash,
   events,
   status,
   errorMessage,
@@ -74,10 +83,21 @@ export function EventsView({
   onEventCoverUpdated,
   onCreateSubtask,
   initialExpandedEventId,
+  onOpenEvent,
+  onBackFromEvent,
+  showAll,
+  onOpenAllProgress,
 }: EventsViewProps) {
   const [progressByEvent, setProgressByEvent] = useState<Record<number, EventProgress>>({});
   const [eventTypeNames, setEventTypeNames] = useState<Record<number, string>>({});
   const [expandedEventId, setExpandedEventId] = useState<number | null>(initialExpandedEventId);
+
+  // Sigue a la URL (atrás/adelante del navegador).
+  const [prevInitialId, setPrevInitialId] = useState(initialExpandedEventId);
+  if (prevInitialId !== initialExpandedEventId) {
+    setPrevInitialId(initialExpandedEventId);
+    setExpandedEventId(initialExpandedEventId);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -114,9 +134,9 @@ export function EventsView({
           const subtasks = await apiFetch<Subtask[]>(`/eventos/${event.eid}/subtareas/`);
           const completed = subtasks.filter((subtask) => subtask.status === "done").length;
           const todayCount = subtasks.filter(
-            (subtask) => subtask.status !== "done" && subtask.scheduled_date === today
+            (subtask) => subtask.status === "pending" && subtask.scheduled_date === today
           ).length;
-          const pending = sortSubtasksByDateThenHours(subtasks.filter((subtask) => subtask.status !== "done"));
+          const pending = sortSubtasksByDateThenHours(subtasks.filter((subtask) => subtask.status === "pending"));
           return [
             event.eid,
             {
@@ -191,12 +211,33 @@ export function EventsView({
         eventTypeName={eventTypeNameFor(expandedEvent)}
         subtasks={expandedProgress?.all ?? []}
         subtasksLoading={!expandedProgress}
-        onBack={() => setExpandedEventId(null)}
+        onBack={() => {
+          setExpandedEventId(null);
+          onBackFromEvent();
+        }}
         onEdit={() => onEditEvent(expandedEvent)}
         onDelete={() => onDeleteEvent(expandedEvent)}
         onOpenSubtask={onOpenSubtask}
         onEventCoverUpdated={onEventCoverUpdated}
         onCreateSubtask={() => onCreateSubtask(expandedEvent)}
+        scrollHash={scrollHash}
+      />
+    );
+  }
+
+  if (showAll && events.length > 0) {
+    return (
+      <EventDetailView
+        eventNameById={Object.fromEntries(events.map((item) => [item.eid, item.name]))}
+        subtasks={events.flatMap((item) => progressByEvent[item.eid]?.all ?? [])}
+        subtasksLoading={events.some((item) => !progressByEvent[item.eid])}
+        incompleteWarning={events.some((item) => {
+          const progress = progressByEvent[item.eid];
+          return progress && progress.all.length === 0 && progress.total > 0;
+        })}
+        onBack={onBackFromEvent}
+        onOpenSubtask={onOpenSubtask}
+        scrollHash={scrollHash}
       />
     );
   }
@@ -236,29 +277,45 @@ export function EventsView({
     // con Claude in Chrome) toma el alto real que le da eventos-panel
     // (flex flex-col flex-1 sobre planner-shell, ver homepage.tsx/css), así
     // que el centrado es contra el alto real de la pantalla, no solo 420px.
-    <div
-      className="flex flex-1 min-h-[420px] items-center gap-4 overflow-x-auto px-8 pb-8"
-      style={{ justifyContent: "safe center" }}
-    >
-      <CreateEventCard onClick={onCreateEvent} />
-      {events.map((event) => {
-        const progress = progressByEvent[event.eid];
-        return (
-          <EventCard
-            key={event.eid}
-            event={event}
-            eventTypeName={eventTypeNameFor(event)}
-            completed={progress?.completed ?? event.completed_subtasks ?? 0}
-            total={progress?.total ?? event.total_subtasks ?? 0}
-            todayCount={progress?.today ?? 0}
-            previewSubtasks={progress?.preview ?? []}
-            previewMoreCount={progress?.previewMoreCount ?? 0}
-            loading={!progress && event.total_subtasks === undefined}
-            onOpen={() => setExpandedEventId(event.eid)}
-            onEventCoverUpdated={onEventCoverUpdated}
-          />
-        );
-      })}
-    </div>
+    <>
+      {onOpenAllProgress && (
+        <div className="flex justify-center px-8 pt-4 pb-2">
+          <button
+            type="button"
+            onClick={onOpenAllProgress}
+            className="inline-flex h-[34px] items-center justify-center rounded-full bg-[#8b1a1a] px-4 font-jost text-[14px] text-white"
+          >
+            Ver progreso general
+          </button>
+        </div>
+      )}
+      <div
+        className="flex flex-1 min-h-[420px] items-center gap-4 overflow-x-auto px-8 pb-8"
+        style={{ justifyContent: "safe center" }}
+      >
+        <CreateEventCard onClick={onCreateEvent} />
+        {events.map((event) => {
+          const progress = progressByEvent[event.eid];
+          return (
+            <EventCard
+              key={event.eid}
+              event={event}
+              eventTypeName={eventTypeNameFor(event)}
+              completed={progress?.completed ?? event.completed_subtasks ?? 0}
+              total={progress?.total ?? event.total_subtasks ?? 0}
+              todayCount={progress?.today ?? 0}
+              previewSubtasks={progress?.preview ?? []}
+              previewMoreCount={progress?.previewMoreCount ?? 0}
+              loading={!progress && event.total_subtasks === undefined}
+              onOpen={() => {
+                setExpandedEventId(event.eid);
+                onOpenEvent(event.eid);
+              }}
+              onEventCoverUpdated={onEventCoverUpdated}
+            />
+          );
+        })}
+      </div>
+    </>
   );
 }

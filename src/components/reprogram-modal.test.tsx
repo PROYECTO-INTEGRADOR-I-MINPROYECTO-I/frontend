@@ -47,6 +47,14 @@ describe("ReprogramModal", () => {
     expect(await screen.findByRole("button", { name: "2 h" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("initialDate tiene prioridad sobre la fecha de la gestión", () => {
+    render(
+      <ReprogramModal subtask={subtask} eventName="Boda" initialDate="2026-10-15" onClose={vi.fn()} onReprogrammed={vi.fn()} />
+    );
+
+    expect(screen.getByLabelText("Nueva fecha")).toHaveValue("2026-10-15");
+  });
+
   test("sin conflicto, guarda directo con PATCH /subtareas/<id>/ y llama a onReprogrammed", async () => {
     const user = userEvent.setup();
     const onReprogrammed = vi.fn();
