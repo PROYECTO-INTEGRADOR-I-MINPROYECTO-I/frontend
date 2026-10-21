@@ -461,14 +461,19 @@ describe("HomePage", () => {
       await waitFor(() => expect(playSound).toHaveBeenCalledWith("postpone"));
     });
 
-    test("soltar una pospuesta en Pendientes la reactiva (PATCH pending)", async () => {
+    test("soltar una pospuesta en Pendientes la reactiva (PATCH pending y postpone_note null)", async () => {
       const fetchMock = renderHome([...subtasks, subtask({ subtask_id: 9, title: "Hoy Pospuesta", status: "postponed" })]);
       await screen.findByText("Hoy Pospuesta");
 
       await dragTo("Hoy Pospuesta", "Pendientes", ".today-panel");
 
       await waitFor(() =>
-        expect(patches(fetchMock).some(([url, o]) => String(url).includes("/subtareas/9/") && JSON.parse(String(o.body)).status === "pending")).toBe(true)
+        expect(
+          patches(fetchMock).some(([url, o]) => {
+            const body = JSON.parse(String(o.body));
+            return String(url).includes("/subtareas/9/") && body.status === "pending" && body.postpone_note === null;
+          })
+        ).toBe(true)
       );
     });
 

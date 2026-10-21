@@ -10,7 +10,7 @@
 // manejo de teclado (Enter/Espacio), que conserva el mismo comportamiento
 // accesible que tenía el <button> original.
 
-import { Check, CheckSquare, Clock, Play } from "lucide-react";
+import { Check, CheckSquare, Clock, Play, StickyNote } from "lucide-react";
 import type { Subtask } from "../lib/types";
 import { categoryChipStyle, formatDuration } from "../lib/subtask-display";
 import { formatShortDateEs } from "../lib/dates";
@@ -33,6 +33,7 @@ interface SubtaskCardProps {
   postponed?: boolean;
   onPostpone?: (subtask: Subtask) => void;
   onReactivate?: (subtask: Subtask) => void;
+  onAddNote?: (subtask: Subtask) => void;
   /**
    * PIM1-11 (corrección del profesor): nombre del evento al que pertenece la
    * gestión, para distinguirla cuando la vista no está filtrada por un solo
@@ -62,6 +63,7 @@ export function SubtaskCard({
   postponed = false,
   onPostpone,
   onReactivate,
+  onAddNote,
   eventName,
   onEventClick,
   draggable = false,
@@ -134,6 +136,20 @@ export function SubtaskCard({
             <span className="rounded-full bg-[#f3f4f6] px-2 py-0.5 font-jost text-[10px] tracking-[0.25px] text-[#4a5565] uppercase">
               {hoursLabel}
             </span>
+            {postponed && onAddNote && (
+              <button
+                type="button"
+                aria-label="Añadir nota"
+                title="Añadir nota"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAddNote(subtask);
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#99a1af] transition-colors hover:bg-[#f4f4f5] hover:text-[#52525b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
+              >
+                <StickyNote aria-hidden="true" size={13} />
+              </button>
+            )}
             {action && !isDone && (
               <button
                 type="button"
@@ -163,6 +179,10 @@ export function SubtaskCard({
             {formatShortDateEs(subtask.scheduled_date)}
           </span>
         </div>
+
+        {postponed && subtask.postpone_note && (
+          <p title={subtask.postpone_note} className="truncate pt-1 font-source text-[12px] italic text-[#99a1af]">{subtask.postpone_note}</p>
+        )}
 
         {eventName && (
           <p className="flex items-center gap-1 pt-1 font-source text-[12px]">
