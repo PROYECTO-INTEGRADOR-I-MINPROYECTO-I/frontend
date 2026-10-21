@@ -6,6 +6,7 @@
 // El toggle de completar lo controla el padre (ver handleToggleComplete en
 // homepage.tsx, con actualización optimista y reversión si falla el PATCH).
 
+import { useRef, useState } from "react";
 import { Calendar, Check, Clock, Pencil, Play, Trash2 } from "lucide-react";
 import { formatShortDateEs, todayLocalDateString } from "../lib/dates";
 import {
@@ -37,6 +38,9 @@ interface SubtaskDetailModalProps {
   togglePending?: boolean;
   /** Error del último intento de completar/despausar, con su acción de reintento. */
   toggleError?: SubtaskToggleError | null;
+  /** Nota de una gestión pospuesta; sin esta prop no se muestra la sección. */
+  onSaveNote?: (subtask: Subtask, note: string) => void;
+  focusNote?: boolean;
 }
 
 export function SubtaskDetailModal({
@@ -50,7 +54,10 @@ export function SubtaskDetailModal({
   onReactivate,
   togglePending = false,
   toggleError = null,
+  onSaveNote,
+  focusNote = false,
 }: SubtaskDetailModalProps) {
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const timeStatus = subtaskTimeStatus(subtask.status, subtask.scheduled_date, todayLocalDateString());
   const timeStatusStyle = TIME_STATUS_STYLES[timeStatus];
   const categoryStyle = categoryChipStyle(subtask.category);
@@ -63,6 +70,7 @@ export function SubtaskDetailModal({
     <Modal
       open
       onClose={onClose}
+      initialFocusRef={focusNote ? noteRef : undefined}
       title={subtask.title}
       chips={[
         { label: TIME_STATUS_LABELS[timeStatus], style: { backgroundColor: timeStatusStyle.bg, color: timeStatusStyle.text } },
@@ -147,7 +155,62 @@ export function SubtaskDetailModal({
             {subtask.description || "Sin descripción."}
           </p>
         </div>
+
+        {isPostponed && onSaveNote && (
+          <NoteSection
+            key={`${subtask.subtask_id}:${subtask.postpone_note ?? ""}`}
+            subtask={subtask}
+            onSave={onSaveNote}
+            saving={togglePending}
+            textareaRef={noteRef}
+          />
+        )}
       </div>
     </Modal>
+  );
+}
+
+// Se remonta con key al cambiar la nota guardada, así el borrador nunca queda viejo.
+function NoteSection({
+  subtask,
+  onSave,
+  saving,
+  textareaRef,
+}: {
+  subtask: Subtask;
+  onSave: (subtask: Subtask, note: string) => void;
+  saving: boolean;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+}) {
+  const savedNote = subtask.postpone_note ?? "";
+  const [note, setNote] = useState(savedNote);
+
+  return (
+    <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
+      <div className="flex items-center justify-between">
+        <label htmlFor="postpone-note" className="font-jost text-[12px] tracking-[1px] text-[#4a5565] uppercase">
+          Nota
+        </label>
+        {note.trim() !== savedNote && (
+          <button
+            type="button"
+            onClick={() => onSave(subtask, note)}
+            disabled={saving}
+            className="font-jost text-[12px] text-[#8b1a1a] underline disabled:opacity-60"
+          >
+            Guardar nota
+          </button>
+        )}
+      </div>
+      <textarea
+        id="postpone-note"
+        ref={textareaRef}
+        rows={2}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="¿Por qué la pospusiste?"
+        className="w-full rounded-lg border border-[#e5e7eb] p-2 font-source text-[14px] text-[#1e2939]"
+      />
+    </div>
   );
 }

@@ -16,7 +16,7 @@ import { ReprogramModal } from "../components/reprogram-modal";
 import { DRAG_TYPE, SubtaskCard } from "../components/subtask-card";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { ViewSwitcher, type ViewSwitcherValue } from "../components/view-switcher";
-import { apiFetch, ApiError, setSubtaskStatus } from "../lib/api";
+import { apiFetch, ApiError, setPostponeNote, setSubtaskStatus } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { playSound } from "../lib/sounds";
 import { addDaysToLocalDate } from "../lib/dates";
@@ -96,6 +96,7 @@ export function HomePage() {
   const [subtaskFormKey, setSubtaskFormKey] = useState(0);
   const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
   const [detailSubtask, setDetailSubtask] = useState<Subtask | null>(null);
+  const [noteFocusId, setNoteFocusId] = useState<number | null>(null);
   // Sprint 3 / C1: ReprogramModal, separado de SubtaskFormModal porque es un
   // popup más chico (solo fecha y duración) y reutiliza los campos del
   // Wizard de creación en vez del formulario completo.
@@ -456,7 +457,7 @@ export function HomePage() {
     // foto vieja si esta llamada viene de un cierre de "Reintentar") para
     // partir siempre del estado real vigente.
     const current = findSubtaskInToday(todayRef.current, subtask.subtask_id) ?? subtask;
-    await changeStatus(subtask, current.status === "done" ? "pending" : "done", undefined, () =>
+    await changeStatus(subtask, current.status === "done" ? "pending" : "done", undefined, undefined, () =>
       handleToggleComplete(subtask)
     );
   }
@@ -500,13 +501,48 @@ export function HomePage() {
   }
 
   const handlePostpone = (subtask: Subtask) => changeStatus(subtask, "postponed", "Gestión pospuesta");
-  const handleReactivate = (subtask: Subtask) => changeStatus(subtask, "pending", "Gestión reactivada");
+  const handleReactivate = (subtask: Subtask) =>
+    changeStatus(subtask, "pending", "Gestión reactivada", { postpone_note: null });
 
-  async function changeStatus(
+  const openDetail = (subtask: Subtask) => {
+    setNoteFocusId(null);
+    setDetailSubtask(subtask);
+  };
+
+  const handleAddNote = (subtask: Subtask) => {
+    setNoteFocusId(subtask.subtask_id);
+    setDetailSubtask(subtask);
+  };
+
+  const handleSaveNote = (subtask: Subtask, note: string) =>
+    updateSubtask(subtask, () => setPostponeNote(subtask.subtask_id, note.trim() || null), () =>
+      handleSaveNote(subtask, note), "Nota guardada");
+
+  function changeStatus(
     subtask: Subtask,
     nextStatus: SubtaskStatus,
     successText?: string,
-    retry: () => void = () => changeStatus(subtask, nextStatus, successText)
+    extra?: { postpone_note?: null },
+    retry: () => void = () => changeStatus(subtask, nextStatus, successText, extra)
+  ) {
+    return updateSubtask(
+      subtask,
+      () => setSubtaskStatus(subtask.subtask_id, nextStatus, extra),
+      retry,
+      successText,
+      () =>
+        playSound(
+          nextStatus === "done" ? "complete" : nextStatus === "postponed" ? "postpone" : subtask.status === "postponed" ? "reactivate" : "uncomplete"
+        )
+    );
+  }
+
+  async function updateSubtask(
+    subtask: Subtask,
+    request: () => Promise<Subtask>,
+    retry: () => void,
+    successText?: string,
+    sound?: () => void
   ) {
     const subtaskId = subtask.subtask_id;
     if (pendingToggleIds.has(subtaskId)) return; // ya hay un cambio en curso para esta gestión: evita dobles clics
@@ -515,11 +551,9 @@ export function HomePage() {
     addPendingToggle(subtaskId);
 
     try {
-      const updated = await setSubtaskStatus(subtaskId, nextStatus);
+      const updated = await request();
       setDetailSubtask((prev) => (prev && prev.subtask_id === subtaskId ? updated : prev));
-      playSound(
-        nextStatus === "done" ? "complete" : nextStatus === "postponed" ? "postpone" : subtask.status === "postponed" ? "reactivate" : "uncomplete"
-      );
+      sound?.();
       await loadToday(selectedEventId);
       setSubtasksVersion((version) => version + 1);
       if (successText) showSuccess(successText);
@@ -776,7 +810,7 @@ export function HomePage() {
                     <SubtaskCard
                       key={subtask.subtask_id}
                       subtask={subtask}
-                      onOpen={setDetailSubtask}
+                      onOpen={openDetail}
                       onToggleComplete={handleToggleComplete}
                       onPostpone={handlePostpone}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
@@ -855,7 +889,7 @@ export function HomePage() {
                     countText="#bb4d00"
                     items={sortedTodayPending}
                     emptyHint="Sin pendientes para hoy."
-                    onOpen={setDetailSubtask}
+                    onOpen={openDetail}
                     onToggleComplete={handleToggleComplete}
                     onPostpone={handlePostpone}
                     pendingToggleIds={pendingToggleIds}
@@ -868,7 +902,7 @@ export function HomePage() {
                     countText="#007a55"
                     items={sortedDone}
                     emptyHint="Sin gestiones completadas."
-                    onOpen={setDetailSubtask}
+                    onOpen={openDetail}
                     onToggleComplete={handleToggleComplete}
                     pendingToggleIds={pendingToggleIds}
                     completed
@@ -881,9 +915,10 @@ export function HomePage() {
                     countText="#52525b"
                     items={sortedPostponed}
                     emptyHint="Sin gestiones pospuestas."
-                    onOpen={setDetailSubtask}
+                    onOpen={openDetail}
                     onToggleComplete={handleToggleComplete}
                     onReactivate={handleReactivate}
+                    onAddNote={handleAddNote}
                     pendingToggleIds={pendingToggleIds}
                     postponed
                   />
@@ -925,7 +960,7 @@ export function HomePage() {
                     <SubtaskCard
                       key={subtask.subtask_id}
                       subtask={subtask}
-                      onOpen={setDetailSubtask}
+                      onOpen={openDetail}
                       onToggleComplete={handleToggleComplete}
                       pending={pendingToggleIds.has(subtask.subtask_id)}
                       draggable
@@ -974,7 +1009,7 @@ export function HomePage() {
             onCreateEvent={openCreateForm}
             onEditEvent={openEditEventForm}
             onDeleteEvent={requestDeleteEvent}
-            onOpenSubtask={setDetailSubtask}
+            onOpenSubtask={openDetail}
             refreshToken={subtasksVersion}
             onEventCoverUpdated={handleEventCoverUpdated}
             onCreateSubtask={openSubtaskForm}
@@ -1065,6 +1100,8 @@ export function HomePage() {
           onToggleComplete={handleToggleComplete}
           onPostpone={handlePostpone}
           onReactivate={handleReactivate}
+          onSaveNote={handleSaveNote}
+          focusNote={noteFocusId === detailSubtask.subtask_id}
           togglePending={pendingToggleIds.has(detailSubtask.subtask_id)}
           toggleError={
             toggleError && toggleError.subtaskId === detailSubtask.subtask_id
@@ -1197,6 +1234,7 @@ function TodayPanel({
   postponed = false,
   onPostpone,
   onReactivate,
+  onAddNote,
   onDropSubtask,
 }: {
   label: string;
@@ -1212,6 +1250,7 @@ function TodayPanel({
   postponed?: boolean;
   onPostpone?: (subtask: Subtask) => void;
   onReactivate?: (subtask: Subtask) => void;
+  onAddNote?: (subtask: Subtask) => void;
   onDropSubtask?: (id: number) => void;
 }) {
   const drop = useDropZone(onDropSubtask);
@@ -1241,6 +1280,7 @@ function TodayPanel({
               postponed={postponed}
               onPostpone={onPostpone}
               onReactivate={onReactivate}
+              onAddNote={onAddNote}
               draggable
               eventName={subtask.event_name}
             />
