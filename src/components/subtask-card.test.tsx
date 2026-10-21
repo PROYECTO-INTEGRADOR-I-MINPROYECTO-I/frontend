@@ -136,4 +136,22 @@ describe("SubtaskCard", () => {
     expect(onToggleComplete).toHaveBeenCalledTimes(2);
     expect(onOpen).not.toHaveBeenCalled();
   });
+
+  test("pospuesta muestra Añadir nota y la nota, sin abrir el detalle", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const onAddNote = vi.fn();
+    const noted = { ...subtask, postpone_note: "Esperar al proveedor" };
+    const { rerender } = render(<SubtaskCard subtask={noted} onOpen={onOpen} onAddNote={onAddNote} />);
+
+    expect(screen.queryByRole("button", { name: "Añadir nota" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Esperar al proveedor")).not.toBeInTheDocument();
+
+    rerender(<SubtaskCard subtask={noted} onOpen={onOpen} onAddNote={onAddNote} postponed />);
+    expect(screen.getByText("Esperar al proveedor")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Añadir nota" }));
+
+    expect(onAddNote).toHaveBeenCalledWith(noted);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
 });

@@ -419,10 +419,21 @@ export async function createSubtask(
  * actualización optimista con reversión (ver homepage.tsx) tenga un solo
  * lugar de dónde partir.
  */
-export async function setSubtaskStatus(subtaskId: number, status: SubtaskStatus): Promise<Subtask> {
+export async function setSubtaskStatus(
+  subtaskId: number,
+  status: SubtaskStatus,
+  extra: { postpone_note?: null } = {}
+): Promise<Subtask> {
   return apiFetch<Subtask>(`/subtareas/${subtaskId}/`, {
     method: "PATCH",
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...extra }),
+  });
+}
+
+export async function setPostponeNote(subtaskId: number, note: string | null): Promise<Subtask> {
+  return apiFetch<Subtask>(`/subtareas/${subtaskId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ postpone_note: note }),
   });
 }
 

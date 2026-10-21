@@ -85,6 +85,7 @@ export interface Subtask {
   /** "YYYY-MM-DD", sin hora. */
   scheduled_date: string;
   status: SubtaskStatus;
+  postpone_note?: string | null;
   /** Solo presente en GET /api/hoy/ (TodaySubtaskSerializer): nombre del evento dueño, para la vista agregada. */
   event_name?: string;
   // TODO(backend): SubtaskSerializer todavía devuelve `priority`. El frontend

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SubtaskDetailModal } from "./subtask-detail-modal";
@@ -186,5 +186,47 @@ describe("SubtaskDetailModal", () => {
     await user.click(screen.getByRole("button", { name: "Reprogramar" }));
 
     expect(onReprogram).toHaveBeenCalledWith(subtask);
+  });
+
+  test("la sección Nota solo aparece si está pospuesta y Guardar nota envía el texto", async () => {
+    const user = userEvent.setup();
+    const onSaveNote = vi.fn();
+    const props = {
+      onClose: vi.fn(),
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+      onToggleComplete: vi.fn(),
+      onReprogram: vi.fn(),
+      onSaveNote,
+    };
+    const { rerender } = render(<SubtaskDetailModal subtask={subtask} {...props} />);
+    expect(screen.queryByPlaceholderText("¿Por qué la pospusiste?")).not.toBeInTheDocument();
+
+    const postponed = { ...subtask, status: "postponed" as const };
+    rerender(<SubtaskDetailModal subtask={postponed} {...props} />);
+    expect(screen.queryByRole("button", { name: "Guardar nota" })).not.toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("¿Por qué la pospusiste?"), "Esperar respuesta");
+    await user.click(screen.getByRole("button", { name: "Guardar nota" }));
+
+    expect(onSaveNote).toHaveBeenCalledWith(postponed, "Esperar respuesta");
+  });
+
+  test("con focusNote el textarea de la nota recibe el foco", async () => {
+    const postponed = { ...subtask, status: "postponed" as const };
+    render(
+      <SubtaskDetailModal
+        subtask={postponed}
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onToggleComplete={vi.fn()}
+        onReprogram={vi.fn()}
+        onSaveNote={vi.fn()}
+        focusNote
+      />
+    );
+
+    await waitFor(() => expect(screen.getByPlaceholderText("¿Por qué la pospusiste?")).toHaveFocus());
   });
 });
