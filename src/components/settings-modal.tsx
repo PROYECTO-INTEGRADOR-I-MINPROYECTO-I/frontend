@@ -103,7 +103,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             })}
           />
           <p id="settings-max-hours-help" className="font-source text-[12px] text-[#99a1af]">
-            Entre 1 y 16 horas al día. Por defecto, 6 horas.
+            Es el máximo de horas que quieres dedicar a gestiones en un mismo día. Si una gestión te hace pasarlo, te avisaremos. Entre 1 y 16 horas; por defecto, 6.
           </p>
           {errors.max_daily_hours && (
             <p id="settings-max-hours-error" role="alert" className="text-[12px] text-red-600">
