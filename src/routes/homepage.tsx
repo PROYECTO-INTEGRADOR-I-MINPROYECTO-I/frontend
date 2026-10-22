@@ -118,6 +118,7 @@ export function HomePage() {
   // había antes. `metric` es el toggle Gestiones/Horas de la barra de
   // progreso: puramente local, progreso_dia ya trae ambas métricas siempre.
   const [today, setToday] = useState<TodaySummary | null>(null);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [todayStatus, setTodayStatus] = useState<"loading" | "ready" | "error">("loading");
   const [todayError, setTodayError] = useState("");
   const [metric, setMetric] = useState<"gestiones" | "horas">("gestiones");
@@ -230,7 +231,7 @@ export function HomePage() {
     setTodayStatus("loading");
     setTodayError("");
     try {
-      const query = eventId != null ? `?event_id=${eventId}` : "";
+      const query = `?${eventId != null ? `event_id=${eventId}&` : ""}dias_proximos=0`;
       const data = await apiFetch<TodaySummary>(`/hoy/${query}`, { signal: controller.signal });
       if (todayAbortRef.current !== controller) return; // ya se abortó por una carga más nueva
       setToday(data);
@@ -645,13 +646,14 @@ export function HomePage() {
   const sortedDone = today ? sortCompletedSubtasksByDateDesc(today.para_hoy.completadas) : [];
   const sortedPostponed = today ? sortSubtasksByDateThenHours(today.para_hoy.pospuestas ?? []) : [];
   const postponedElsewhere = today?.pospuestas_otros_dias ?? 0;
-  // `proximas` solo cubre hasta hoy + dias_proximos (7 por defecto, ver
-  // planning/views.py): una gestión agendada más adelante no aparece acá
-  // aunque sí exista (se ve completa, sin ese recorte, en la vista expandida
-  // de Eventos). La columna dice "Próximos 7 días" para que esto sea visible
-  // en la UI en vez de parecer que la gestión "se perdió".
-  const sortedUpcoming = today ? sortSubtasksByDateThenHours(today.proximas) : [];
-  const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedPostponed.length + sortedUpcoming.length;
+  // dias_proximos=0 trae todas las próximas; por defecto se ven las de hoy+7
+  // y el resto queda tras "Ver todas las próximas".
+  const allUpcoming = today ? sortSubtasksByDateThenHours(today.proximas) : [];
+  const nearLimit = today ? addDaysToLocalDate(today.fecha, 7) : "";
+  const nearUpcoming = allUpcoming.filter((subtask) => subtask.scheduled_date <= nearLimit);
+  const farCount = allUpcoming.length - nearUpcoming.length;
+  const sortedUpcoming = showAllUpcoming ? allUpcoming : nearUpcoming;
+  const totalCount = sortedOverdue.length + sortedTodayPending.length + sortedDone.length + sortedPostponed.length + allUpcoming.length;
 
   // Corrección del profesor (clínica de Sprint 1): sin eventos, ocultar todo
   // (selector, filtros, barra de progreso, columnas) y dejar solo un botón de
@@ -947,9 +949,9 @@ export function HomePage() {
             </TaskColumn>
 
             <TaskColumn
-              title="Próximos 7 días"
+              title="Próximas"
               countClass="count--blue"
-              count={String(sortedUpcoming.length)}
+              count={String(allUpcoming.length)}
               showClock
               onDropSubtask={(id) => handleDrop(id, "proximas")}
               orderHint="En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
@@ -971,6 +973,16 @@ export function HomePage() {
               )}
               {totalCount > 0 && sortedUpcoming.length === 0 && (
                 <p className="column-empty-hint">Sin gestiones en los próximos 7 días.</p>
+              )}
+              {farCount > 0 && (
+                <button
+                  type="button"
+                  className="column-more-link"
+                  aria-expanded={showAllUpcoming}
+                  onClick={() => setShowAllUpcoming((v) => !v)}
+                >
+                  {showAllUpcoming ? "Ver menos" : `Ver todas las próximas (+${farCount})`}
+                </button>
               )}
             </TaskColumn>
           </section>

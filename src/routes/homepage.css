@@ -157,6 +157,7 @@
   text-underline-offset: 2px;
   cursor: help;
 }
+.column-more-link { align-self: flex-start; margin-top: 12px; padding: 0; border: none; background: none; color: var(--wine); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .column-body { min-height: 460px; display: flex; flex-direction: column; }
 
 .clock-icon { position: relative; display: inline-block; width: 13px; height: 13px; border: 2px solid #9ca3af; border-radius: 50%; }
