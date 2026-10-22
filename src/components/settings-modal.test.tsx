@@ -31,7 +31,7 @@ describe("SettingsModal", () => {
     renderSettings(vi.fn().mockResolvedValue(jsonResponse({ user: meUser, access: "access-1" }, 200)));
 
     expect(await screen.findByLabelText("Límite diario de horas de gestión")).toHaveValue(6);
-    expect(screen.getByText("Entre 1 y 16 horas al día. Por defecto, 6 horas.")).toBeInTheDocument();
+    expect(screen.getByText("Es el máximo de horas que quieres dedicar a gestiones en un mismo día. Si una gestión te hace pasarlo, te avisaremos. Entre 1 y 16 horas; por defecto, 6.")).toBeInTheDocument();
   });
 
   test("guardar un valor fuera de rango (1-16) no envía nada y muestra el mensaje de ayuda del rango", async () => {
