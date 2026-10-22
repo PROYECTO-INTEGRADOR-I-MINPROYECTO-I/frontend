@@ -217,7 +217,7 @@ describe("HomePage", () => {
     expect(columnHeadings).toEqual(["Vencidas", "Para Hoy", "Próximos 7 días"]);
   });
 
-  test("cada grupo de Hoy tiene un trigger '¿Cómo se ordena?' con su regla de orden real en el tooltip", async () => {
+  test("cada grupo de Hoy tiene un '¿Cómo se ordena?' que abre un popup con su regla de orden", async () => {
     stubHomepageFetch();
 
     render(
@@ -227,27 +227,20 @@ describe("HomePage", () => {
     );
     await screen.findByText("Vencida A");
 
-    // 3 grupos (Próximos/Para Hoy/Vencidas), cada uno con su propio trigger.
+    const user = userEvent.setup();
     const triggers = screen.getAllByRole("button", { name: "¿Cómo se ordena?" });
     expect(triggers).toHaveLength(3);
+    expect(screen.queryByRole("dialog")).toBeNull();
 
-    const tooltipFor = (title: string) => triggers.find((t) => t.getAttribute("title") === title);
-    // Vencidas: fecha más antigua primero (la más vencida), desempate por duración.
-    expect(
-      tooltipFor(
-        "En el grupo de gestiones vencidas se muestran primero las gestiones con fecha más antigua. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
-      )
-    ).toBeDefined();
-    // Próximas: fecha más cercana primero, desempate por duración.
-    expect(
-      tooltipFor(
-        "En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
-      )
-    ).toBeDefined();
-    // Para Hoy: todas comparten fecha, así que el único criterio real es la duración.
-    expect(
-      tooltipFor("En el grupo de gestiones para hoy todas comparten la misma fecha, así que se muestran primero las de mayor duración.")
-    ).toBeDefined();
+    // Orden de las columnas: Vencidas, Para Hoy, Próximos 7 días.
+    const esperado = ["gestiones vencidas", "gestiones para hoy", "gestiones próximas"];
+    for (const [i, texto] of esperado.entries()) {
+      await user.click(triggers[i]);
+      const dialog = screen.getByRole("dialog");
+      expect(within(dialog).getByText(new RegExp(`En el grupo de ${texto}`))).toBeDefined();
+      await user.click(within(dialog).getByRole("button", { name: "Entendido" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }
   });
 
   test("el selector de evento vive junto al heading, y 'Crear gestión' aparece debajo", async () => {
