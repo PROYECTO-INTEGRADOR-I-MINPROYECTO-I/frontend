@@ -14,6 +14,7 @@ import { SubtaskWizard } from "../components/subtask-wizard";
 import { SubtaskDetailModal } from "../components/subtask-detail-modal";
 import { ReprogramModal } from "../components/reprogram-modal";
 import { DRAG_TYPE, SubtaskCard } from "../components/subtask-card";
+import { Modal } from "../components/modal";
 import { ConfirmDialog } from "../components/confirm-dialog";
 import { ViewSwitcher, type ViewSwitcherValue } from "../components/view-switcher";
 import { apiFetch, ApiError, setPostponeNote, setSubtaskStatus } from "../lib/api";
@@ -1182,18 +1183,13 @@ function TaskColumn({
   showClock?: boolean;
   /** Destino de foco estable (ej. tras borrar una gestión); necesita tabIndex=-1 porque un h2 no es focuseable por defecto. */
   headingRef?: React.RefObject<HTMLHeadingElement | null>;
-  /** Criterio de aceptación del sprint: describir la regla de orden real de
-   * cada grupo (fecha primero, desempate por duración) — ver
-   * sortSubtasksByDateThenHours/sortCompletedSubtasksByDateDesc. Se revisó
-   * con el equipo como texto siempre visible y se prefirió un trigger con
-   * tooltip (mismo patrón nativo `title` que ya usa WizardStageIndicator
-   * para los errores de validación) para no sumarle ruido permanente a la
-   * columna. */
+  /** Regla de orden del grupo; se muestra en un popup al pulsar "¿Cómo se ordena?". */
   orderHint?: string;
   onDropSubtask?: (id: number) => void;
   children?: React.ReactNode;
 }) {
   const drop = useDropZone(onDropSubtask);
+  const [hintOpen, setHintOpen] = useState(false);
   return (
     <article
       className={`task-column${title === "Para Hoy" ? " task-column--today" : ""}${drop.over ? " drop-over" : ""}`}
@@ -1210,10 +1206,28 @@ function TaskColumn({
       </div>
       {orderHint && (
         <p className="column-order-hint">
-          <button type="button" className="column-order-hint-trigger" title={orderHint}>
+          <button type="button" className="column-order-hint-trigger" onClick={() => setHintOpen(true)}>
             ¿Cómo se ordena?
           </button>
         </p>
+      )}
+      {orderHint && (
+        <Modal
+          open={hintOpen}
+          onClose={() => setHintOpen(false)}
+          title={`Orden de ${title}`}
+          footer={
+            <button
+              type="button"
+              onClick={() => setHintOpen(false)}
+              className="flex-1 rounded-lg border border-[0.635px] border-[#8b1a1a] py-[10px] font-jost text-[14px] text-[#8b1a1a]"
+            >
+              Entendido
+            </button>
+          }
+        >
+          <p className="font-jost text-[14px] text-[#364153]">{orderHint}</p>
+        </Modal>
       )}
       <div className="column-body">{children}</div>
     </article>
