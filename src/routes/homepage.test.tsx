@@ -162,7 +162,7 @@ function columnCardTitles(headingName: string): string[] {
   return within(column)
     .getAllByRole("button")
     .map((button) => button.getAttribute("aria-label"))
-    .filter((label): label is string => label !== null && label !== "Posponer");
+    .filter((label): label is string => label !== null);
 }
 
 beforeEach(() => {
@@ -197,7 +197,7 @@ describe("HomePage", () => {
     const pendingTitles = within(pendingSection as HTMLElement)
       .getAllByRole("button")
       .map((button) => button.getAttribute("aria-label"))
-      .filter((label): label is string => label !== null && label !== "Posponer");
+      .filter((label): label is string => label !== null);
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
