@@ -150,21 +150,6 @@ export function SubtaskCard({
                 <StickyNote aria-hidden="true" size={13} />
               </button>
             )}
-            {action && !isDone && (
-              <button
-                type="button"
-                aria-label={postponed ? "Reactivar" : "Posponer"}
-                title={postponed ? "Reactivar" : "Posponer"}
-                disabled={pending}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  action(subtask);
-                }}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[#99a1af] transition-colors hover:bg-[#f4f4f5] hover:text-[#52525b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a] disabled:opacity-50"
-              >
-                {postponed ? <Play aria-hidden="true" size={13} /> : <Clock aria-hidden="true" size={13} />}
-              </button>
-            )}
           </div>
         </div>
 
@@ -178,6 +163,20 @@ export function SubtaskCard({
           <span className={cn("font-source text-[12px]", overdue ? "text-[rgba(139,26,26,0.7)]" : "text-[#99a1af]")}>
             {formatShortDateEs(subtask.scheduled_date)}
           </span>
+          {action && !isDone && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={(event) => {
+                event.stopPropagation();
+                action(subtask);
+              }}
+              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border border-[#8b1a1a] px-2 py-0.5 font-jost text-[12px] text-[#8b1a1a] transition-colors hover:bg-[#fff0f0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a] disabled:opacity-50"
+            >
+              {postponed ? <Play aria-hidden="true" size={13} /> : <Clock aria-hidden="true" size={13} />}
+              {postponed ? "Reactivar" : "Posponer"}
+            </button>
+          )}
         </div>
 
         {postponed && subtask.postpone_note && (
