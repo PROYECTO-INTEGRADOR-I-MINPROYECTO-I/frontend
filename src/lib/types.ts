@@ -53,6 +53,7 @@ export type UpdateEventPayload = Partial<CreateEventPayload>;
 export interface EventType {
   id: number | string;
   name: string;
+  custom?: boolean;
 }
 
 /**

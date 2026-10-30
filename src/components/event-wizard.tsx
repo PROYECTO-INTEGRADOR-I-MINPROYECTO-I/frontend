@@ -360,6 +360,7 @@ export function EventWizard({ maxDailyHours, onClose, onEventCreated, onSubtaskC
                       helperText="Elige el tipo o crea uno personalizado."
                       createLabel="Crear tipo personalizado"
                       onCreate={createEventType}
+                      onDelete={(option) => apiFetch(`/tipos-evento/${option.id}/`, { method: "DELETE" })}
                     />
                   )}
                 />
