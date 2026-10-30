@@ -2,14 +2,16 @@
 // y luego categorías en PIM1-27). Se usa como componente controlado: se
 // integra con react-hook-form mediante <Controller value/onChange>.
 
-import { useId, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { ApiError } from "../lib/api";
 import { cn } from "../lib/utils";
 
 export interface SelectOption {
   id: string | number;
   name: string;
+  /** Creada por el usuario: solo estas se pueden borrar. */
+  custom?: boolean;
 }
 
 const CREATE_VALUE = "__create__";
@@ -28,6 +30,7 @@ interface CreatableSelectProps {
   helperText?: string;
   createLabel?: string;
   onCreate: (name: string) => Promise<SelectOption>;
+  onDelete?: (option: SelectOption) => Promise<unknown>;
 }
 
 export function CreatableSelect({
@@ -44,6 +47,7 @@ export function CreatableSelect({
   helperText,
   createLabel = "Crear personalizado",
   onCreate,
+  onDelete,
 }: CreatableSelectProps) {
   const generatedId = useId();
   const selectId = id ?? generatedId;
@@ -57,11 +61,16 @@ export function CreatableSelect({
   // Opciones creadas en esta sesión: se conservan aunque el listado del
   // padre todavía no las incluya (por ejemplo si no vuelve a pedir GET).
   const [extraOptions, setExtraOptions] = useState<SelectOption[]>([]);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
 
   const allOptions = [
     ...options,
     ...extraOptions.filter((extra) => !options.some((option) => String(option.id) === String(extra.id))),
-  ];
+  ].filter((option) => !deletedIds.includes(String(option.id)));
+  const selected = allOptions.find((option) => String(option.id) === String(value));
 
   function handleSelectChange(event: React.ChangeEvent<HTMLSelectElement>) {
     const raw = event.target.value;
@@ -79,6 +88,31 @@ export function CreatableSelect({
     setCreating(false);
     setDraftName("");
     setCreateError(null);
+  }
+
+  // Al cerrar la confirmación el panel se desmonta: el foco vuelve al select.
+  function closeDelete() {
+    setConfirmingDelete(false);
+    requestAnimationFrame(() => selectRef.current?.focus());
+  }
+
+  async function confirmDelete() {
+    if (!selected || !onDelete) return;
+    setSubmitting(true);
+    setDeleteError(null);
+    try {
+      // 404: ya no existe, se trata como borrado.
+      await onDelete(selected).catch((err) => {
+        if (!(err instanceof ApiError && err.status === 404)) throw err;
+      });
+      setDeletedIds((prev) => [...prev, String(selected.id)]);
+      onChange("");
+      closeDelete();
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "No se pudo eliminar. Intenta de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function confirmCreate() {
@@ -112,9 +146,13 @@ export function CreatableSelect({
       {!creating ? (
         <div className="relative">
           <select
+            ref={selectRef}
             id={selectId}
             value={value ?? ""}
-            onChange={handleSelectChange}
+            onChange={(event) => {
+              setConfirmingDelete(false);
+              handleSelectChange(event);
+            }}
             onBlur={onBlur}
             disabled={disabled || loading}
             aria-required={required}
@@ -192,6 +230,62 @@ export function CreatableSelect({
             </button>
           </div>
         </div>
+      )}
+
+      {!creating && selected?.custom && onDelete && (
+        confirmingDelete ? (
+          <div
+            className="flex flex-col gap-2 rounded-lg border border-[#d4d5d7] p-2"
+            onKeyDown={(event) => {
+              // Esc cancela solo esta confirmación, no el modal padre.
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                closeDelete();
+              }
+            }}
+          >
+            <p className="text-[13px] text-[#1e2939]">
+              ¿Eliminar «{selected.name}»? Los eventos que lo usan quedarán sin tipo.
+            </p>
+            {deleteError && (
+              <p role="alert" className="text-[12px] text-red-600">
+                {deleteError}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                autoFocus
+                onClick={closeDelete}
+                disabled={submitting}
+                className="h-7 flex-1 rounded-md border border-[#8b1a1a] font-jost text-[12px] text-[#8b1a1a] disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={submitting}
+                className="h-7 flex-1 rounded-md bg-[#8b1a1a] font-jost text-[12px] text-white disabled:opacity-50"
+              >
+                {submitting ? "Eliminando…" : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError(null);
+              setConfirmingDelete(true);
+            }}
+            className="inline-flex min-h-6 items-center gap-1 self-start font-jost text-[12px] text-[#8b1a1a] hover:text-[#6f1515]"
+          >
+            <Trash2 aria-hidden="true" size={13} />
+            Eliminar tipo «{selected.name}»
+          </button>
+        )
       )}
 
       {error ? (
