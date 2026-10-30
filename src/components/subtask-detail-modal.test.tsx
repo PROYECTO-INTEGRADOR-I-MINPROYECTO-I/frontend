@@ -65,10 +65,10 @@ describe("SubtaskDetailModal", () => {
     expect(onReactivate).toHaveBeenCalledWith(postponed);
   });
 
-  test("gestión completada muestra el botón 'Marcar como pendiente'", () => {
+  test.each(["done", "postponed"] as const)("gestión %s no muestra el botón de completar ni de pendiente", (status) => {
     render(
       <SubtaskDetailModal
-        subtask={{ ...subtask, status: "done" }}
+        subtask={{ ...subtask, status }}
         onClose={vi.fn()}
         onEdit={vi.fn()}
         onDelete={vi.fn()}
@@ -77,7 +77,7 @@ describe("SubtaskDetailModal", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "Marcar como pendiente" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /marcar como/i })).not.toBeInTheDocument();
   });
 
   test("el botón llama a onToggleComplete con la gestión actual", async () => {

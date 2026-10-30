@@ -1,6 +1,6 @@
 // Modal de detalle de una gestión, con Editar, Borrar y completar (US-09):
-// el pie tiene arriba el botón grande "Marcar como completada"/"Marcar como
-// pendiente", y abajo Editar/Borrar lado a lado — corrección del profesor
+// el pie tiene arriba el botón grande "Marcar como completada" (oculto si ya
+// está completada o pospuesta, retro del Sprint 4), y abajo Editar/Borrar lado a lado — corrección del profesor
 // (clínica de Sprint 1): las 3 acciones deben verse como botones con ícono,
 // no como un link de texto.
 // El toggle de completar lo controla el padre (ver handleToggleComplete en
@@ -78,16 +78,18 @@ export function SubtaskDetailModal({
       ]}
       footer={
         <>
-          <button
-            type="button"
-            onClick={() => onToggleComplete(subtask)}
-            disabled={togglePending}
-            aria-busy={togglePending}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#8b1a1a] py-[10px] font-jost text-[14px] text-white disabled:opacity-60"
-          >
-            <Check aria-hidden="true" size={16} />
-            {isDone ? "Marcar como pendiente" : "Marcar como completada"}
-          </button>
+          {!isDone && !isPostponed && (
+            <button
+              type="button"
+              onClick={() => onToggleComplete(subtask)}
+              disabled={togglePending}
+              aria-busy={togglePending}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#8b1a1a] py-[10px] font-jost text-[14px] text-white disabled:opacity-60"
+            >
+              <Check aria-hidden="true" size={16} />
+              Marcar como completada
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onReprogram(subtask)}

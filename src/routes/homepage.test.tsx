@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
 import { HomePage } from "./homepage";
 import { AuthProvider } from "../lib/auth";
 import { playSound } from "../lib/sounds";
@@ -162,7 +162,7 @@ function columnCardTitles(headingName: string): string[] {
   return within(column)
     .getAllByRole("button")
     .map((button) => button.getAttribute("aria-label"))
-    .filter((label): label is string => label !== null && label !== "Posponer");
+    .filter((label): label is string => label !== null);
 }
 
 beforeEach(() => {
@@ -188,7 +188,7 @@ describe("HomePage", () => {
     await screen.findByText("Vencida A");
 
     expect(columnCardTitles("Vencidas")).toEqual(["Vencida C", "Vencida B", "Vencida A"]);
-    expect(columnCardTitles("Próximos 7 días")).toEqual(["Próxima B", "Próxima A"]);
+    expect(columnCardTitles("Próximas")).toEqual(["Próxima B", "Próxima A"]);
 
     // "Para Hoy" separa pendientes de completadas: cada lista se ordena por horas.
     expect(screen.getByText("Pendientes")).toBeInTheDocument();
@@ -197,10 +197,32 @@ describe("HomePage", () => {
     const pendingTitles = within(pendingSection as HTMLElement)
       .getAllByRole("button")
       .map((button) => button.getAttribute("aria-label"))
-      .filter((label): label is string => label !== null && label !== "Posponer");
+      .filter((label): label is string => label !== null);
     expect(pendingTitles).toEqual(["Hoy B", "Hoy A"]);
 
     expect(screen.getByText("Hoy Hecha")).toBeInTheDocument();
+  });
+
+  test("una próxima a +20 días queda oculta hasta pulsar Ver todas las próximas", async () => {
+    const user = userEvent.setup();
+    const far = subtask({ subtask_id: 90, title: "Lejana", scheduled_date: "2026-10-10" });
+    subtasks.push(far);
+    onTestFinished(() => void subtasks.splice(subtasks.indexOf(far), 1));
+    stubHomepageFetch();
+
+    render(
+      <MemoryRouter initialEntries={["/?evento=1"]}>
+        <AuthProvider><HomePage /></AuthProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Vencida A");
+    expect(columnCardTitles("Próximas")).not.toContain("Lejana");
+    const toggle = screen.getByRole("button", { name: "Ver todas las próximas (+1)" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+    expect(columnCardTitles("Próximas")).toContain("Lejana");
+    expect(screen.getByRole("button", { name: "Ver menos" })).toHaveAttribute("aria-expanded", "true");
   });
 
   test("las columnas se muestran en el orden Vencidas, Para Hoy, Próximos 7 días (corrección del profesor)", async () => {
@@ -214,10 +236,10 @@ describe("HomePage", () => {
     await screen.findByText("Vencida A");
 
     const columnHeadings = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
-    expect(columnHeadings).toEqual(["Vencidas", "Para Hoy", "Próximos 7 días"]);
+    expect(columnHeadings).toEqual(["Vencidas", "Para Hoy", "Próximas"]);
   });
 
-  test("cada grupo de Hoy tiene un trigger '¿Cómo se ordena?' con su regla de orden real en el tooltip", async () => {
+  test("cada grupo de Hoy tiene un '¿Cómo se ordena?' que abre un popup con su regla de orden", async () => {
     stubHomepageFetch();
 
     render(
@@ -227,27 +249,20 @@ describe("HomePage", () => {
     );
     await screen.findByText("Vencida A");
 
-    // 3 grupos (Próximos/Para Hoy/Vencidas), cada uno con su propio trigger.
+    const user = userEvent.setup();
     const triggers = screen.getAllByRole("button", { name: "¿Cómo se ordena?" });
     expect(triggers).toHaveLength(3);
+    expect(screen.queryByRole("dialog")).toBeNull();
 
-    const tooltipFor = (title: string) => triggers.find((t) => t.getAttribute("title") === title);
-    // Vencidas: fecha más antigua primero (la más vencida), desempate por duración.
-    expect(
-      tooltipFor(
-        "En el grupo de gestiones vencidas se muestran primero las gestiones con fecha más antigua. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
-      )
-    ).toBeDefined();
-    // Próximas: fecha más cercana primero, desempate por duración.
-    expect(
-      tooltipFor(
-        "En el grupo de gestiones próximas se muestran primero las gestiones con fecha más cercana. Si hay varias gestiones en una misma fecha, se muestran primero las de mayor duración."
-      )
-    ).toBeDefined();
-    // Para Hoy: todas comparten fecha, así que el único criterio real es la duración.
-    expect(
-      tooltipFor("En el grupo de gestiones para hoy todas comparten la misma fecha, así que se muestran primero las de mayor duración.")
-    ).toBeDefined();
+    // Orden de las columnas: Vencidas, Para Hoy, Próximos 7 días.
+    const esperado = ["gestiones vencidas", "gestiones para hoy", "gestiones próximas"];
+    for (const [i, texto] of esperado.entries()) {
+      await user.click(triggers[i]);
+      const dialog = screen.getByRole("dialog");
+      expect(within(dialog).getByText(new RegExp(`En el grupo de ${texto}`))).toBeDefined();
+      await user.click(within(dialog).getByRole("button", { name: "Entendido" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+    }
   });
 
   test("el selector de evento vive junto al heading, y 'Crear gestión' aparece debajo", async () => {
@@ -415,7 +430,7 @@ describe("HomePage", () => {
       const fetchMock = renderHome();
       await screen.findByText("Hoy A");
 
-      await dragTo("Hoy A", "Próximos 7 días", ".task-column");
+      await dragTo("Hoy A", "Próximas", ".task-column");
 
       expect(await screen.findByText("Reprogramar gestión")).toBeInTheDocument();
       expect(patches(fetchMock)).toHaveLength(0);
@@ -436,7 +451,7 @@ describe("HomePage", () => {
       renderHome();
       await screen.findByText("Hoy A");
 
-      await dragTo("Hoy A", "Próximos 7 días", ".task-column");
+      await dragTo("Hoy A", "Próximas", ".task-column");
 
       expect(await screen.findByLabelText("Nueva fecha")).toHaveValue("2026-09-21");
     });
@@ -670,7 +685,7 @@ describe("HomePage", () => {
     expect(completedTitles()).not.toContain("Vencida A");
 
     await user.click(screen.getByRole("checkbox", { name: "Marcar Próxima A como completada" }));
-    await waitFor(() => expect(columnCardTitles("Próximos 7 días")).not.toContain("Próxima A"));
+    await waitFor(() => expect(columnCardTitles("Próximas")).not.toContain("Próxima A"));
     expect(completedTitles()).not.toContain("Próxima A");
   });
 
@@ -1024,7 +1039,7 @@ describe("HomePage", () => {
 
     expect(screen.getByRole("heading", { name: "Viendo gestiones de:" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Hoy" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "Próximos 7 días" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Próximas" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Para Hoy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Vencidas" })).toBeInTheDocument();
   });
@@ -1047,7 +1062,7 @@ describe("HomePage", () => {
 
     // La card del evento (botón con su nombre) reemplaza al placeholder viejo.
     expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Próximos 7 días" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
     expect(document.getElementById("hoy-panel")).toHaveAttribute("hidden");
   });
 
@@ -1127,7 +1142,7 @@ describe("HomePage", () => {
 
     expect(screen.getByRole("tab", { name: "Eventos" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("button", { name: /Boda Luisa & Carlos/ })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Próximos 7 días" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Próximas" })).not.toBeInTheDocument();
   });
 
   test("clickear una card en Eventos muestra la vista expandida del evento", async () => {
@@ -1420,7 +1435,7 @@ describe("HomePage", () => {
       .closest(".column-title")
       ?.querySelector(".clock-icon");
     const proximasIcon = screen
-      .getByRole("heading", { name: "Próximos 7 días" })
+      .getByRole("heading", { name: "Próximas" })
       .closest(".column-title")
       ?.querySelector(".clock-icon");
 
