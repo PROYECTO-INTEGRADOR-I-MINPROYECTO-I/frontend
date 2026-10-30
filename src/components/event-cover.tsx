@@ -127,7 +127,7 @@ export function EventCover({ event, eventTypeName, onEventCoverUpdated, classNam
             </p>
           )}
 
-          <p className="mb-2 font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Color</p>
+          <p className="mb-2 font-jost text-[11px] tracking-[0.5px] text-[#636b78] uppercase">Color</p>
           <div className="mb-3 flex flex-wrap gap-2">
             {COVER_PALETTE.map((color) => (
               <button
@@ -147,7 +147,7 @@ export function EventCover({ event, eventTypeName, onEventCoverUpdated, classNam
             ))}
           </div>
 
-          <p className="mb-2 font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Imagen</p>
+          <p className="mb-2 font-jost text-[11px] tracking-[0.5px] text-[#636b78] uppercase">Imagen</p>
           <form onSubmit={handleImageSubmit} className="flex flex-col gap-2">
             <label htmlFor={`cover-image-${event.eid}`} className="sr-only">
               Enlace de imagen

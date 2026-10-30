@@ -21,7 +21,7 @@ export function NotFoundPage() {
     : { to: "/register", label: "Crear cuenta" };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f7f5f2] px-0">
+    <main className="min-h-screen flex flex-col items-center justify-center bg-[#f7f5f2] px-0">
       <AuthBrandMark />
       <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-6">
         <div className="text-center space-y-2">
@@ -45,6 +45,6 @@ export function NotFoundPage() {
           </Button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

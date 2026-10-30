@@ -56,7 +56,7 @@ export function WizardStageIndicator({
                   ? "border-[#8b1a1a] bg-[#8b1a1a] text-white"
                   : reached
                     ? "border-[#8b1a1a] text-[#8b1a1a]"
-                    : "border-[#e5e7eb] text-[#99a1af]"
+                    : "border-[#e5e7eb] text-[#636b78]"
               )}
             >
               {index + 1}

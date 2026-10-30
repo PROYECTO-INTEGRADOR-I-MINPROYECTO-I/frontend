@@ -37,7 +37,7 @@ export function GestionTable({
   eventNameById,
 }: GestionTableProps) {
   if (items.length === 0 && !onAddNew) {
-    return <p className="font-source text-[13px] text-[#99a1af]">{emptyHint}</p>;
+    return <p className="font-source text-[13px] text-[#636b78]">{emptyHint}</p>;
   }
 
   const withEvent = Boolean(eventNameById);
@@ -54,7 +54,7 @@ export function GestionTable({
         <col className={withEvent ? "w-[15%]" : "w-[14%]"} />
       </colgroup>
       <thead>
-        <tr className="border-b border-[#f3f4f6] font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">
+        <tr className="border-b border-[#f3f4f6] font-jost text-[11px] tracking-[0.5px] text-[#636b78] uppercase">
           <th className="py-2 pr-2 font-normal">Nombre</th>
           {withEvent && <th className="py-2 pr-2 font-normal">Evento</th>}
           <th className="py-2 pr-2 font-normal">Tipo</th>
@@ -128,7 +128,7 @@ export function GestionTable({
                 {formatShortDateEs(subtask.scheduled_date)}
               </td>
               <td className="py-2 pr-2 font-source text-[13px] text-[#4a5565]">{Number(subtask.estimated_hours) || 0} h</td>
-              <td className="hidden truncate py-2 pr-2 font-source text-[13px] text-[#99a1af] sm:table-cell">
+              <td className="hidden truncate py-2 pr-2 font-source text-[13px] text-[#636b78] sm:table-cell">
                 {subtask.description || "—"}
               </td>
               <td className="py-2 font-source text-[13px] text-[#4a5565]">

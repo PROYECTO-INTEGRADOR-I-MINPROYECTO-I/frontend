@@ -79,13 +79,13 @@ export function EventCard({
               {eventTypeName}
             </span>
           )}
-          <span className="font-source text-[12px] text-[#99a1af]">{dateLabel}</span>
+          <span className="font-source text-[12px] text-[#636b78]">{dateLabel}</span>
         </div>
 
         {loading ? (
-          <p className="font-source text-[12px] text-[#99a1af]">Cargando progreso…</p>
+          <p className="font-source text-[12px] text-[#636b78]">Cargando progreso…</p>
         ) : total === 0 ? (
-          <p className="font-source text-[12px] text-[#99a1af]">Sin gestiones todavía.</p>
+          <p className="font-source text-[12px] text-[#636b78]">Sin gestiones todavía.</p>
         ) : (
           <>
             <div
@@ -115,7 +115,7 @@ export function EventCard({
                   </p>
                 ))}
                 {previewMoreCount > 0 && (
-                  <p className="font-source text-[11px] text-[#99a1af]">+{previewMoreCount} más</p>
+                  <p className="font-source text-[11px] text-[#636b78]">+{previewMoreCount} más</p>
                 )}
               </div>
             )}
