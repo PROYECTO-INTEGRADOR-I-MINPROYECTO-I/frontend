@@ -2,6 +2,30 @@
 
 Interfaz de PlanificApp. React 19 + TypeScript + Vite + Tailwind CSS 4. El enrutado usa `react-router-dom`.
 
+## Probar en producción
+
+| Qué | URL |
+|---|---|
+| Aplicación | https://planificapp-web-prod.onrender.com/ |
+| API | https://planificapp-api-prod.onrender.com/api/ |
+| Estado de la API | https://planificapp-api-prod.onrender.com/api/health/ |
+| Documentación de la API | https://planificapp-api-prod.onrender.com/api/docs/ |
+
+**Cuenta demo:** `demo@planificapp.com` / `demo1234`. Ya tiene eventos y gestiones de ejemplo.
+
+> Render (plan gratuito) apaga la API cuando no se usa: la primera carga puede tardar ~50 s. Si el login no responde, abre primero el enlace de estado de la API y espera a que muestre `"status": "ok"`.
+
+Pasos de prueba sugeridos:
+
+1. **Ingresar** con la cuenta demo. Se abre la vista **Hoy**, con las gestiones vencidas, las de hoy y las próximas.
+2. **Crear un evento** desde el menú de eventos: nombre, fecha y tipo. En "Tipo" se puede crear un tipo personalizado y también eliminarlo con "Eliminar tipo".
+3. **Agregar gestiones** al evento con fecha y horas estimadas. Si se pasa del límite diario, la app muestra un aviso de sobrecarga.
+4. En **Hoy**, marcar una gestión como completada, **posponerla** o **reprogramarla**, ya sea con el botón o arrastrándola.
+5. Abrir el **detalle del evento** para editarlo o borrarlo, y revisar el **Progreso general**.
+6. En **Configuración**, cambiar el límite diario de horas. Al terminar, **cerrar sesión**.
+
+Toda la app se puede usar solo con teclado (Tab, Enter y Esc).
+
 ## Arranque rápido
 
 ```bash
@@ -9,7 +33,13 @@ npm install
 npm run dev
 ```
 
-Queda en http://localhost:5173. Requiere el backend corriendo en el puerto 8000.
+Queda en http://localhost:5173. Requiere el backend corriendo en el puerto 8000. Para tener la cuenta demo en local, en el backend se corre `python manage.py migrate && python manage.py seed_demo` (ver su README).
+
+| Variable | Valor | Uso |
+|---|---|---|
+| `VITE_API_URL` | `/api` en local (proxy de Vite); en los builds desplegados, la URL absoluta de la API de cada ambiente (prod: `https://planificapp-api-prod.onrender.com/api`) | Base de todas las llamadas |
+| `VITE_ENVIRONMENT` | `dev`, `qa` o `prod` | Ambiente del build |
+| `VITE_USE_MOCKS` | `true` solo en `npm run dev:mock` | Usar datos simulados sin backend |
 
 En local, `npm run dev` carga `.env.development`, donde `VITE_API_URL=/api`: el proxy de Vite (`vite.config.ts`) reenvía esas peticiones al Django de `localhost:8000`, así que el navegador nunca hace una petición cross-origin. Los archivos `.env.dev`, `.env.qa` y `.env.production` son para los builds desplegados y apuntan cada uno a la URL absoluta del backend de su ambiente. Detalle completo en [DEPLOYMENT.md](./DEPLOYMENT.md).
 
