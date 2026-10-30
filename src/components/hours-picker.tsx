@@ -226,7 +226,7 @@ export function HoursPicker({ id, value, onChange, invalid = false, describedBy 
               key={tick.minutes}
               style={isLast ? { right: 0 } : { left: `${leftPercent}%` }}
               className={cn(
-                "absolute font-source text-[11px] text-[#99a1af]",
+                "absolute font-source text-[11px] text-[#636b78]",
                 index > 0 && !isLast && "-translate-x-1/2"
               )}
             >

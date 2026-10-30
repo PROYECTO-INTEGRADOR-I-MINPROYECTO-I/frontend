@@ -138,7 +138,7 @@ export function CreatableSelect({
           <ChevronDown
             size={16}
             aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[#99a1af]"
+            className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[#636b78]"
           />
         </div>
       ) : (
@@ -199,7 +199,7 @@ export function CreatableSelect({
           {error}
         </p>
       ) : (
-        helperText && <p className="text-[12px] text-[#99a1af]">{helperText}</p>
+        helperText && <p className="text-[12px] text-[#636b78]">{helperText}</p>
       )}
     </div>
   );

@@ -105,7 +105,7 @@ export function SubtaskCard({
       className={cn(
         "flex w-full items-start gap-3 rounded-lg border bg-white p-4 text-left transition-colors hover:border-[#d4d5d7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]",
         overdue ? "border-[rgba(139,26,26,0.1)]" : "border-[#f3f4f6]",
-        (completed || postponed) && "opacity-60",
+        (completed || postponed) && "bg-[#f9fafb]",
         canDrag && "cursor-grab"
       )}
     >
@@ -145,7 +145,7 @@ export function SubtaskCard({
                   event.stopPropagation();
                   onAddNote(subtask);
                 }}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[#99a1af] transition-colors hover:bg-[#f4f4f5] hover:text-[#52525b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#636b78] transition-colors hover:bg-[#f4f4f5] hover:text-[#52525b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
               >
                 <StickyNote aria-hidden="true" size={13} />
               </button>
@@ -160,7 +160,7 @@ export function SubtaskCard({
           >
             {subtask.category}
           </span>
-          <span className={cn("font-source text-[12px]", overdue ? "text-[rgba(139,26,26,0.7)]" : "text-[#99a1af]")}>
+          <span className={cn("font-source text-[12px]", overdue ? "text-[rgba(139,26,26,0.7)]" : "text-[#636b78]")}>
             {formatShortDateEs(subtask.scheduled_date)}
           </span>
           {action && !isDone && (
@@ -180,7 +180,7 @@ export function SubtaskCard({
         </div>
 
         {postponed && subtask.postpone_note && (
-          <p title={subtask.postpone_note} className="truncate pt-1 font-source text-[12px] italic text-[#99a1af]">{subtask.postpone_note}</p>
+          <p title={subtask.postpone_note} className="truncate pt-1 font-source text-[12px] italic text-[#636b78]">{subtask.postpone_note}</p>
         )}
 
         {eventName && (

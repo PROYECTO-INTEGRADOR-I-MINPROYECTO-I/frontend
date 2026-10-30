@@ -151,20 +151,20 @@ export function EventDetailView(props: EventDetailViewProps) {
                     {eventTypeName}
                   </span>
                 )}
-                <span className="font-source text-[13px] text-[#99a1af]">{dateLabel}</span>
+                <span className="font-source text-[13px] text-[#636b78]">{dateLabel}</span>
               </div>
             )}
 
             {props.event?.place && (
               <p className="font-source text-[14px] text-[#4a5565]">
-                <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Lugar: </span>
+                <span className="font-jost text-[11px] tracking-[0.5px] text-[#636b78] uppercase">Lugar: </span>
                 {props.event.place}
               </p>
             )}
 
             {props.event?.client_contact && (
               <p className="font-source text-[14px] text-[#4a5565]">
-                <span className="font-jost text-[11px] tracking-[0.5px] text-[#99a1af] uppercase">Contacto: </span>
+                <span className="font-jost text-[11px] tracking-[0.5px] text-[#636b78] uppercase">Contacto: </span>
                 {props.event.client_contact}
               </p>
             )}
@@ -201,7 +201,7 @@ export function EventDetailView(props: EventDetailViewProps) {
 
         <div className="mt-4 flex flex-col gap-3">
           {subtasksLoading ? (
-            <p className="font-source text-[13px] text-[#99a1af]">Cargando gestiones…</p>
+            <p className="font-source text-[13px] text-[#636b78]">Cargando gestiones…</p>
           ) : (
             <>
               <GestionGroup status="today" label="Para hoy" items={paraHoy} emptyHint="Sin gestiones para hoy." onOpenSubtask={onOpenSubtask} eventNameById={eventNameById} />
@@ -271,14 +271,14 @@ function GestionGroup({ id, status, label, items, emptyHint, onOpenSubtask, even
           <ChevronDown
             aria-hidden="true"
             size={16}
-            className={`text-[#99a1af] transition-transform duration-150 ${isOpen ? "" : "rotate-180"}`}
+            className={`text-[#636b78] transition-transform duration-150 ${isOpen ? "" : "rotate-180"}`}
           />
         </span>
-        <span className="font-source text-[11px] normal-case text-[#99a1af]">- {visibleItems.length} GESTIONES</span>
+        <span className="font-source text-[11px] normal-case text-[#636b78]">- {visibleItems.length} GESTIONES</span>
       </summary>
       <div className="border-t border-black/10 px-4 py-3">
         {items.length === 0 ? (
-          <p className="font-source text-[13px] text-[#99a1af]">{emptyHint}</p>
+          <p className="font-source text-[13px] text-[#636b78]">{emptyHint}</p>
         ) : (
           <>
             <div className="mb-3 flex items-center gap-2">

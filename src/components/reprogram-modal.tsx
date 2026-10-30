@@ -155,7 +155,7 @@ export function ReprogramModal({
         )}
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="reprogram-date" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+          <label htmlFor="reprogram-date" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
             Nueva fecha
           </label>
           <Controller
@@ -187,7 +187,7 @@ export function ReprogramModal({
         </div>
 
         <div className="flex flex-col gap-1">
-          <span id="reprogram-hours-label" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+          <span id="reprogram-hours-label" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
             Nueva duración
           </span>
           <Controller

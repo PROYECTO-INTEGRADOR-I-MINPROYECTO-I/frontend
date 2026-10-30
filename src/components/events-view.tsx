@@ -248,7 +248,7 @@ export function EventsView({
     return (
       <div className="grid flex-1 min-h-[420px] place-items-center px-8">
         <div className="grid justify-items-center gap-5 text-center">
-          <p className="m-0 text-[28px] leading-[1.16] text-[#99a1af]">
+          <p className="m-0 text-[28px] leading-[1.16] text-[#636b78]">
             Aún no tienes eventos
             <br />
             ¡Crea uno nuevo!
