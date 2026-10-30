@@ -270,7 +270,7 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
         )}
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="event-name" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+          <label htmlFor="event-name" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
             Nombre
           </label>
           <input
@@ -295,7 +295,7 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
               {errors.name.message}
             </p>
           ) : (
-            <p className="text-[12px] text-[#99a1af]">Ej. Boda Luisa &amp; Carlos</p>
+            <p className="text-[12px] text-[#636b78]">Ej. Boda Luisa &amp; Carlos</p>
           )}
         </div>
 
@@ -323,7 +323,7 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
-            <label htmlFor="event-date" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+            <label htmlFor="event-date" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
               Fecha
             </label>
             <input
@@ -343,12 +343,12 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
                 {errors.date.message}
               </p>
             ) : (
-              <p className="text-[12px] text-[#99a1af]">Obligatoria</p>
+              <p className="text-[12px] text-[#636b78]">Obligatoria</p>
             )}
           </div>
 
           <div className="flex flex-col gap-1">
-            <label htmlFor="event-time" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+            <label htmlFor="event-time" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
               Hora
             </label>
             <input
@@ -369,13 +369,13 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
                 {errors.time.message}
               </p>
             ) : (
-              <p className="text-[12px] text-[#99a1af]">Obligatoria</p>
+              <p className="text-[12px] text-[#636b78]">Obligatoria</p>
             )}
           </div>
         </div>
 
         <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
-          <label htmlFor="event-place" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+          <label htmlFor="event-place" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
             Lugar
           </label>
           <input
@@ -387,7 +387,7 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="event-client" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+          <label htmlFor="event-client" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
             Cliente / Contacto
           </label>
           <input
@@ -399,7 +399,7 @@ export function EventFormModal({ initialValues, onClose, onCreated, onUpdated }:
         </div>
 
         <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
-          <label htmlFor="event-description" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+          <label htmlFor="event-description" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
             Descripción
           </label>
           <textarea

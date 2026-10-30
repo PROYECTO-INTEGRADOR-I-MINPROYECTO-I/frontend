@@ -105,7 +105,7 @@ export function SubtaskCard({
       className={cn(
         "flex w-full items-start gap-3 rounded-lg border bg-white p-4 text-left transition-colors hover:border-[#d4d5d7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]",
         overdue ? "border-[rgba(139,26,26,0.1)]" : "border-[#f3f4f6]",
-        (completed || postponed) && "opacity-60",
+        (completed || postponed) && "bg-[#f9fafb]",
         canDrag && "cursor-grab"
       )}
     >
@@ -121,7 +121,7 @@ export function SubtaskCard({
             onToggleComplete(subtask);
           }}
           className={cn(
-            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50",
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50",
             isDone ? "border-[#007a55] bg-[#007a55] text-white" : "border-[#d4d5d7] text-transparent"
           )}
         >
@@ -131,7 +131,15 @@ export function SubtaskCard({
 
       <div className="flex w-full flex-col">
         <div className="flex w-full items-start justify-between gap-2">
-          <p className="font-jost text-[14px] leading-[17.5px] text-[#101828]">{subtask.title}</p>
+          <p
+            className={cn(
+              "font-jost text-[14px] leading-[17.5px]",
+              completed || postponed ? "text-[#4a5565]" : "text-[#101828]",
+              completed && "line-through"
+            )}
+          >
+            {subtask.title}
+          </p>
           <div className="flex shrink-0 items-center gap-1">
             <span className="rounded-full bg-[#f3f4f6] px-2 py-0.5 font-jost text-[10px] tracking-[0.25px] text-[#4a5565] uppercase">
               {hoursLabel}
@@ -145,7 +153,7 @@ export function SubtaskCard({
                   event.stopPropagation();
                   onAddNote(subtask);
                 }}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[#99a1af] transition-colors hover:bg-[#f4f4f5] hover:text-[#52525b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#636b78] transition-colors hover:bg-[#f4f4f5] hover:text-[#52525b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
               >
                 <StickyNote aria-hidden="true" size={13} />
               </button>
@@ -160,7 +168,7 @@ export function SubtaskCard({
           >
             {subtask.category}
           </span>
-          <span className={cn("font-source text-[12px]", overdue ? "text-[rgba(139,26,26,0.7)]" : "text-[#99a1af]")}>
+          <span className={cn("font-source text-[12px]", overdue ? "text-[rgba(139,26,26,0.7)]" : "text-[#636b78]")}>
             {formatShortDateEs(subtask.scheduled_date)}
           </span>
           {action && !isDone && (
@@ -180,7 +188,7 @@ export function SubtaskCard({
         </div>
 
         {postponed && subtask.postpone_note && (
-          <p title={subtask.postpone_note} className="truncate pt-1 font-source text-[12px] italic text-[#99a1af]">{subtask.postpone_note}</p>
+          <p title={subtask.postpone_note} className="truncate pt-1 font-source text-[12px] italic text-[#636b78]">{subtask.postpone_note}</p>
         )}
 
         {eventName && (
@@ -192,7 +200,7 @@ export function SubtaskCard({
                 event.stopPropagation();
                 onEventClick?.();
               }}
-              className="rounded-sm font-medium text-[#8b1a1a] underline decoration-[#8b1a1a]/40 hover:decoration-[#8b1a1a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
+              className="-my-1 rounded-sm py-1 font-medium text-[#8b1a1a] underline decoration-[#8b1a1a]/40 hover:decoration-[#8b1a1a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
             >
               {eventName}
             </button>

@@ -349,7 +349,7 @@ export function SubtaskFormModal({
         )}
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="subtask-title" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+          <label htmlFor="subtask-title" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
             Nombre
           </label>
           <input
@@ -397,7 +397,7 @@ export function SubtaskFormModal({
 
         <div className="grid grid-cols-1 gap-4">
           <div className="flex flex-col gap-1">
-            <label htmlFor="subtask-date" className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase">
+            <label htmlFor="subtask-date" className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase">
               Fecha objetivo
             </label>
             <input
@@ -434,7 +434,7 @@ export function SubtaskFormModal({
                 se asocia con este texto via aria-labelledby. */}
             <span
               id="subtask-hours-label"
-              className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase"
+              className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase"
             >
               Horas estimadas
             </span>
@@ -466,7 +466,7 @@ export function SubtaskFormModal({
         <div className="flex flex-col gap-1 border-t border-[#f3f4f6] pt-4">
           <label
             htmlFor="subtask-description"
-            className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase"
+            className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase"
           >
             Descripción
           </label>

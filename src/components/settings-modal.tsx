@@ -75,7 +75,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         <div className="flex flex-col gap-1">
           <label
             htmlFor="settings-max-hours"
-            className="font-jost text-[10px] tracking-[1px] text-[#99a1af] uppercase"
+            className="font-jost text-[10px] tracking-[1px] text-[#636b78] uppercase"
           >
             Límite diario de horas de gestión
           </label>
@@ -102,7 +102,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               },
             })}
           />
-          <p id="settings-max-hours-help" className="font-source text-[12px] text-[#99a1af]">
+          <p id="settings-max-hours-help" className="font-source text-[12px] text-[#636b78]">
             Es el máximo de horas que quieres dedicar a gestiones en un mismo día. Si una gestión te hace pasarlo, te avisaremos. Entre 1 y 16 horas; por defecto, 6.
           </p>
           {errors.max_daily_hours && (

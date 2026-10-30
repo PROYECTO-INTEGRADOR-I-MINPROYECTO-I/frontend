@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Foco visible por defecto (WCAG 2.4.7); en la capa base para que los
+   focus-visible:* de cada componente lo sigan pisando. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid #8b1a1a;
+    outline-offset: 2px;
+  }
+}
+
 /* Tipografía del Figma: Jost en títulos/labels/botones, Source Sans 3 en
    valores de inputs y contenido. Se cargan desde Google Fonts en index.html. */
 .font-jost {
