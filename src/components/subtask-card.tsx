@@ -131,7 +131,15 @@ export function SubtaskCard({
 
       <div className="flex w-full flex-col">
         <div className="flex w-full items-start justify-between gap-2">
-          <p className="font-jost text-[14px] leading-[17.5px] text-[#101828]">{subtask.title}</p>
+          <p
+            className={cn(
+              "font-jost text-[14px] leading-[17.5px]",
+              completed || postponed ? "text-[#4a5565]" : "text-[#101828]",
+              completed && "line-through"
+            )}
+          >
+            {subtask.title}
+          </p>
           <div className="flex shrink-0 items-center gap-1">
             <span className="rounded-full bg-[#f3f4f6] px-2 py-0.5 font-jost text-[10px] tracking-[0.25px] text-[#4a5565] uppercase">
               {hoursLabel}
