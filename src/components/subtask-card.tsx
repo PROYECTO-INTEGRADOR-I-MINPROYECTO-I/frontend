@@ -121,7 +121,7 @@ export function SubtaskCard({
             onToggleComplete(subtask);
           }}
           className={cn(
-            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50",
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50",
             isDone ? "border-[#007a55] bg-[#007a55] text-white" : "border-[#d4d5d7] text-transparent"
           )}
         >
@@ -192,7 +192,7 @@ export function SubtaskCard({
                 event.stopPropagation();
                 onEventClick?.();
               }}
-              className="rounded-sm font-medium text-[#8b1a1a] underline decoration-[#8b1a1a]/40 hover:decoration-[#8b1a1a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
+              className="-my-1 rounded-sm py-1 font-medium text-[#8b1a1a] underline decoration-[#8b1a1a]/40 hover:decoration-[#8b1a1a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8b1a1a]"
             >
               {eventName}
             </button>
